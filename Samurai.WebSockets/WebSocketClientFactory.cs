@@ -70,15 +70,21 @@ namespace Samurai.WebSockets
         /// <returns>A connected web socket instance</returns>
         public async Task<WebSocket> ConnectAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken))
         {
-            Guid guid = Guid.NewGuid();
-            string host = uri.Host;
-            int port = uri.Port;
-            string uriScheme = uri.Scheme.ToLower();
-            bool useSsl = uriScheme == "wss" || uriScheme == "https";
-            Console.WriteLine($"Connecting to {uri} with guid {guid} using {(useSsl ? "SSL" : "no SSL")}");
-            Stream stream = await this.GetStream(guid, useSsl, options.NoDelay, host, port, cancellationToken);
-            Console.WriteLine($"Connected to {uri} with guid {guid} using {(useSsl ? "SSL" : "no SSL")}");
-            return await this.PerformHandshakeAsync(guid, uri, stream, options, cancellationToken);
+            var guid = Guid.NewGuid();
+            var uriScheme = uri.Scheme.ToLower();
+
+            return await this.PerformHandshakeAsync(
+                guid,
+                uri,
+                await this.GetStreamAsync(
+                    guid,
+                    uriScheme == "wss" || uriScheme == "https",
+                    options.NoDelay,
+                    uri.Host,
+                    uri.Port,
+                    cancellationToken),
+                options,
+                cancellationToken);
         }
 
         /// <summary>
@@ -187,7 +193,7 @@ namespace Samurai.WebSockets
         /// <param name="port">The destination port</param>
         /// <param name="cancellationToken">Used to cancel the request</param>
         /// <returns>A connected and open stream</returns>
-        protected virtual async Task<Stream> GetStream(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
+        protected virtual async Task<Stream> GetStreamAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
         {
             var tcpClient = new TcpClient();
             tcpClient.NoDelay = noDelay;

@@ -559,7 +559,6 @@ namespace Samurai.WebSockets.Internal
         private async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
         {
             ArraySegment<byte> buffer = this.GetBuffer(stream);
-            Console.WriteLine($"WriteStreamToNetworkAsync: {buffer.Count} bytes to write to network stream");
             await this.semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
@@ -567,7 +566,6 @@ namespace Samurai.WebSockets.Internal
             }
             finally
             {
-                Console.WriteLine($"WriteStreamToNetworkAsync: {buffer.Count} bytes written to network stream");
                 this.semaphore.Release();
             }
         }
