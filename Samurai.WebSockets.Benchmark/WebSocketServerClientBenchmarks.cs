@@ -1,11 +1,5 @@
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Running;
-using BenchmarkDotNet.Order;
-using BenchmarkDotNet.Jobs;
-using Samurai.WebSockets;
 using System;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
@@ -15,6 +9,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Order;
+using BenchmarkDotNet.Jobs;
+using Samurai.WebSockets;
 
 [SimpleJob(RuntimeMoniker.Net90)]
 [MemoryDiagnoser]
@@ -33,7 +31,6 @@ public class WebSocketServerClientBenchmarks
     // Track server readiness and client connections
     private TaskCompletionSource<bool> serverReadyTcs;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> clientDisconnectTasks = new();
-    private volatile bool isServerReady = false;
 
     [Params(1, 5, 10)]
     public int ClientCount { get; set; }
@@ -58,7 +55,6 @@ public class WebSocketServerClientBenchmarks
             try
             {
                 // Signal that server is ready to accept connections
-                this.isServerReady = true;
                 this.serverReadyTcs.SetResult(true);
 
                 while (!this.serverCts.Token.IsCancellationRequested)

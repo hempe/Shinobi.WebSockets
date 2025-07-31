@@ -81,10 +81,14 @@ namespace Samurai.WebSockets.UnitTests
             {
                 try
                 {
+                    Console.WriteLine("[Server] Waiting for connection...");
                     var context = await this.listener.GetContextAsync();
+                    Console.WriteLine("[Server] Connection established.");
                     if (context.Request.IsWebSocketRequest)
                     {
+                        Console.WriteLine("[Server] WebSocket request received.");
                         var webSocketContext = await context.AcceptWebSocketAsync(null);
+                        Console.WriteLine("[Server] WebSocket accepted.");
                         var webSocket = webSocketContext.WebSocket;
                         this.webSocket = webSocket;
                         var receiveBuffer = new byte[4096];
@@ -94,8 +98,9 @@ namespace Samurai.WebSockets.UnitTests
                         while (webSocket.State == WebSocketState.Open)
                         {
                             var arraySegment = new ArraySegment<byte>(receiveBuffer);
+                            Console.WriteLine("[Server] Waiting for message...");
                             var received = await webSocket.ReceiveAsync(arraySegment, cancellationToken);
-
+                            Console.WriteLine($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
                             switch (received.MessageType)
                             {
                                 case WebSocketMessageType.Close:
@@ -168,7 +173,7 @@ namespace Samurai.WebSockets.UnitTests
         [InlineData(true)]
         public async Task SendLargeBinaryMessage(bool useSamurai)
         {
-            Console.WriteLine("SendLargeBinaryMessage");
+            Console.WriteLine("[Client] SendLargeBinaryMessage");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             using (var server = new Server())
             {
@@ -179,17 +184,18 @@ namespace Samurai.WebSockets.UnitTests
                 if (useSamurai)
                 {
                     var factory = new WebSocketClientFactory();
+                    Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync");
                     webSocket = await factory.ConnectAsync(server.Address, new WebSocketClientOptions(), cts.Token);
                 }
                 else
                 {
                     var clientWebSocket = new ClientWebSocket();
-                    Console.WriteLine("SendLargeBinaryMessage:ConnectAsync");
+                    Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync");
                     await clientWebSocket.ConnectAsync(server.Address, cts.Token);
                     webSocket = clientWebSocket;
                 }
 
-                Console.WriteLine("SendLargeBinaryMessage:Random");
+                Console.WriteLine("[Client] SendLargeBinaryMessage:Random");
                 var rand = new Random();
                 var message = new byte[10000];
                 Random.Shared.NextBytes(message);

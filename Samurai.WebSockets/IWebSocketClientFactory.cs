@@ -17,7 +17,7 @@ namespace Samurai.WebSockets
         /// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket instance</returns>
-        Task<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken = default(CancellationToken));
+        ValueTask<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
         /// Connect with options specified
@@ -26,7 +26,7 @@ namespace Samurai.WebSockets
         /// <param name="options">The WebSocket client options</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket instance</returns>
-        Task<WebSocket> ConnectAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken));
+        ValueTask<WebSocket> ConnectAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
         /// Connect with a stream that has already been opened and HTTP websocket upgrade request sent
@@ -40,6 +40,6 @@ namespace Samurai.WebSockets
         /// <param name="options">The WebSocket client options</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns></returns>
-        Task<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken));
+        ValueTask<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken));
     }
 }

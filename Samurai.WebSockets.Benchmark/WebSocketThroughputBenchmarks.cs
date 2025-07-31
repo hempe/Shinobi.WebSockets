@@ -1,20 +1,14 @@
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Running;
-using BenchmarkDotNet.Order;
-using BenchmarkDotNet.Jobs;
-using Ninja.WebSockets;
 using System;
-using System.Collections.Concurrent;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Order;
+using BenchmarkDotNet.Jobs;
+using Samurai.WebSockets;
 
 [SimpleJob(RuntimeMoniker.Net90)]
 [MemoryDiagnoser]
@@ -151,6 +145,16 @@ public class WebSocketThroughputBenchmarks
         {
             // Log or handle cleanup exceptions if necessary
             Console.WriteLine($"Cleanup failed: {ex.Message}");
+        }
+        finally
+        {
+            this.serverWebSocket.Dispose();
+            this.serverCts?.Dispose();
+            this.listener = null;
+            this.serverWebSocket = null;
+            this.server = null;
+            this.client = null;
+            this.serverTask = null;
         }
     }
 

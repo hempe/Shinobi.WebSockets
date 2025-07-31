@@ -1,5 +1,6 @@
 ﻿// ---------------------------------------------------------------------
 // Copyright 2018 David Haig
+// Copyright 2025 Hempe
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy 
 // of this software and associated documentation files (the "Software"), to deal 
@@ -56,10 +57,8 @@ namespace Samurai.WebSockets
         /// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket instance</returns>
-        public async Task<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken = default(CancellationToken))
-        {
-            return await this.ConnectAsync(uri, new WebSocketClientOptions(), cancellationToken);
-        }
+        public async ValueTask<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken = default(CancellationToken))
+            => await this.ConnectAsync(uri, new WebSocketClientOptions(), cancellationToken);
 
         /// <summary>
         /// Connect with options specified
@@ -68,7 +67,7 @@ namespace Samurai.WebSockets
         /// <param name="options">The WebSocket client options</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket instance</returns>
-        public async Task<WebSocket> ConnectAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken))
+        public async ValueTask<WebSocket> ConnectAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken))
         {
             var guid = Guid.NewGuid();
             var uriScheme = uri.Scheme.ToLower();
@@ -99,19 +98,16 @@ namespace Samurai.WebSockets
         /// <param name="options">The WebSocket client options</param>
         /// <param name="token">The optional cancellation token</param>
         /// <returns></returns>
-        public async Task<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken))
-        {
-
-            return await this.ConnectAsync(Guid.NewGuid(),
+        public ValueTask<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken))
+            => this.ConnectAsync(Guid.NewGuid(),
                 responseStream,
                 secWebSocketKey,
                 options.KeepAliveInterval,
                 options.SecWebSocketExtensions,
                 options.IncludeExceptionInCloseResponse,
                 cancellationToken);
-        }
 
-        private async Task<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
+        private async ValueTask<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
         {
             Events.Log.ReadingHttpResponse(guid);
             string response;
@@ -193,12 +189,10 @@ namespace Samurai.WebSockets
         /// <param name="port">The destination port</param>
         /// <param name="cancellationToken">Used to cancel the request</param>
         /// <returns>A connected and open stream</returns>
-        protected virtual async Task<Stream> GetStreamAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
+        protected virtual async ValueTask<Stream> GetStreamAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
         {
-            var tcpClient = new TcpClient();
-            tcpClient.NoDelay = noDelay;
-            IPAddress ipAddress;
-            if (IPAddress.TryParse(host, out ipAddress))
+            var tcpClient = new TcpClient { NoDelay = noDelay };
+            if (IPAddress.TryParse(host, out var ipAddress))
             {
                 Events.Log.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
                 await tcpClient.ConnectAsync(ipAddress, port);
@@ -253,7 +247,7 @@ namespace Samurai.WebSockets
             return builder.ToString();
         }
 
-        private async Task<WebSocket> PerformHandshakeAsync(Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
+        private ValueTask<WebSocket> PerformHandshakeAsync(Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
         {
             var secWebSocketKey = SharedRandom.SecWebSocketKey();
             var additionalHeaders = GetAdditionalHeaders(options.AdditionalHttpHeaders);
@@ -270,7 +264,7 @@ namespace Samurai.WebSockets
             var httpRequest = Encoding.UTF8.GetBytes(handshakeHttpRequest);
             stream.Write(httpRequest, 0, httpRequest.Length);
             Events.Log.HandshakeSent(guid, handshakeHttpRequest);
-            return await this.ConnectAsync(stream, secWebSocketKey, options, cancellationToken);
+            return this.ConnectAsync(stream, secWebSocketKey, options, cancellationToken);
         }
     }
 }
