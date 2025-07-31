@@ -1,4 +1,4 @@
-﻿# Ninja WebSockets
+﻿# Samurai WebSockets
 
 A concrete implementation of the .Net Standard 2.0 System.Net.WebSockets.WebSocket abstract class
 
@@ -7,7 +7,7 @@ You can safely pass around a general purpose WebSocket instance throughout your 
 
 ### Dependencies
 
-No dependencies. 
+No dependencies.
 
 ## Getting Started
 
@@ -30,6 +30,7 @@ if (context.IsWebSocketRequest)
     WebSocket webSocket = await factory.AcceptWebSocketAsync(context);
 }
 ```
+
 ## Using the WebSocket class
 
 Client and Server send and receive data the same way.
@@ -60,17 +61,18 @@ private async Task Receive(WebSocket webSocket)
 Receive data in an infinite loop until we receive a close frame from the server.
 
 Sending Data:
+
 ```csharp
 private async Task Send(WebSocket webSocket)
 {
     var array = Encoding.UTF8.GetBytes("Hello World");
     var buffer = new ArraySegment<byte>(array);
     await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
-} 
+}
 ```
 
 Simple client Request / Response:
-The best approach to communicating using a web socket is to send and receive data on different worker threads as shown below. 
+The best approach to communicating using a web socket is to send and receive data on different worker threads as shown below.
 
 ```csharp
 public async Task Run()
@@ -89,8 +91,8 @@ public async Task Run()
         await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
 
         // wait for server to respond with a close frame
-        await readTask; 
-    }           
+        await readTask;
+    }
 }
 ```
 
@@ -112,10 +114,10 @@ This project is licensed under the MIT License - see the LICENSE.md file for det
 
 ## Acknowledgments
 
-* Step by step guide:
+- Step by step guide:
   https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers
 
-* The official WebSocket spec:
+- The official WebSocket spec:
   http://tools.ietf.org/html/rfc6455
 
 ## Further Reading
