@@ -29,7 +29,7 @@ namespace Samurai.WebSockets.Internal
 {
     internal static class BinaryReaderWriterExtnesions
     {
-        public static async Task ReadFixedLengthAsync(this Stream stream, int length, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        public static async ValueTask ReadFixedLengthAsync(this Stream stream, int length, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
             if (length == 0)
                 return;
@@ -42,7 +42,7 @@ namespace Samurai.WebSockets.Internal
             int offset = 0;
             do
             {
-                int bytesRead = await stream.ReadAsync(buffer.Array, buffer.Offset + offset, length - offset, cancellationToken);
+                int bytesRead = await stream.ReadAsync(buffer.Array, buffer.Offset + offset, length - offset, cancellationToken).ConfigureAwait(false);
                 if (bytesRead == 0)
                     throw new EndOfStreamException(string.Format("Unexpected end of stream encountered whilst attempting to read {0:#,##0} bytes", length));
 
@@ -52,9 +52,9 @@ namespace Samurai.WebSockets.Internal
             return;
         }
 
-        public static async Task<ushort> ReadUShortAsync(this Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        public static async ValueTask<ushort> ReadUShortAsync(this Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
-            await stream.ReadFixedLengthAsync(2, buffer, cancellationToken);
+            await stream.ReadFixedLengthAsync(2, buffer, cancellationToken).ConfigureAwait(false);
 
             if (!isLittleEndian)
                 Array.Reverse(buffer.Array, buffer.Offset, 2); // big endian
@@ -62,9 +62,9 @@ namespace Samurai.WebSockets.Internal
             return BitConverter.ToUInt16(buffer.Array, buffer.Offset);
         }
 
-        public static async Task<ulong> ReadULongAsync(this Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        public static async ValueTask<ulong> ReadULongAsync(this Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
-            await stream.ReadFixedLengthAsync(8, buffer, cancellationToken);
+            await stream.ReadFixedLengthAsync(8, buffer, cancellationToken).ConfigureAwait(false);
 
             if (!isLittleEndian)
                 Array.Reverse(buffer.Array, buffer.Offset, 8); // big endian

@@ -57,8 +57,8 @@ namespace Samurai.WebSockets
         /// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket instance</returns>
-        public async ValueTask<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken = default(CancellationToken))
-            => await this.ConnectAsync(uri, new WebSocketClientOptions(), cancellationToken);
+        public ValueTask<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken = default(CancellationToken))
+            => this.ConnectAsync(uri, new WebSocketClientOptions(), cancellationToken);
 
         /// <summary>
         /// Connect with options specified
@@ -81,9 +81,9 @@ namespace Samurai.WebSockets
                     options.NoDelay,
                     uri.Host,
                     uri.Port,
-                    cancellationToken),
+                    cancellationToken).ConfigureAwait(false),
                 options,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -114,7 +114,7 @@ namespace Samurai.WebSockets
 
             try
             {
-                response = await responseStream.ReadHttpHeaderAsync(cancellationToken);
+                response = await responseStream.ReadHttpHeaderAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -195,12 +195,12 @@ namespace Samurai.WebSockets
             if (IPAddress.TryParse(host, out var ipAddress))
             {
                 Events.Log.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
-                await tcpClient.ConnectAsync(ipAddress, port);
+                await tcpClient.ConnectAsync(ipAddress, port).ConfigureAwait(false);
             }
             else
             {
                 Events.Log.ClientConnectingToHost(loggingGuid, host, port);
-                await tcpClient.ConnectAsync(host, port);
+                await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
             }
 
             cancellationToken.ThrowIfCancellationRequested();

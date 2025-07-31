@@ -34,7 +34,7 @@ namespace WebSockets.DemoClient
         private static async Task RunLoadTest()
         {
             var client = new LoadTest();
-            await client.Run();
+            await client.RunAsync();
         }
 
         private static void RunComplexTest(string[] args)

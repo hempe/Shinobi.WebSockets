@@ -136,39 +136,39 @@ namespace Samurai.WebSockets.Internal
                                 // If the buffer used to read the frame was too small to fit the whole frame then we need to "remember" this frame
                                 // and return what we have. Subsequent calls to the read function will simply continue reading off the stream without 
                                 // decoding the first few bytes as a websocket header.
-                                this.readCursor = await WebSocketFrameReader.ReadFromCursorAsync(this.stream, buffer, this.readCursor, linkedCts.Token);
+                                this.readCursor = await WebSocketFrameReader.ReadFromCursorAsync(this.stream, buffer, this.readCursor, linkedCts.Token).ConfigureAwait(false);
                                 frame = this.readCursor.WebSocketFrame;
                             }
                             else
                             {
-                                this.readCursor = await WebSocketFrameReader.ReadAsync(this.stream, buffer, linkedCts.Token);
+                                this.readCursor = await WebSocketFrameReader.ReadAsync(this.stream, buffer, linkedCts.Token).ConfigureAwait(false);
                                 frame = this.readCursor.WebSocketFrame;
                                 Events.Log.ReceivedFrame(this.guid, frame.OpCode, frame.IsFinBitSet, frame.Count);
                             }
                         }
                         catch (InternalBufferOverflowException ex)
                         {
-                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.MessageTooBig, "Frame too large to fit in buffer. Use message fragmentation", ex);
+                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.MessageTooBig, "Frame too large to fit in buffer. Use message fragmentation", ex).ConfigureAwait(false);
                             throw;
                         }
                         catch (ArgumentOutOfRangeException ex)
                         {
-                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, "Payload length out of range", ex);
+                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, "Payload length out of range", ex).ConfigureAwait(false);
                             throw;
                         }
                         catch (EndOfStreamException ex)
                         {
-                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InvalidPayloadData, "Unexpected end of stream encountered", ex);
+                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InvalidPayloadData, "Unexpected end of stream encountered", ex).ConfigureAwait(false);
                             throw;
                         }
                         catch (OperationCanceledException ex)
                         {
-                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Operation cancelled", ex);
+                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Operation cancelled", ex).ConfigureAwait(false);
                             throw;
                         }
                         catch (Exception ex)
                         {
-                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex);
+                            await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex).ConfigureAwait(false);
                             throw;
                         }
 
@@ -176,10 +176,10 @@ namespace Samurai.WebSockets.Internal
                         switch (frame.OpCode)
                         {
                             case WebSocketOpCode.ConnectionClose:
-                                return await this.RespondToCloseFrameAsync(frame, buffer, linkedCts.Token);
+                                return await this.RespondToCloseFrameAsync(frame, buffer, linkedCts.Token).ConfigureAwait(false);
                             case WebSocketOpCode.Ping:
                                 ArraySegment<byte> pingPayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, this.readCursor.NumBytesRead);
-                                await this.SendPongAsync(pingPayload, linkedCts.Token);
+                                await this.SendPongAsync(pingPayload, linkedCts.Token).ConfigureAwait(false);
                                 break;
                             case WebSocketOpCode.Pong:
                                 this.pingSentTicks = 0;
@@ -202,7 +202,7 @@ namespace Samurai.WebSockets.Internal
                                 return new WebSocketReceiveResult(this.readCursor.NumBytesRead, this.continuationFrameMessageType, endOfMessage);
                             default:
                                 Exception ex = new NotSupportedException($"Unknown WebSocket opcode {frame.OpCode}");
-                                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex);
+                                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
                                 throw ex;
                         }
                     }
@@ -214,7 +214,7 @@ namespace Samurai.WebSockets.Internal
                 // However, if an unhandled exception is encountered and a close message not sent then send one here
                 if (this.state == WebSocketState.Open)
                 {
-                    await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Unexpected error reading from WebSocket", catchAll);
+                    await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Unexpected error reading from WebSocket", catchAll).ConfigureAwait(false);
                 }
 
                 throw;
@@ -256,7 +256,7 @@ namespace Samurai.WebSockets.Internal
                     Events.Log.SendingFrame(this.guid, opCode, endOfMessage, buffer.Count, false);
                 }
 
-                await this.WriteStreamToNetworkAsync(stream, cancellationToken);
+                await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 this.isContinuationFrame = !endOfMessage; // TODO: is this correct??
             }
         }
@@ -283,7 +283,7 @@ namespace Samurai.WebSockets.Internal
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
                     Events.Log.CloseHandshakeStarted(this.guid, closeStatus, statusDescription);
                     Events.Log.SendingFrame(this.guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
-                    await this.WriteStreamToNetworkAsync(stream, cancellationToken);
+                    await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                     this.state = WebSocketState.CloseSent;
                 }
             }
@@ -308,7 +308,7 @@ namespace Samurai.WebSockets.Internal
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
                     Events.Log.CloseOutputNoHandshake(this.guid, closeStatus, statusDescription);
                     Events.Log.SendingFrame(this.guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
-                    await this.WriteStreamToNetworkAsync(stream, cancellationToken);
+                    await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
@@ -354,7 +354,7 @@ namespace Samurai.WebSockets.Internal
             }
         }
 
-        private async Task PingForeverAsync(CancellationToken cancellationToken)
+        private async ValueTask PingForeverAsync(CancellationToken cancellationToken)
         {
             Events.Log.PingPongStarted(this.guid, (int)this.KeepAliveInterval.TotalSeconds);
 
@@ -362,7 +362,7 @@ namespace Samurai.WebSockets.Internal
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(this.KeepAliveInterval, cancellationToken);
+                    await Task.Delay(this.KeepAliveInterval, cancellationToken).ConfigureAwait(false);
 
                     if (this.State != WebSocketState.Open)
                         return;
@@ -370,7 +370,11 @@ namespace Samurai.WebSockets.Internal
                     if (this.pingSentTicks != 0)
                     {
                         Events.Log.KeepAliveIntervalExpired(this.guid, (int)this.KeepAliveInterval.TotalSeconds);
-                        await this.CloseAsync(WebSocketCloseStatus.NormalClosure, $"No Pong message received in response to a Ping after KeepAliveInterval {this.KeepAliveInterval}", cancellationToken);
+                        await this.CloseAsync(
+                            WebSocketCloseStatus.NormalClosure,
+                            "No Pong message received in response to a Ping after KeepAliveInterval {this.KeepAliveInterval}",
+                            cancellationToken)
+                        .ConfigureAwait(false);
                         return;
                     }
 
@@ -379,7 +383,8 @@ namespace Samurai.WebSockets.Internal
                         this.pingSentTicks = this.stopwatch.Elapsed.Ticks;
                         await this.SendPingAsync(
                             new ArraySegment<byte>(BitConverter.GetBytes(this.pingSentTicks)),
-                            cancellationToken);
+                            cancellationToken)
+                        .ConfigureAwait(false);
                     }
                 }
             }
@@ -394,7 +399,7 @@ namespace Samurai.WebSockets.Internal
         }
 
 
-        private async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
+        private async ValueTask SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
         {
             if (payload.Count > MAX_PING_PONG_PAYLOAD_LEN)
             {
@@ -407,7 +412,7 @@ namespace Samurai.WebSockets.Internal
                 {
                     WebSocketFrameWriter.Write(WebSocketOpCode.Ping, payload, stream, true, this.isClient);
                     Events.Log.SendingFrame(this.guid, WebSocketOpCode.Ping, true, payload.Count, false);
-                    await this.WriteStreamToNetworkAsync(stream, cancellationToken);
+                    await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
@@ -439,13 +444,13 @@ namespace Samurai.WebSockets.Internal
 
         /// NOTE: pong payload must be 125 bytes or less
         /// Pong should contain the same payload as the ping
-        private async Task SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
+        private async ValueTask SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
         {
             // as per websocket spec
             if (payload.Count > MAX_PING_PONG_PAYLOAD_LEN)
             {
                 Exception ex = new InvalidOperationException($"Max ping message size {MAX_PING_PONG_PAYLOAD_LEN} exceeded: {payload.Count}");
-                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex);
+                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
                 throw ex;
             }
 
@@ -457,13 +462,13 @@ namespace Samurai.WebSockets.Internal
                     {
                         WebSocketFrameWriter.Write(WebSocketOpCode.Pong, payload, stream, true, this.isClient);
                         Events.Log.SendingFrame(this.guid, WebSocketOpCode.Pong, true, payload.Count, false);
-                        await this.WriteStreamToNetworkAsync(stream, cancellationToken);
+                        await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                     }
                 }
             }
             catch (Exception ex)
             {
-                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Unable to send Pong response", ex);
+                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Unable to send Pong response", ex).ConfigureAwait(false);
                 throw;
             }
         }
@@ -472,7 +477,7 @@ namespace Samurai.WebSockets.Internal
         /// Called when a Close frame is received
         /// Send a response close frame if applicable
         /// </summary>
-        private async Task<WebSocketReceiveResult> RespondToCloseFrameAsync(WebSocketFrame frame, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        private async ValueTask<WebSocketReceiveResult> RespondToCloseFrameAsync(WebSocketFrame frame, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
             this.closeStatus = frame.CloseStatus;
             this.closeStatusDescription = frame.CloseStatusDescription;
@@ -495,7 +500,7 @@ namespace Samurai.WebSockets.Internal
                 {
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.isClient);
                     Events.Log.SendingFrame(this.guid, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
-                    await this.WriteStreamToNetworkAsync(stream, cancellationToken);
+                    await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
@@ -556,7 +561,7 @@ namespace Samurai.WebSockets.Internal
         /// Puts data on the wire
         /// </summary>
         /// <param name="stream">The stream to read data from</param>
-        private async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
+        private async ValueTask WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
         {
             ArraySegment<byte> buffer = this.GetBuffer(stream);
             await this.semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -601,7 +606,7 @@ namespace Samurai.WebSockets.Internal
         /// <param name="closeStatus">The close status to use</param>
         /// <param name="statusDescription">A description of why we are closing</param>
         /// <param name="ex">The exception (for logging)</param>
-        private async Task CloseOutputAutoTimeoutAsync(WebSocketCloseStatus closeStatus, string statusDescription, Exception ex)
+        private async ValueTask CloseOutputAutoTimeoutAsync(WebSocketCloseStatus closeStatus, string statusDescription, Exception ex)
         {
             TimeSpan timeSpan = TimeSpan.FromSeconds(5);
             Events.Log.CloseOutputAutoTimeout(this.guid, closeStatus, statusDescription, ex);
@@ -615,7 +620,7 @@ namespace Samurai.WebSockets.Internal
                 }
 
                 var autoCancel = new CancellationTokenSource(timeSpan);
-                await this.CloseOutputAsync(closeStatus, statusDescription, autoCancel.Token);
+                await this.CloseOutputAsync(closeStatus, statusDescription, autoCancel.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {

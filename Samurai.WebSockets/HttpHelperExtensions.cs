@@ -68,7 +68,7 @@ namespace Samurai.WebSockets
         /// <param name="stream">The stream to read UTF8 text from</param>
         /// <param name="token">The cancellation token</param>
         /// <returns>The HTTP header</returns>
-        public static async Task<string> ReadHttpHeaderAsync(this Stream stream, CancellationToken cancellationToken)
+        public static async ValueTask<string> ReadHttpHeaderAsync(this Stream stream, CancellationToken cancellationToken)
         {
             var headerBytes = new List<byte>();
             var buffer = new byte[1];
@@ -76,7 +76,7 @@ namespace Samurai.WebSockets
 
             while (true)
             {
-                var bytesRead = await stream.ReadAsync(buffer, 0, 1, cancellationToken);
+                var bytesRead = await stream.ReadAsync(buffer, 0, 1, cancellationToken).ConfigureAwait(false);
 
                 // End of stream reached
                 if (bytesRead == 0)
@@ -184,11 +184,11 @@ namespace Samurai.WebSockets
         /// <param name="stream">The stream to write to</param>
         /// <param name="response">The response (without the new line characters)</param>
         /// <param name="cancellationToken">The cancellation token</param>
-        public static async Task WriteHttpHeaderAsync(this Stream stream, string response, CancellationToken cancellationToken)
+        public static async ValueTask WriteHttpHeaderAsync(this Stream stream, string response, CancellationToken cancellationToken)
         {
             response = response.Trim() + "\r\n\r\n";
             var bytes = Encoding.UTF8.GetBytes(response);
-            await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken);
+            await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
         }
     }
 }

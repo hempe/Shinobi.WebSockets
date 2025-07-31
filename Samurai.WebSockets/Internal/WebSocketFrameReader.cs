@@ -58,11 +58,11 @@ namespace Samurai.WebSockets.Internal
         /// <param name="readCursor">The previous partial websocket frame read plus cursor information</param>
         /// <param name="cancellationToken">the cancellation token</param>
         /// <returns>A websocket frame</returns>
-        public static async Task<WebSocketReadCursor> ReadFromCursorAsync(Stream fromStream, ArraySegment<byte> intoBuffer, WebSocketReadCursor readCursor, CancellationToken cancellationToken)
+        public static async ValueTask<WebSocketReadCursor> ReadFromCursorAsync(Stream fromStream, ArraySegment<byte> intoBuffer, WebSocketReadCursor readCursor, CancellationToken cancellationToken)
         {
             var remainingFrame = readCursor.WebSocketFrame;
             var minCount = CalculateNumBytesToRead(readCursor.NumBytesLeftToRead, intoBuffer.Count);
-            await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken);
+            await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
             if (remainingFrame.MaskKey.Count > 0)
                 remainingFrame.MaskKey.ToggleMask(new ArraySegment<byte>(intoBuffer.Array, intoBuffer.Offset, minCount));
 
@@ -76,12 +76,12 @@ namespace Samurai.WebSockets.Internal
         /// <param name="intoBuffer">The buffer to read into</param>
         /// <param name="cancellationToken">the cancellation token</param>
         /// <returns>A websocket frame</returns>
-        public static async Task<WebSocketReadCursor> ReadAsync(Stream fromStream, ArraySegment<byte> intoBuffer, CancellationToken cancellationToken)
+        public static async ValueTask<WebSocketReadCursor> ReadAsync(Stream fromStream, ArraySegment<byte> intoBuffer, CancellationToken cancellationToken)
         {
             // allocate a small buffer to read small chunks of data from the stream
             var smallBuffer = new ArraySegment<byte>(new byte[8]);
 
-            await fromStream.ReadFixedLengthAsync(2, smallBuffer, cancellationToken);
+            await fromStream.ReadFixedLengthAsync(2, smallBuffer, cancellationToken).ConfigureAwait(false);
             byte byte1 = smallBuffer.Array[0];
             byte byte2 = smallBuffer.Array[1];
 
@@ -105,13 +105,13 @@ namespace Samurai.WebSockets.Internal
                 if (isMaskBitSet)
                 {
                     maskKey = new ArraySegment<byte>(smallBuffer.Array, 0, WebSocketFrameCommon.MaskKeyLength);
-                    await fromStream.ReadFixedLengthAsync(maskKey.Count, maskKey, cancellationToken);
-                    await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken);
+                    await fromStream.ReadFixedLengthAsync(maskKey.Count, maskKey, cancellationToken).ConfigureAwait(false);
+                    await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
                     maskKey.ToggleMask(new ArraySegment<byte>(intoBuffer.Array, intoBuffer.Offset, minCount));
                 }
                 else
                 {
-                    await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken);
+                    await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (InternalBufferOverflowException e)
@@ -178,7 +178,7 @@ namespace Samurai.WebSockets.Internal
         /// <summary>
         /// Reads the length of the payload according to the contents of byte2
         /// </summary>
-        private static async Task<uint> ReadLengthAsync(byte byte2, ArraySegment<byte> smallBuffer, Stream fromStream, CancellationToken cancellationToken)
+        private static async ValueTask<uint> ReadLengthAsync(byte byte2, ArraySegment<byte> smallBuffer, Stream fromStream, CancellationToken cancellationToken)
         {
             byte payloadLenFlag = 0x7F;
             uint len = (uint)(byte2 & payloadLenFlag);
@@ -186,18 +186,18 @@ namespace Samurai.WebSockets.Internal
             // read a short length or a long length depending on the value of len
             if (len == 126)
             {
-                len = await fromStream.ReadUShortAsync(false, smallBuffer, cancellationToken);
+                len = await fromStream.ReadUShortAsync(false, smallBuffer, cancellationToken).ConfigureAwait(false);
+                return len;
             }
-            else if (len == 127)
+
+            if (len == 127)
             {
-                len = (uint)await fromStream.ReadULongAsync(false, smallBuffer, cancellationToken);
+                len = (uint)await fromStream.ReadULongAsync(false, smallBuffer, cancellationToken).ConfigureAwait(false);
                 const uint maxLen = 2147483648; // 2GB - not part of the spec but just a precaution. Send large volumes of data in smaller frames.
 
                 // protect ourselves against bad data
                 if (len > maxLen || len < 0)
-                {
                     throw new ArgumentOutOfRangeException($"Payload length out of range. Min 0 max 2GB. Actual {len:#,##0} bytes.");
-                }
             }
 
             return len;

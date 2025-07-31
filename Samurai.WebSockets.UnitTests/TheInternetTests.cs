@@ -99,24 +99,24 @@ namespace Samurai.WebSockets.UnitTests
                 }
             });
 
-            Task<string[]> clientReceive = Task.Run(async () =>
-            {
-                var replies = new List<string>();
-                var buffer = new byte[256];
-                int count;
-                while ((count = await theInternet.ClientNetworkStream.ReadAsync(buffer, 0, buffer.Length, source.Token)) > 0)
-                {
-                    var reply = Encoding.UTF8.GetString(buffer, 0, count);
-                    replies.Add(reply);
-                    if (replies.Count >= NumMessagesToSend)
-                    {
-                        source.Cancel();
-                        break;
-                    }
-                }
+            var clientReceive = Task.Run(async () =>
+             {
+                 var replies = new List<string>();
+                 var buffer = new byte[256];
+                 int count;
+                 while ((count = await theInternet.ClientNetworkStream.ReadAsync(buffer, 0, buffer.Length, source.Token)) > 0)
+                 {
+                     var reply = Encoding.UTF8.GetString(buffer, 0, count);
+                     replies.Add(reply);
+                     if (replies.Count >= NumMessagesToSend)
+                     {
+                         source.Cancel();
+                         break;
+                     }
+                 }
 
-                return replies.ToArray();
-            });
+                 return replies.ToArray();
+             });
 
             var serverTask = Task.Run(async () =>
             {

@@ -15,7 +15,7 @@ namespace Samurai.WebSockets.DemoClient.Complex
     {
         const int BUFFER_SIZE = 1 * 1024 * 1024 * 1024; // 1GB
 
-        public async Task Run()
+        public async ValueTask RunAsync()
         {
             var factory = new WebSocketClientFactory();
             var uri = new Uri("ws://localhost:27416/chat");
@@ -23,7 +23,7 @@ namespace Samurai.WebSockets.DemoClient.Complex
             using (WebSocket webSocket = await factory.ConnectAsync(uri, options))
             {
                 // receive loop
-                Task readTask = this.Receive(webSocket);
+                Task readTask = this.ReceiveAsync(webSocket);
 
                 // send a message
                 await this.Send(webSocket);
@@ -36,14 +36,14 @@ namespace Samurai.WebSockets.DemoClient.Complex
             }
         }
 
-        private async Task Send(WebSocket webSocket)
+        private async ValueTask Send(WebSocket webSocket)
         {
             var array = new byte[BUFFER_SIZE];
             var buffer = new ArraySegment<byte>(array);
             await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
         }
 
-        private async Task<long> ReadAll(WebSocket webSocket)
+        private async ValueTask<long> ReadAllAsync(WebSocket webSocket)
         {
             var buffer = new ArraySegment<byte>(new byte[BUFFER_SIZE]);
             long len = 0;
@@ -63,10 +63,10 @@ namespace Samurai.WebSockets.DemoClient.Complex
             }
         }
 
-        private async Task Receive(WebSocket webSocket)
+        private async Task ReceiveAsync(WebSocket webSocket)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            var len = await this.ReadAll(webSocket);
+            var len = await this.ReadAllAsync(webSocket);
             Console.WriteLine($"Read {len:#,##0} bytes in {stopwatch.Elapsed.TotalMilliseconds:#,##0} ms");
         }
     }

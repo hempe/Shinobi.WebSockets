@@ -61,7 +61,7 @@ public class WebSocketServerClientBenchmarks
                 {
                     try
                     {
-                        var tcpClient = await this.listener.AcceptTcpClientAsync();
+                        var tcpClient = await this.listener.AcceptTcpClientAsync().ConfigureAwait(false);
                         var clientTask = this.HandleClientAsync(tcpClient, this.serverCts.Token);
                         clientTasks.Add(clientTask);
 
@@ -91,7 +91,7 @@ public class WebSocketServerClientBenchmarks
                     {
                         // Wait for natural completion or a reasonable timeout
                         using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                        await Task.WhenAll(remainingTasks).WaitAsync(cleanupCts.Token);
+                        await Task.WhenAll(remainingTasks).WaitAsync(cleanupCts.Token).ConfigureAwait(false);
                     }
                     catch (TimeoutException)
                     {
@@ -105,7 +105,7 @@ public class WebSocketServerClientBenchmarks
         using var serverReadyCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         try
         {
-            await this.serverReadyTcs.Task.WaitAsync(serverReadyCts.Token);
+            await this.serverReadyTcs.Task.WaitAsync(serverReadyCts.Token).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
@@ -127,7 +127,7 @@ public class WebSocketServerClientBenchmarks
                     client.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
                     using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                    await client.ConnectAsync(new Uri(this.serverUrl), connectCts.Token);
+                    await client.ConnectAsync(new Uri(this.serverUrl), connectCts.Token).ConfigureAwait(false);
 
                     lock (this.clients)
                     {
@@ -145,7 +145,7 @@ public class WebSocketServerClientBenchmarks
         using var clientConnectCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         try
         {
-            await Task.WhenAll(clientConnectTasks).WaitAsync(clientConnectCts.Token);
+            await Task.WhenAll(clientConnectTasks).WaitAsync(clientConnectCts.Token).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
@@ -153,7 +153,7 @@ public class WebSocketServerClientBenchmarks
         }
 
         // Verify all connections are actually ready by sending a ping to each
-        await this.VerifyAllConnectionsReadyAsync();
+        await this.VerifyAllConnectionsReadyAsync().ConfigureAwait(false);
     }
 
     // Add method to verify connections are ready
@@ -173,11 +173,12 @@ public class WebSocketServerClientBenchmarks
                         new ArraySegment<byte>(pingData),
                         WebSocketMessageType.Text,
                         true,
-                        verifyCts.Token);
+                        verifyCts.Token)
+                    .ConfigureAwait(false);
 
                     // Receive the echo to confirm round-trip works
                     var buffer = new byte[pingData.Length + 10];
-                    await client.ReceiveAsync(new ArraySegment<byte>(buffer), verifyCts.Token);
+                    await client.ReceiveAsync(new ArraySegment<byte>(buffer), verifyCts.Token).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -187,7 +188,7 @@ public class WebSocketServerClientBenchmarks
         });
 
         using var verifyCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await Task.WhenAll(verifyTasks).WaitAsync(verifyCts.Token);
+        await Task.WhenAll(verifyTasks).WaitAsync(verifyCts.Token).ConfigureAwait(false);
     }
 
     private async Task HandleClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)
@@ -203,11 +204,11 @@ public class WebSocketServerClientBenchmarks
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            var context = await this.server.ReadHttpHeaderFromStreamAsync(stream);
+            var context = await this.server.ReadHttpHeaderFromStreamAsync(stream).ConfigureAwait(false);
 
             if (context.IsWebSocketRequest)
             {
-                webSocket = await this.server.AcceptWebSocketAsync(context);
+                webSocket = await this.server.AcceptWebSocketAsync(context).ConfigureAwait(false);
 
                 // Register this client for disconnect tracking
                 var disconnectTcs = new TaskCompletionSource<bool>();
@@ -215,7 +216,7 @@ public class WebSocketServerClientBenchmarks
 
                 try
                 {
-                    await this.EchoMessagesAsync(webSocket, timeoutCts.Token);
+                    await this.EchoMessagesAsync(webSocket, timeoutCts.Token).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -263,7 +264,7 @@ public class WebSocketServerClientBenchmarks
         {
             while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
-                var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken).ConfigureAwait(false);
 
                 if (result.MessageType == WebSocketMessageType.Text || result.MessageType == WebSocketMessageType.Binary)
                 {
@@ -277,7 +278,7 @@ public class WebSocketServerClientBenchmarks
                 {
                     if (webSocket.State == WebSocketState.Open)
                     {
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", cancellationToken);
+                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", cancellationToken).ConfigureAwait(false);
                     }
                     break;
                 }
@@ -315,7 +316,7 @@ public class WebSocketServerClientBenchmarks
                         if (client.State == WebSocketState.Open)
                         {
                             using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                            await client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", closeCts.Token);
+                            await client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", closeCts.Token).ConfigureAwait(false);
                         }
                     }
                     catch { }
@@ -325,7 +326,7 @@ public class WebSocketServerClientBenchmarks
                     }
                 });
 
-                await Task.WhenAll(closeTasks);
+                await Task.WhenAll(closeTasks).ConfigureAwait(false);
             }
 
             // Wait for all server-side client handlers to complete disconnect
@@ -336,7 +337,7 @@ public class WebSocketServerClientBenchmarks
                 using var disconnectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 try
                 {
-                    await Task.WhenAll(disconnectTasks).WaitAsync(disconnectCts.Token);
+                    await Task.WhenAll(disconnectTasks).WaitAsync(disconnectCts.Token).ConfigureAwait(false);
                 }
                 catch (TimeoutException)
                 {
@@ -356,7 +357,7 @@ public class WebSocketServerClientBenchmarks
             {
                 try
                 {
-                    await this.serverTask.WaitAsync(TimeSpan.FromSeconds(3));
+                    await this.serverTask.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
                 }
                 catch (TimeoutException)
                 {
@@ -396,7 +397,7 @@ public class WebSocketServerClientBenchmarks
 
         if (tasks.Count > 0)
         {
-            await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
     }
 
@@ -422,7 +423,7 @@ public class WebSocketServerClientBenchmarks
 
         if (tasks.Count > 0)
         {
-            await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
     }
 
@@ -440,7 +441,7 @@ public class WebSocketServerClientBenchmarks
 
         if (tasks.Count > 0)
         {
-            await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
     }
 
@@ -453,7 +454,7 @@ public class WebSocketServerClientBenchmarks
         try
         {
             // Send message
-            await client.SendAsync(new ArraySegment<byte>(data), messageType, true, cts.Token);
+            await client.SendAsync(new ArraySegment<byte>(data), messageType, true, cts.Token).ConfigureAwait(false);
 
             // Receive echo - handle potential message fragmentation more efficiently
             var buffer = new byte[Math.Max(data.Length * 2, 8192)]; // Ensure enough space
@@ -462,7 +463,7 @@ public class WebSocketServerClientBenchmarks
             while (totalReceived < data.Length && !cts.Token.IsCancellationRequested)
             {
                 var segment = new ArraySegment<byte>(buffer, totalReceived, buffer.Length - totalReceived);
-                var result = await client.ReceiveAsync(segment, cts.Token);
+                var result = await client.ReceiveAsync(segment, cts.Token).ConfigureAwait(false);
 
                 totalReceived += result.Count;
 

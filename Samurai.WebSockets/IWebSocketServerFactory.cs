@@ -16,7 +16,7 @@ namespace Samurai.WebSockets
         /// <param name="stream">The network stream</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>Http data read from the stream</returns>
-        Task<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken));
+        ValueTask<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
         /// Accept web socket with default options
@@ -25,7 +25,7 @@ namespace Samurai.WebSockets
         /// <param name="context">The http context used to initiate this web socket request</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket</returns>
-        Task<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, CancellationToken cancellationToken = default(CancellationToken));
+        ValueTask<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, CancellationToken cancellationToken = default(CancellationToken));
 
         /// <summary>
         /// Accept web socket with options specified
@@ -35,6 +35,6 @@ namespace Samurai.WebSockets
         /// <param name="options">The web socket options</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket</returns>
-        Task<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken));
+        ValueTask<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken));
     }
 }

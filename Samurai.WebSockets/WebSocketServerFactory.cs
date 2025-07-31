@@ -47,8 +47,8 @@ namespace Samurai.WebSockets
         /// <param name="stream">The network stream</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>Http data read from the stream</returns>
-        public async Task<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
-            => new WebSocketHttpContext(await stream.ReadHttpHeaderAsync(cancellationToken), stream);
+        public async ValueTask<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
+            => new WebSocketHttpContext(await stream.ReadHttpHeaderAsync(cancellationToken).ConfigureAwait(false), stream);
 
         /// <summary>
         /// Accept web socket with default options
@@ -57,8 +57,8 @@ namespace Samurai.WebSockets
         /// <param name="context">The http context used to initiate this web socket request</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket</returns>
-        public async Task<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, CancellationToken cancellationToken = default(CancellationToken))
-            => await this.AcceptWebSocketAsync(context, new WebSocketServerOptions(), cancellationToken);
+        public ValueTask<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, CancellationToken cancellationToken = default(CancellationToken))
+            => this.AcceptWebSocketAsync(context, new WebSocketServerOptions(), cancellationToken);
 
         /// <summary>
         /// Accept web socket with options specified
@@ -68,11 +68,11 @@ namespace Samurai.WebSockets
         /// <param name="options">The web socket options</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket</returns>
-        public async Task<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken))
+        public async ValueTask<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken))
         {
             var guid = Guid.NewGuid();
             Events.Log.AcceptWebSocketStarted(guid);
-            await PerformHandshakeAsync(guid, context.HttpHeader, options.SubProtocol, context.Stream, cancellationToken);
+            await PerformHandshakeAsync(guid, context.HttpHeader, options.SubProtocol, context.Stream, cancellationToken).ConfigureAwait(false);
             Events.Log.ServerHandshakeSuccess(guid);
             return new SamuraiWebSocket(guid, context.Stream, options.KeepAliveInterval, null, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
         }
@@ -91,7 +91,7 @@ namespace Samurai.WebSockets
             throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in http header");
         }
 
-        private static async Task PerformHandshakeAsync(Guid guid, String httpHeader, string subProtocol, Stream stream, CancellationToken cancellationToken)
+        private static async ValueTask PerformHandshakeAsync(Guid guid, String httpHeader, string subProtocol, Stream stream, CancellationToken cancellationToken)
         {
             try
             {
@@ -109,7 +109,7 @@ namespace Samurai.WebSockets
                                        + $"Sec-WebSocket-Accept: {setWebSocketAccept}";
 
                     Events.Log.SendingHandshakeResponse(guid, response);
-                    await stream.WriteHttpHeaderAsync(response, cancellationToken);
+                    await stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
@@ -118,13 +118,13 @@ namespace Samurai.WebSockets
             catch (WebSocketVersionNotSupportedException ex)
             {
                 Events.Log.WebSocketVersionNotSupported(guid, ex);
-                await stream.WriteHttpHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n{ex.Message}", cancellationToken);
+                await stream.WriteHttpHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n{ex.Message}", cancellationToken).ConfigureAwait(false);
                 throw;
             }
             catch (Exception ex)
             {
                 Events.Log.BadRequest(guid, ex);
-                await stream.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", cancellationToken);
+                await stream.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", cancellationToken).ConfigureAwait(false);
                 throw;
             }
         }

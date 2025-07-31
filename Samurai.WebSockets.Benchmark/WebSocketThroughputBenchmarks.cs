@@ -44,16 +44,16 @@ public class WebSocketThroughputBenchmarks
         {
             try
             {
-                var tcpClient = await this.listener.AcceptTcpClientAsync();
+                var tcpClient = await this.listener.AcceptTcpClientAsync().ConfigureAwait(false);
                 tcpClient.ReceiveTimeout = 10000;
                 tcpClient.SendTimeout = 10000;
 
                 var stream = tcpClient.GetStream();
-                var context = await this.server.ReadHttpHeaderFromStreamAsync(stream);
+                var context = await this.server.ReadHttpHeaderFromStreamAsync(stream).ConfigureAwait(false);
 
                 if (context.IsWebSocketRequest)
                 {
-                    var webSocket = await this.server.AcceptWebSocketAsync(context);
+                    var webSocket = await this.server.AcceptWebSocketAsync(context).ConfigureAwait(false);
                     serverReady.SetResult(webSocket);
 
                     // Keep connection alive for benchmarking
@@ -65,7 +65,7 @@ public class WebSocketThroughputBenchmarks
                             using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(this.serverCts.Token);
                             receiveCts.CancelAfter(TimeSpan.FromSeconds(30));
 
-                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), receiveCts.Token);
+                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), receiveCts.Token).ConfigureAwait(false);
                             if (result.MessageType == WebSocketMessageType.Close)
                                 break;
                         }
@@ -90,11 +90,11 @@ public class WebSocketThroughputBenchmarks
         this.client.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await this.client.ConnectAsync(new Uri(this.serverUrl), connectCts.Token);
+        await this.client.ConnectAsync(new Uri(this.serverUrl), connectCts.Token).ConfigureAwait(false);
 
         // Wait for server WebSocket with timeout
         using var serverCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        this.serverWebSocket = await serverReady.Task.WaitAsync(serverCts.Token);
+        this.serverWebSocket = await serverReady.Task.WaitAsync(serverCts.Token).ConfigureAwait(false);
 
         await Task.Delay(100); // Ensure connection is stable
     }
@@ -111,7 +111,7 @@ public class WebSocketThroughputBenchmarks
                 try
                 {
                     using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    await this.client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", closeCts.Token);
+                    await this.client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", closeCts.Token).ConfigureAwait(false);
                 }
                 catch { }
             }
@@ -127,7 +127,7 @@ public class WebSocketThroughputBenchmarks
             {
                 try
                 {
-                    await this.serverTask.WaitAsync(TimeSpan.FromSeconds(3));
+                    await this.serverTask.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
                 }
                 catch (TimeoutException)
                 {
@@ -139,7 +139,7 @@ public class WebSocketThroughputBenchmarks
                 }
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -166,7 +166,7 @@ public class WebSocketThroughputBenchmarks
         for (int i = 0; i < this.MessageCount; i++)
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await this.client.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Text, true, cts.Token);
+            await this.client.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Text, true, cts.Token).ConfigureAwait(false);
         }
     }
 
@@ -179,7 +179,7 @@ public class WebSocketThroughputBenchmarks
         for (int i = 0; i < this.MessageCount; i++)
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await this.client.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary, true, cts.Token);
+            await this.client.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary, true, cts.Token).ConfigureAwait(false);
         }
     }
 
