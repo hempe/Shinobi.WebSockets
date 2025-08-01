@@ -1,22 +1,26 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace Samurai.WebSockets.Exceptions
 {
+    /// <summary>
+    /// Exception thrown when the WebSocket handshake fails.
+    /// This can occur if the server does not respond correctly to the WebSocket handshake request,
+    /// or if the handshake response does not meet the expected criteria.
+    /// </summary>
     [Serializable]
     public class WebSocketHandshakeFailedException : Exception
     {
-        public WebSocketHandshakeFailedException() : base()
+        public WebSocketHandshakeFailedException()
         {
         }
 
-        public WebSocketHandshakeFailedException(string message) : base(message)
+        public WebSocketHandshakeFailedException(string message)
+        : base(message)
         {
         }
 
-        public WebSocketHandshakeFailedException(string message, Exception inner) : base(message, inner)
+        public WebSocketHandshakeFailedException(string message, Exception inner)
+        : base(message, inner)
         {
         }
     }

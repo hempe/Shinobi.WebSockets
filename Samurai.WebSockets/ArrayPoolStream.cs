@@ -8,8 +8,8 @@ namespace Samurai.WebSockets
 {
     public class ArrayPoolStream : Stream
     {
-        private byte[] buffer;
-        private MemoryStream innerStream;
+        private byte[]? buffer;
+        private MemoryStream? innerStream;
         private bool isDisposed;
 
         public ArrayPoolStream(int size = 16384)
@@ -23,19 +23,19 @@ namespace Samurai.WebSockets
         public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
         {
             this.ThrowIfDisposed();
-            return this.innerStream.BeginRead(buffer, offset, count, callback, state);
+            return this.innerStream!.BeginRead(buffer, offset, count, callback, state);
         }
 
         public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
         {
             this.ThrowIfDisposed();
-            return this.innerStream.BeginWrite(buffer, offset, count, callback, state);
+            return this.innerStream!.BeginWrite(buffer, offset, count, callback, state);
         }
 
-        public override bool CanRead => !this.isDisposed && this.innerStream.CanRead;
-        public override bool CanSeek => !this.isDisposed && this.innerStream.CanSeek;
-        public override bool CanTimeout => !this.isDisposed && this.innerStream.CanTimeout;
-        public override bool CanWrite => !this.isDisposed && this.innerStream.CanWrite;
+        public override bool CanRead => !this.isDisposed && this.innerStream!.CanRead;
+        public override bool CanSeek => !this.isDisposed && this.innerStream!.CanSeek;
+        public override bool CanTimeout => !this.isDisposed && this.innerStream!.CanTimeout;
+        public override bool CanWrite => !this.isDisposed && this.innerStream!.CanWrite;
 
         public int Capacity
         {
@@ -45,9 +45,9 @@ namespace Samurai.WebSockets
                 this.ThrowIfDisposed();
                 // Note: Setting capacity on the inner MemoryStream won't help us
                 // because we manage the buffer ourselves
-                if (value > this.buffer.Length)
+                if (value > this.buffer!.Length)
                 {
-                    this.EnlargeBuffer(value - (int)this.innerStream.Position);
+                    this.EnlargeBuffer(value - (int)this.innerStream!.Position);
                 }
             }
         }
@@ -82,37 +82,37 @@ namespace Samurai.WebSockets
         public override Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
         {
             this.ThrowIfDisposed();
-            return this.innerStream.CopyToAsync(destination, bufferSize, cancellationToken);
+            return this.innerStream!.CopyToAsync(destination, bufferSize, cancellationToken);
         }
 
         public override int EndRead(IAsyncResult asyncResult)
         {
             this.ThrowIfDisposed();
-            return this.innerStream.EndRead(asyncResult);
+            return this.innerStream!.EndRead(asyncResult);
         }
 
         public override void EndWrite(IAsyncResult asyncResult)
         {
             this.ThrowIfDisposed();
-            this.innerStream.EndWrite(asyncResult);
+            this.innerStream!.EndWrite(asyncResult);
         }
 
         public override void Flush()
         {
             this.ThrowIfDisposed();
-            this.innerStream.Flush();
+            this.innerStream!.Flush();
         }
 
         public override Task FlushAsync(CancellationToken cancellationToken)
         {
             this.ThrowIfDisposed();
-            return this.innerStream.FlushAsync(cancellationToken);
+            return this.innerStream!.FlushAsync(cancellationToken);
         }
 
         public byte[] GetBuffer()
         {
             this.ThrowIfDisposed();
-            return this.buffer;
+            return this.buffer!;
         }
 
         public override long Position
@@ -121,20 +121,21 @@ namespace Samurai.WebSockets
             set
             {
                 this.ThrowIfDisposed();
-                this.innerStream.Position = value;
+                this.innerStream!.Position = value;
             }
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
             this.ThrowIfDisposed();
-            return this.innerStream.Read(buffer, offset, count);
+            return this.innerStream!.Read(buffer, offset, count);
         }
 
         private void EnlargeBuffer(int additionalBytesNeeded)
         {
+            this.ThrowIfDisposed();
             // We cannot fit the data into the existing buffer, time for a new buffer
-            if (additionalBytesNeeded > (this.buffer.Length - this.innerStream.Position))
+            if (additionalBytesNeeded > (this.buffer!.Length - this.innerStream!.Position))
             {
                 var position = (int)this.innerStream.Position;
 
@@ -184,41 +185,38 @@ namespace Samurai.WebSockets
 
         public override void WriteByte(byte value)
         {
-            this.ThrowIfDisposed();
             this.EnlargeBuffer(1);
-            this.innerStream.WriteByte(value);
+            this.innerStream!.WriteByte(value);
         }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            this.ThrowIfDisposed();
             this.EnlargeBuffer(count);
-            this.innerStream.Write(buffer, offset, count);
+            this.innerStream!.Write(buffer, offset, count);
         }
 
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            this.ThrowIfDisposed();
             this.EnlargeBuffer(count);
-            return this.innerStream.WriteAsync(buffer, offset, count, cancellationToken);
+            return this.innerStream!.WriteAsync(buffer, offset, count, cancellationToken);
         }
 
         public override object InitializeLifetimeService()
         {
             this.ThrowIfDisposed();
-            return this.innerStream.InitializeLifetimeService();
+            return this.innerStream!.InitializeLifetimeService();
         }
 
         public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             this.ThrowIfDisposed();
-            return this.innerStream.ReadAsync(buffer, offset, count, cancellationToken);
+            return this.innerStream!.ReadAsync(buffer, offset, count, cancellationToken);
         }
 
         public override int ReadByte()
         {
             this.ThrowIfDisposed();
-            return this.innerStream.ReadByte();
+            return this.innerStream!.ReadByte();
         }
 
         public override int ReadTimeout
@@ -227,14 +225,14 @@ namespace Samurai.WebSockets
             set
             {
                 this.ThrowIfDisposed();
-                this.innerStream.ReadTimeout = value;
+                this.innerStream!.ReadTimeout = value;
             }
         }
 
         public override long Seek(long offset, SeekOrigin loc)
         {
             this.ThrowIfDisposed();
-            return this.innerStream.Seek(offset, loc);
+            return this.innerStream!.Seek(offset, loc);
         }
 
         /// <summary>
@@ -243,18 +241,18 @@ namespace Samurai.WebSockets
         public override void SetLength(long value)
         {
             this.ThrowIfDisposed();
-            if (value > this.buffer.Length)
+            if (value > this.buffer!.Length)
             {
-                this.EnlargeBuffer((int)(value - this.innerStream.Position));
+                this.EnlargeBuffer((int)(value - this.innerStream!.Position));
             }
-            this.innerStream.SetLength(value);
+            this.innerStream!.SetLength(value);
         }
 
         public byte[] ToArray()
         {
             this.ThrowIfDisposed();
             // Create a copy of only the used portion
-            var result = new byte[this.innerStream.Position];
+            var result = new byte[this.innerStream!.Position];
             Buffer.BlockCopy(this.buffer, 0, result, 0, (int)this.innerStream.Position);
             return result;
         }
@@ -265,21 +263,21 @@ namespace Samurai.WebSockets
             set
             {
                 this.ThrowIfDisposed();
-                this.innerStream.WriteTimeout = value;
+                this.innerStream!.WriteTimeout = value;
             }
         }
 
         public ArraySegment<byte> GetArraySegmentBuffer()
         {
             this.ThrowIfDisposed();
-            return new ArraySegment<byte>(this.buffer, 0, (int)this.innerStream.Position);
+            return new ArraySegment<byte>(this.buffer, 0, (int)this.innerStream!.Position);
         }
 
         public void WriteTo(Stream stream)
         {
             this.ThrowIfDisposed();
             // Write only the used portion of the buffer
-            stream.Write(this.buffer, 0, (int)this.innerStream.Position);
+            stream.Write(this.buffer, 0, (int)this.innerStream!.Position);
         }
 
         private void ThrowIfDisposed()

@@ -15,7 +15,7 @@ namespace WebSockets.DemoServer
 {
     public class WebServer : IDisposable
     {
-        private TcpListener listener;
+        private TcpListener? listener;
         private bool isDisposed = false;
         private ILogger logger;
         private readonly IWebSocketServerFactory webSocketServerFactory;
@@ -24,7 +24,7 @@ namespace WebSockets.DemoServer
         // const int BUFFER_SIZE = 1 * 1024 * 1024 * 1024; // 1GB
         private const int BUFFER_SIZE = 4 * 1024 * 1024; // 4MB
 
-        public WebServer(IWebSocketServerFactory webSocketServerFactory, ILoggerFactory loggerFactory, IList<string> supportedSubProtocols = null)
+        public WebServer(IWebSocketServerFactory webSocketServerFactory, ILoggerFactory loggerFactory, IList<string>? supportedSubProtocols = null)
         {
             this.logger = loggerFactory.CreateLogger<WebServer>();
             this.webSocketServerFactory = webSocketServerFactory;
@@ -36,7 +36,7 @@ namespace WebSockets.DemoServer
             Task.Run(() => this.ProcessTcpClientAsync(tcpClient));
         }
 
-        private string GetSubProtocol(IList<string> requestedSubProtocols)
+        private string? GetSubProtocol(IList<string> requestedSubProtocols)
         {
             foreach (string subProtocol in requestedSubProtocols)
             {
@@ -44,7 +44,6 @@ namespace WebSockets.DemoServer
                 if (this.supportedSubProtocols.Contains(subProtocol))
                 {
                     this.logger.LogInformation($"Http header has requested sub protocol {subProtocol} which is supported");
-
                     return subProtocol;
                 }
             }
@@ -80,7 +79,7 @@ namespace WebSockets.DemoServer
                     WebSocketHttpContext context = await this.webSocketServerFactory.ReadHttpHeaderFromStreamAsync(stream);
                     if (context.IsWebSocketRequest)
                     {
-                        string subProtocol = this.GetSubProtocol(context.WebSocketRequestedProtocols);
+                        var subProtocol = this.GetSubProtocol(context.WebSocketRequestedProtocols);
                         var options = new WebSocketServerOptions() { KeepAliveInterval = TimeSpan.FromSeconds(30), SubProtocol = subProtocol };
                         this.logger.LogInformation("Http header has requested an upgrade to Web Socket protocol. Negotiating Web Socket handshake");
 
@@ -142,7 +141,7 @@ namespace WebSockets.DemoServer
                 }
 
                 // just echo the message back to the client
-                ArraySegment<byte> toSend = new ArraySegment<byte>(buffer.Array, buffer.Offset, result.Count);
+                ArraySegment<byte> toSend = new ArraySegment<byte>(buffer.Array!, buffer.Offset, result.Count);
                 await webSocket.SendAsync(toSend, WebSocketMessageType.Binary, true, cancellationToken);
             }
         }

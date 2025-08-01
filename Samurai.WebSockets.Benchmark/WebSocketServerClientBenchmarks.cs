@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -231,7 +232,7 @@ public class WebSocketServerClientBenchmarks
         {
             // Expected during shutdown
         }
-        catch (Exception)
+        catch
         {
             // Handle errors during client processing
         }
@@ -388,7 +389,7 @@ public class WebSocketServerClientBenchmarks
     [Benchmark]
     public async Task SendReceive_SmallTextMessagesAsync()
     {
-        var message = "Hello WebSocket!";
+        const string message = "Hello WebSocket!";
         var data = Encoding.UTF8.GetBytes(message);
         var tasks = new List<Task>();
 
@@ -432,18 +433,50 @@ public class WebSocketServerClientBenchmarks
     [Benchmark]
     public async Task SendReceive_LargeBinaryMessagesAsync()
     {
-        var data = new byte[16 * 1024];
-        Random.Shared.NextBytes(data);
-        var tasks = new List<Task>();
-
-        foreach (var client in this.clients.Where(c => c.State == WebSocketState.Open))
+        var data = ArrayPool<byte>.Shared.Rent(16 * 1024);
+        try
         {
-            tasks.Add(this.SendAndReceiveMessageAsync(client, data, WebSocketMessageType.Binary));
+            Random.Shared.NextBytes(data);
+            var tasks = new List<Task>();
+
+            foreach (var client in this.clients.Where(c => c.State == WebSocketState.Open))
+            {
+                tasks.Add(this.SendAndReceiveMessageAsync(client, data, WebSocketMessageType.Binary));
+            }
+
+            if (tasks.Count > 0)
+            {
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
         }
-
-        if (tasks.Count > 0)
+        finally
         {
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+            ArrayPool<byte>.Shared.Return(data);
+        }
+    }
+
+    [Benchmark]
+    public async Task SendReceive_HugeBinaryMessagesAsync()
+    {
+        var data = ArrayPool<byte>.Shared.Rent(64 * 1024);
+        try
+        {
+            Random.Shared.NextBytes(data);
+            var tasks = new List<Task>();
+
+            foreach (var client in this.clients.Where(c => c.State == WebSocketState.Open))
+            {
+                tasks.Add(this.SendAndReceiveMessageAsync(client, data, WebSocketMessageType.Binary));
+            }
+
+            if (tasks.Count > 0)
+            {
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(data);
         }
     }
 
@@ -470,29 +503,19 @@ public class WebSocketServerClientBenchmarks
                 totalReceived += result.Count;
 
                 if (result.MessageType == WebSocketMessageType.Close)
-                {
-                    // throw new InvalidOperationException("Received close message unexpectedly");
-                    Console.WriteLine("Received close message, stopping receive loop.");
                     return;
-                }
 
                 if (result.EndOfMessage)
-                {
                     break;
-                }
 
                 // Safety check - this should rarely happen with proper buffer sizing
                 if (totalReceived >= buffer.Length)
-                {
                     throw new InvalidOperationException("Buffer overflow during receive - message larger than expected");
-                }
             }
 
             // Verify we received the expected amount of data
             if (totalReceived != data.Length && !cts.Token.IsCancellationRequested)
-            {
                 throw new InvalidOperationException($"Received data length mismatch: expected {data.Length}, got {totalReceived}");
-            }
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {

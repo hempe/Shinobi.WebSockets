@@ -10,7 +10,7 @@ namespace Samurai.WebSockets.Internal
     internal static class SharedRandom
     {
         [ThreadStatic]
-        private static Random rand;
+        private static Random? rand;
         public static byte[] NextBytes(int size)
         {
             if (rand == null)

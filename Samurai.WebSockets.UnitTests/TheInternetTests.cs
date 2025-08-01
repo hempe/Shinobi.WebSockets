@@ -21,7 +21,7 @@ namespace Samurai.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task ClientToServerTest()
+        public async Task ClientToServerTestAsync()
         {
             Console.WriteLine("ClientToServerTest");
             using var theInternet = new TheInternet();
@@ -29,15 +29,15 @@ namespace Samurai.WebSockets.UnitTests
             var buffer = Encoding.UTF8.GetBytes(expected);
             var readBuffer = new byte[256];
 
-            await theInternet.ClientNetworkStream.WriteAsync(buffer, 0, buffer.Length);
-            int count = await theInternet.ServerNetworkStream.ReadAsync(readBuffer, 0, readBuffer.Length);
+            await (theInternet.ClientNetworkStream?.WriteAsync(buffer, 0, buffer.Length) ?? Task.CompletedTask);
+            int count = await (theInternet.ServerNetworkStream?.ReadAsync(readBuffer, 0, readBuffer.Length) ?? Task.FromResult(0));
 
             var actual = Encoding.UTF8.GetString(readBuffer, 0, count);
             Assert.Equal(expected, actual);
         }
 
         [Fact]
-        public async Task ServerToClientTest()
+        public async Task ServerToClientTestAsync()
         {
             Console.WriteLine("ServerToClientTest");
             using var theInternet = new TheInternet();
@@ -45,15 +45,15 @@ namespace Samurai.WebSockets.UnitTests
             var buffer = Encoding.UTF8.GetBytes(expected);
             var readBuffer = new byte[256];
 
-            await theInternet.ServerNetworkStream.WriteAsync(buffer, 0, buffer.Length);
-            int count = await theInternet.ClientNetworkStream.ReadAsync(readBuffer, 0, readBuffer.Length);
+            await (theInternet.ServerNetworkStream?.WriteAsync(buffer, 0, buffer.Length) ?? Task.CompletedTask);
+            int count = await (theInternet.ClientNetworkStream?.ReadAsync(readBuffer, 0, readBuffer.Length) ?? Task.FromResult(0));
 
             var actual = Encoding.UTF8.GetString(readBuffer, 0, count);
             Assert.Equal(expected, actual);
         }
 
         [Fact]
-        public async Task ClientToServerToClientTest()
+        public async Task ClientToServerToClientTestAsync()
         {
             Console.WriteLine("ClientToServerToClientTest");
             using var theInternet = new TheInternet();
@@ -61,17 +61,17 @@ namespace Samurai.WebSockets.UnitTests
             var buffer = Encoding.UTF8.GetBytes(expected);
             var readBuffer = new byte[256];
 
-            await theInternet.ClientNetworkStream.WriteAsync(buffer, 0, buffer.Length);
-            int count = await theInternet.ServerNetworkStream.ReadAsync(readBuffer, 0, readBuffer.Length);
-            await theInternet.ServerNetworkStream.WriteAsync(readBuffer, 0, count);
-            count = await theInternet.ClientNetworkStream.ReadAsync(readBuffer, 0, readBuffer.Length);
+            await (theInternet.ClientNetworkStream?.WriteAsync(buffer, 0, buffer.Length) ?? Task.CompletedTask);
+            int count = await (theInternet.ServerNetworkStream?.ReadAsync(readBuffer, 0, readBuffer.Length) ?? Task.FromResult(0));
+            await (theInternet.ServerNetworkStream?.WriteAsync(readBuffer, 0, count) ?? Task.CompletedTask);
+            count = await (theInternet.ClientNetworkStream?.ReadAsync(readBuffer, 0, readBuffer.Length) ?? Task.FromResult(0));
 
             var actual = Encoding.UTF8.GetString(readBuffer, 0, count);
             Assert.Equal(expected, actual);
         }
 
         [Fact]
-        public void MultiTaskEchoTest()
+        public async Task MultiTaskEchoTestAsync()
         {
             Console.WriteLine("MultiTaskEchoTest");
             // This test sends the following 5 messages to the server:
@@ -97,7 +97,7 @@ namespace Samurai.WebSockets.UnitTests
                 for (int i = 0; i < NumMessagesToSend; i++)
                 {
                     var buffer = Encoding.UTF8.GetBytes($"{expected} {i}");
-                    await theInternet.ClientNetworkStream.WriteAsync(buffer, 0, buffer.Length, source.Token);
+                    await (theInternet.ClientNetworkStream?.WriteAsync(buffer, 0, buffer.Length, source.Token) ?? Task.CompletedTask);
                 }
             });
 
@@ -106,7 +106,7 @@ namespace Samurai.WebSockets.UnitTests
                  var replies = new List<string>();
                  var buffer = new byte[256];
                  int count;
-                 while ((count = await theInternet.ClientNetworkStream.ReadAsync(buffer, 0, buffer.Length, source.Token)) > 0)
+                 while ((count = await (theInternet.ClientNetworkStream?.ReadAsync(buffer, 0, buffer.Length, source.Token) ?? Task.FromResult(0))) > 0)
                  {
                      var reply = Encoding.UTF8.GetString(buffer, 0, count);
                      replies.Add(reply);
@@ -125,17 +125,17 @@ namespace Samurai.WebSockets.UnitTests
                 var buffer = new byte[256];
                 while (!source.Token.IsCancellationRequested)
                 {
-                    int count = await theInternet.ServerNetworkStream.ReadAsync(buffer, 0, buffer.Length, source.Token);
+                    int count = await (theInternet.ServerNetworkStream?.ReadAsync(buffer, 0, buffer.Length, source.Token) ?? Task.FromResult(0));
                     var message = Encoding.UTF8.GetString(buffer, 0, count);
                     message = "Server: " + message;
                     var sendBuffer = Encoding.UTF8.GetBytes(message);
-                    await theInternet.ServerNetworkStream.WriteAsync(sendBuffer, 0, sendBuffer.Length, source.Token);
+                    await (theInternet.ServerNetworkStream?.WriteAsync(sendBuffer, 0, sendBuffer.Length, source.Token) ?? Task.CompletedTask);
                 }
             });
 
-            Task.WaitAll(clientReceive, clientSend);
+            await Task.WhenAll(clientReceive, clientSend);
 
-            var results = clientReceive.Result;
+            var results = await clientReceive;
             Assert.Equal(NumMessagesToSend, results.Length);
             for (var i = 0; i < NumMessagesToSend; i++)
             {

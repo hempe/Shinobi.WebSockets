@@ -30,7 +30,7 @@ namespace Samurai.WebSockets
         /// The client can specify multiple preferred protocols in the opening handshake header
         /// The server should use the first supported one or set this to null if none of the requested sub protocols are supported
         /// </summary>
-        public string SubProtocol { get; set; }
+        public string? SubProtocol { get; set; }
 
         /// <summary>
         /// Initialises a new instance of the WebSocketServerOptions class

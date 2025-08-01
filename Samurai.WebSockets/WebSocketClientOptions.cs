@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Samurai.WebSockets
 {
     /// <summary>
-    /// Client WebSocket init options
+    /// Options for configuring the WebSocket client.
+    /// These options can be used to control various aspects of the WebSocket connection,
+    /// such as keep-alive intervals, no-delay settings, additional HTTP headers, and more
     /// </summary>
     public class WebSocketClientOptions
     {
@@ -42,14 +43,14 @@ namespace Samurai.WebSockets
         /// <summary>
         /// WebSocket Extensions as an HTTP header value
         /// </summary>
-        public string SecWebSocketExtensions { get; set; }
+        public string? SecWebSocketExtensions { get; set; }
 
         /// <summary>
         /// A comma separated list of sub protocols in preference order (first one being the most preferred)
         /// The server will return the first supported sub protocol (or none if none are supported)
         /// Can be null
         /// </summary>
-        public string SecWebSocketProtocol { get; set; }
+        public string? SecWebSocketProtocol { get; set; }
 
         /// <summary>
         /// Initialises a new instance of the WebSocketClientOptions class

@@ -26,7 +26,7 @@ namespace Samurai.WebSockets
         /// <summary>
         /// The Path extracted from the http header
         /// </summary>
-        public string Path { get; }
+        public string? Path { get; }
 
         /// <summary>
         /// The stream AFTER the header has already been read

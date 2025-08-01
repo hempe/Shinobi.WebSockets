@@ -186,31 +186,31 @@ public class WebSocketThroughputBenchmarks
     }
 
     /*
-    [Benchmark]
-    public async Task ServerToClient_SmallMessagesAsync()
-    {
-        var message = Encoding.UTF8.GetBytes("server message");
-
-        for (int i = 0; i < this.MessageCount; i++)
+        [Benchmark]
+        public async Task ServerToClient_SmallMessagesAsync()
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await this.serverWebSocket.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Text, true, cts.Token);
+            var message = Encoding.UTF8.GetBytes("server message");
+
+            for (int i = 0; i < this.MessageCount; i++)
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await this.serverWebSocket.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Text, true, cts.Token);
+            }
         }
-    }
 
-    [Benchmark]
-    public async Task ServerToClient_MediumMessagesAsync()
-    {
-        var message = new byte[1024]; // 1KB
-        Random.Shared.NextBytes(message);
-
-        for (int i = 0; i < this.MessageCount; i++)
+        [Benchmark]
+        public async Task ServerToClient_MediumMessagesAsync()
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await this.serverWebSocket.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary, true, cts.Token);
+            var message = new byte[1024]; // 1KB
+            Random.Shared.NextBytes(message);
+
+            for (int i = 0; i < this.MessageCount; i++)
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await this.serverWebSocket.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary, true, cts.Token);
+            }
         }
-    }
-    */
+        */
 
     private static int GetAvailablePort()
     {

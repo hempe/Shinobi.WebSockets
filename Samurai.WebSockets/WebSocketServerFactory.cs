@@ -91,7 +91,7 @@ namespace Samurai.WebSockets
             throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in http header");
         }
 
-        private static async ValueTask PerformHandshakeAsync(Guid guid, String httpHeader, string subProtocol, Stream stream, CancellationToken cancellationToken)
+        private static async ValueTask PerformHandshakeAsync(Guid guid, String httpHeader, string? subProtocol, Stream stream, CancellationToken cancellationToken)
         {
             try
             {

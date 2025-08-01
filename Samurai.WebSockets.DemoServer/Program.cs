@@ -11,33 +11,32 @@ namespace WebSockets.DemoServer
 {
     internal class Program
     {
-        private static ILogger logger;
-        private static ILoggerFactory loggerFactory;
-        private static IWebSocketServerFactory webSocketServerFactory;
-
         private static async Task Main(string[] _)
         {
-            loggerFactory = LoggerFactory.Create(builder => builder
+            var loggerFactory = LoggerFactory.Create(builder => builder
                     .SetMinimumLevel(LogLevel.Trace)
                     .AddConsole());
 
-            logger = loggerFactory.CreateLogger<Program>();
+            var logger = loggerFactory.CreateLogger<Program>();
 
             Samurai.WebSockets.Internal.Events.Log
                 = new Samurai.WebSockets.Internal.Events(loggerFactory.CreateLogger<Samurai.WebSockets.Internal.Events>());
 
-            webSocketServerFactory = new WebSocketServerFactory();
-            await StartWebServerAsync();
+            var webSocketServerFactory = new WebSocketServerFactory();
+            await StartWebServerAsync(logger, loggerFactory, webSocketServerFactory).ConfigureAwait(false);
             logger.LogInformation("Server stopped. Press any key to exit.");
             Console.ReadKey();
         }
 
-        private static async Task StartWebServerAsync()
+        private static async Task StartWebServerAsync(
+            ILogger logger,
+            ILoggerFactory loggerFactory,
+            IWebSocketServerFactory webSocketServerFactory)
         {
             try
             {
-                int port = 27416;
-                IList<string> supportedSubProtocols = new string[] { "chatV1", "chatV2", "chatV3" };
+                var port = 27416;
+                IList<string> supportedSubProtocols = ["chatV1", "chatV2", "chatV3"];
                 using (WebServer server = new WebServer(webSocketServerFactory, loggerFactory, supportedSubProtocols))
                 {
                     await server.ListenAsync(port);

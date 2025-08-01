@@ -27,7 +27,10 @@ A WebSocket library that allows you to make WebSocket connections as a client or
     <Configurations>Debug;Release;ReleaseSigned</Configurations>
     <PackageLicenseFile>LICENCE.md</PackageLicenseFile>
     <PackageIcon>icon.png</PackageIcon>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <LangVersion>8.0</LangVersion>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
@@ -48,8 +51,8 @@ A WebSocket library that allows you to make WebSocket connections as a client or
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="System.Buffers" Version="4.6.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.7" />
     <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" PrivateAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" Version="4.14.0">
       <PrivateAssets>all</PrivateAssets>

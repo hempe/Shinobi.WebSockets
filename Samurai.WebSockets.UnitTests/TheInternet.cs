@@ -13,8 +13,8 @@ namespace Samurai.WebSockets.UnitTests
         private readonly ManualResetEventSlim clientWriteSlim;
         private readonly ManualResetEventSlim serverWriteSlim;
 
-        public MockNetworkStream ClientNetworkStream { get; private set; }
-        public MockNetworkStream ServerNetworkStream { get; private set; }
+        public MockNetworkStream? ClientNetworkStream { get; private set; }
+        public MockNetworkStream? ServerNetworkStream { get; private set; }
 
         public TheInternet()
         {

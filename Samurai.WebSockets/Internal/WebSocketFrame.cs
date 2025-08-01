@@ -13,7 +13,7 @@ namespace Samurai.WebSockets.Internal
 
         public WebSocketCloseStatus? CloseStatus { get; }
 
-        public string CloseStatusDescription { get; }
+        public string? CloseStatusDescription { get; }
 
         public ArraySegment<byte> MaskKey { get; }
 
@@ -23,7 +23,7 @@ namespace Samurai.WebSockets.Internal
             int count,
             ArraySegment<byte> maskKey,
             WebSocketCloseStatus? closeStatus = null,
-            string closeStatusDescription = null)
+            string? closeStatusDescription = null)
         {
             this.IsFinBitSet = isFinBitSet;
             this.OpCode = webSocketOpCode;

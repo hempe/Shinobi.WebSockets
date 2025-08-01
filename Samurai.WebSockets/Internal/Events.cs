@@ -208,7 +208,7 @@ namespace Samurai.WebSockets.Internal
                     numBytes);
         }
 
-        internal void CloseOutputNoHandshake(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
+        internal void CloseOutputNoHandshake(Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription)
         {
             if (this.logger.IsEnabled(LogLevel.Information))
                 this.logger.LogInformation(
@@ -218,7 +218,7 @@ namespace Samurai.WebSockets.Internal
                     statusDescription);
         }
 
-        internal void CloseHandshakeStarted(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
+        internal void CloseHandshakeStarted(Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription)
         {
             if (this.logger.IsEnabled(LogLevel.Information))
                 this.logger.LogInformation(
@@ -228,7 +228,7 @@ namespace Samurai.WebSockets.Internal
                     statusDescription);
         }
 
-        internal void CloseHandshakeRespond(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
+        internal void CloseHandshakeRespond(Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription)
         {
             if (this.logger.IsEnabled(LogLevel.Information))
                 this.logger.LogInformation(
@@ -244,7 +244,7 @@ namespace Samurai.WebSockets.Internal
                 this.logger.LogInformation("Close handshake complete for {Guid}", guid);
         }
 
-        internal void CloseFrameReceivedInUnexpectedState(Guid guid, WebSocketState state, WebSocketCloseStatus? closeStatus, string statusDescription)
+        internal void CloseFrameReceivedInUnexpectedState(Guid guid, WebSocketState state, WebSocketCloseStatus? closeStatus, string? statusDescription)
         {
             if (this.logger.IsEnabled(LogLevel.Warning))
                 this.logger.LogWarning(

@@ -1,21 +1,26 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Samurai.WebSockets.Exceptions
 {
+    /// <summary>
+    /// Exception thrown when a WebSocket buffer overflows.
+    /// This can occur if the data being sent or received exceeds the allocated buffer size,
+    /// leading to potential data loss or corruption.
+    /// </summary>
     [Serializable]
     public class WebSocketBufferOverflowException : Exception
     {
-        public WebSocketBufferOverflowException() : base()
+        public WebSocketBufferOverflowException()
         {
         }
 
-        public WebSocketBufferOverflowException(string message) : base(message)
+        public WebSocketBufferOverflowException(string message)
+        : base(message)
         {
         }
 
-        public WebSocketBufferOverflowException(string message, Exception inner) : base(message, inner)
+        public WebSocketBufferOverflowException(string message, Exception inner)
+        : base(message, inner)
         {
         }
     }

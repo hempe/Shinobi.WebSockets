@@ -87,7 +87,7 @@ namespace Samurai.WebSockets
 
                 // Safety check for oversized headers
                 if (headerBytes.Count > 16 * 1024)
-                    throw new EntityTooLargeException("Http header message too large to fit in buffer (16KB)");
+                    throw new HttpHeaderTooLargeException("Http header message too large to fit in buffer (16KB)");
 
                 // Check for header termination sequence \r\n\r\n
                 switch ((char)currentByte)
@@ -133,7 +133,7 @@ namespace Samurai.WebSockets
         /// </summary>
         /// <param name="httpHeader">The HTTP header to read</param>
         /// <returns>The path</returns>
-        public static string GetPathFromHeader(this string httpHeader)
+        public static string? GetPathFromHeader(this string httpHeader)
         {
             var getRegexMatch = HttpGetHeader.Match(httpHeader);
             // extract the path attribute from the first line of the header
@@ -150,7 +150,7 @@ namespace Samurai.WebSockets
                 const int MAX_LEN = 2048;
                 if (match.Length > MAX_LEN)
                 {
-                    throw new EntityTooLargeException($"Sec-WebSocket-Protocol exceeded the maximum of length of {MAX_LEN}");
+                    throw new HttpHeaderTooLargeException($"Sec-WebSocket-Protocol exceeded the maximum of length of {MAX_LEN}");
                 }
 
                 // extract a csv list of sub protocols (in order of highest preference first)
@@ -168,7 +168,7 @@ namespace Samurai.WebSockets
         /// </summary>
         /// <param name="response">The response string</param>
         /// <returns>the response code</returns>
-        public static string ReadHttpResponseCode(this string response)
+        public static string? ReadHttpResponseCode(this string response)
         {
             var getRegexMatch = Http.Match(response);
 

@@ -108,7 +108,7 @@ namespace Samurai.WebSockets
                 options.IncludeExceptionInCloseResponse,
                 cancellationToken);
 
-        private async ValueTask<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
+        private async ValueTask<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string? secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
         {
             Events.Log.ReadingHttpResponse(guid);
             string response;
@@ -136,7 +136,7 @@ namespace Samurai.WebSockets
                 this.GetSubProtocolFromHeader(response));
         }
 
-        private string GetSubProtocolFromHeader(string response)
+        private string? GetSubProtocolFromHeader(string response)
         {
             // make sure we escape the accept string which could contain special regex characters
             var match = SecWebSocketProtocol.Match(response);

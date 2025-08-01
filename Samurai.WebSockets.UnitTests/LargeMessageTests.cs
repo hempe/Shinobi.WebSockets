@@ -22,10 +22,10 @@ namespace Samurai.WebSockets.UnitTests
     {
         private class Server : IDisposable
         {
-            private HttpListener listener;
-            private Task connectionPointTask;
-            private WebSocket webSocket;
-            public Uri Address { get; private set; }
+            private HttpListener? listener;
+            private Task? connectionPointTask;
+            private WebSocket? webSocket;
+            public Uri? Address { get; private set; }
             public readonly List<byte[]> ReceivedMessages = new List<byte[]>();
             public WebSocketState State => this.webSocket?.State ?? WebSocketState.None;
             private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
@@ -65,7 +65,7 @@ namespace Samurai.WebSockets.UnitTests
                         listener.Start();
                         this.Address = new Uri($"ws://localhost:{i}/");
                         this.listener = listener;
-                        this.connectionPointTask = Task.Run(() => this.ConnectionPointAsync(this.cancellationTokenSource.Token), this.cancellationTokenSource.Token);
+                        this.connectionPointTask = Task.Run(() => this.ConnectionPointAsync(listener, this.cancellationTokenSource.Token), this.cancellationTokenSource.Token);
                         break;
                     }
                     catch (HttpListenerException)
@@ -80,12 +80,14 @@ namespace Samurai.WebSockets.UnitTests
                 }
             }
 
-            private async Task ConnectionPointAsync(CancellationToken cancellationToken)
+            private async Task ConnectionPointAsync(
+                HttpListener listener,
+                CancellationToken cancellationToken)
             {
                 try
                 {
                     Console.WriteLine("[Server] Waiting for connection...");
-                    var context = await this.listener.GetContextAsync();
+                    var context = await listener.GetContextAsync();
                     Console.WriteLine("[Server] Connection established.");
                     if (context.Request.IsWebSocketRequest)
                     {
@@ -109,16 +111,14 @@ namespace Samurai.WebSockets.UnitTests
                                 case WebSocketMessageType.Close:
                                     {
                                         if (webSocket.State == WebSocketState.CloseReceived)
-                                        {
                                             await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Ok", cancellationToken);
-                                        }
 
                                         break;
                                     }
 
                                 case WebSocketMessageType.Binary:
                                     {
-                                        stream.Write(arraySegment.Array, arraySegment.Offset, received.Count);
+                                        stream.Write(arraySegment.Array!, arraySegment.Offset, received.Count);
                                         if (received.EndOfMessage)
                                         {
                                             this.ReceivedMessages.Add(stream.ToArray());
@@ -139,9 +139,9 @@ namespace Samurai.WebSockets.UnitTests
 
             public void Dispose()
             {
-                this.listener.Stop();
+                this.listener?.Stop();
                 this.cancellationTokenSource.Cancel();
-                this.connectionPointTask.Wait();
+                this.connectionPointTask?.Wait();
                 this.cancellationTokenSource.Dispose();
             }
         }
@@ -174,7 +174,7 @@ namespace Samurai.WebSockets.UnitTests
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public async Task SendLargeBinaryMessage(bool useSamurai)
+        public async Task SendLargeBinaryMessageAsync(bool useSamurai)
         {
             Console.WriteLine("[Client] SendLargeBinaryMessage");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -188,13 +188,13 @@ namespace Samurai.WebSockets.UnitTests
                 {
                     var factory = new WebSocketClientFactory();
                     Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync");
-                    webSocket = await factory.ConnectAsync(server.Address, new WebSocketClientOptions(), cts.Token);
+                    webSocket = await factory.ConnectAsync(server.Address!, new WebSocketClientOptions(), cts.Token);
                 }
                 else
                 {
                     var clientWebSocket = new ClientWebSocket();
                     Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync");
-                    await clientWebSocket.ConnectAsync(server.Address, cts.Token);
+                    await clientWebSocket.ConnectAsync(server.Address!, cts.Token);
                     webSocket = clientWebSocket;
                 }
 
