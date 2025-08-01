@@ -248,15 +248,6 @@ namespace Samurai.WebSockets
             this.innerStream!.SetLength(value);
         }
 
-        public byte[] ToArray()
-        {
-            this.ThrowIfDisposed();
-            // Create a copy of only the used portion
-            var result = new byte[this.innerStream!.Position];
-            Buffer.BlockCopy(this.buffer, 0, result, 0, (int)this.innerStream.Position);
-            return result;
-        }
-
         public override int WriteTimeout
         {
             get => this.innerStream?.WriteTimeout ?? 0;

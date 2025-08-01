@@ -22,6 +22,7 @@
 // ---------------------------------------------------------------------
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -70,49 +71,100 @@ namespace Samurai.WebSockets
         /// <returns>The HTTP header</returns>
         public static async ValueTask<string> ReadHttpHeaderAsync(this Stream stream, CancellationToken cancellationToken)
         {
-            var headerBytes = new List<byte>();
-            var buffer = new byte[1];
-            var sequenceIndex = 0;
+            const int MaxHeaderSize = 16 * 1024;
+            const int InitialChunkSize = 128;
 
-            while (true)
+            var headerBytes = ArrayPool<byte>.Shared.Rent(MaxHeaderSize);
+            var buffer = ArrayPool<byte>.Shared.Rent(InitialChunkSize);
+
+            int totalHeaderBytes = 0;
+            int sequenceIndex = 0;
+
+            try
             {
-                var bytesRead = await stream.ReadAsync(buffer, 0, 1, cancellationToken).ConfigureAwait(false);
-
-                // End of stream reached
-                if (bytesRead == 0)
-                    return string.Empty;
-
-                var currentByte = buffer[0];
-                headerBytes.Add(currentByte);
-
-                // Safety check for oversized headers
-                if (headerBytes.Count > 16 * 1024)
-                    throw new HttpHeaderTooLargeException("Http header message too large to fit in buffer (16KB)");
-
-                // Check for header termination sequence \r\n\r\n
-                switch ((char)currentByte)
+                // Phase 1: Chunked reads (until close to limit)
+                while (MaxHeaderSize - totalHeaderBytes >= InitialChunkSize)
                 {
-                    case @R:
-                        sequenceIndex = sequenceIndex == 0 || sequenceIndex == 2
-                            ? sequenceIndex + 1
-                            : 1;
-                        break;
+                    int bytesRead = await stream.ReadAsync(buffer, 0, InitialChunkSize, cancellationToken).ConfigureAwait(false);
+                    if (bytesRead == 0)
+                        return string.Empty;
 
-                    case @N:
-                        if (sequenceIndex == 1)
-                            sequenceIndex = 2;
-                        else if (sequenceIndex == 3)
-                            return Encoding.UTF8.GetString(headerBytes.ToArray());
-                        else
-                            sequenceIndex = 0;
-                        break;
+                    for (int i = 0; i < bytesRead; i++)
+                    {
+                        byte currentByte = buffer[i];
+                        headerBytes[totalHeaderBytes++] = currentByte;
 
-                    default:
-                        sequenceIndex = 0;
-                        break;
+                        switch ((char)currentByte)
+                        {
+                            case '\r':
+                                sequenceIndex = sequenceIndex == 0 || sequenceIndex == 2 ? sequenceIndex + 1 : 1;
+                                break;
+
+                            case '\n':
+                                if (sequenceIndex == 1)
+                                    sequenceIndex = 2;
+                                else if (sequenceIndex == 3)
+                                    return Encoding.UTF8.GetString(headerBytes, 0, totalHeaderBytes);
+                                else
+                                    sequenceIndex = 0;
+                                break;
+
+                            default:
+                                sequenceIndex = 0;
+                                break;
+                        }
+                    }
+                }
+
+                // Phase 2: 1-byte reads (avoids overread near 16KB limit)
+                var singleByteBuffer = ArrayPool<byte>.Shared.Rent(1);
+                try
+                {
+                    while (true)
+                    {
+                        int bytesRead = await stream.ReadAsync(singleByteBuffer, 0, 1, cancellationToken).ConfigureAwait(false);
+                        if (bytesRead == 0)
+                            return string.Empty;
+
+                        byte currentByte = singleByteBuffer[0];
+                        if (totalHeaderBytes >= MaxHeaderSize)
+                            throw new HttpHeaderTooLargeException("Http header too large (16KB)");
+
+                        headerBytes[totalHeaderBytes++] = currentByte;
+
+                        switch ((char)currentByte)
+                        {
+                            case '\r':
+                                sequenceIndex = sequenceIndex == 0 || sequenceIndex == 2 ? sequenceIndex + 1 : 1;
+                                break;
+
+                            case '\n':
+                                if (sequenceIndex == 1)
+                                    sequenceIndex = 2;
+                                else if (sequenceIndex == 3)
+                                    return Encoding.UTF8.GetString(headerBytes, 0, totalHeaderBytes);
+                                else
+                                    sequenceIndex = 0;
+                                break;
+
+                            default:
+                                sequenceIndex = 0;
+                                break;
+                        }
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(singleByteBuffer);
                 }
             }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                ArrayPool<byte>.Shared.Return(headerBytes);
+            }
         }
+
 
         /// <summary>
         /// Decodes the header to detect is this is a web socket upgrade response

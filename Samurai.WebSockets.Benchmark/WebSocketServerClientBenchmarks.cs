@@ -180,8 +180,15 @@ public class WebSocketServerClientBenchmarks
                     .ConfigureAwait(false);
 
                     // Receive the echo to confirm round-trip works
-                    var buffer = new byte[pingData.Length + 10];
-                    await client.ReceiveAsync(new ArraySegment<byte>(buffer), verifyCts.Token).ConfigureAwait(false);
+                    var buffer = ArrayPool<byte>.Shared.Rent(pingData.Length + 10);
+                    try
+                    {
+                        await client.ReceiveAsync(new ArraySegment<byte>(buffer), verifyCts.Token).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -261,8 +268,7 @@ public class WebSocketServerClientBenchmarks
     private async Task EchoMessagesAsync(WebSocket webSocket, CancellationToken cancellationToken)
     {
         // Use a larger buffer to reduce the chance of fragmentation
-        var buffer = new byte[64 * 1024]; // Increased from 8KB to 64KB
-
+        var buffer = ArrayPool<byte>.Shared.Rent(64 * 1012);
         try
         {
             while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
@@ -298,6 +304,10 @@ public class WebSocketServerClientBenchmarks
         catch
         {
             // Handle other errors silently for benchmarking
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 
@@ -492,25 +502,32 @@ public class WebSocketServerClientBenchmarks
             await client.SendAsync(new ArraySegment<byte>(data), messageType, true, cts.Token).ConfigureAwait(false);
 
             // Receive echo - handle potential message fragmentation more efficiently
-            var buffer = new byte[Math.Max(data.Length * 2, 8192)]; // Ensure enough space
+            var buffer = ArrayPool<byte>.Shared.Rent(Math.Max(data.Length * 2, 8192)); // Ensure enough space
             var totalReceived = 0;
 
-            while (totalReceived < data.Length && !cts.Token.IsCancellationRequested)
+            try
             {
-                var segment = new ArraySegment<byte>(buffer, totalReceived, buffer.Length - totalReceived);
-                var result = await client.ReceiveAsync(segment, cts.Token).ConfigureAwait(false);
+                while (totalReceived < data.Length && !cts.Token.IsCancellationRequested)
+                {
+                    var segment = new ArraySegment<byte>(buffer, totalReceived, buffer.Length - totalReceived);
+                    var result = await client.ReceiveAsync(segment, cts.Token).ConfigureAwait(false);
 
-                totalReceived += result.Count;
+                    totalReceived += result.Count;
 
-                if (result.MessageType == WebSocketMessageType.Close)
-                    return;
+                    if (result.MessageType == WebSocketMessageType.Close)
+                        return;
 
-                if (result.EndOfMessage)
-                    break;
+                    if (result.EndOfMessage)
+                        break;
 
-                // Safety check - this should rarely happen with proper buffer sizing
-                if (totalReceived >= buffer.Length)
-                    throw new InvalidOperationException("Buffer overflow during receive - message larger than expected");
+                    // Safety check - this should rarely happen with proper buffer sizing
+                    if (totalReceived >= buffer.Length)
+                        throw new InvalidOperationException("Buffer overflow during receive - message larger than expected");
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
 
             // Verify we received the expected amount of data

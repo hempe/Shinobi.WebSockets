@@ -39,7 +39,13 @@ namespace Samurai.WebSockets.Internal
         /// <param name="fromPayload">Array segment to get payload data from</param>
         /// <param name="toStream">Stream to write to</param>
         /// <param name="isLastFrame">True is this is the last frame in this message (usually true)</param>
-        public static void Write(WebSocketOpCode opCode, ArraySegment<byte> fromPayload, ArrayPoolStream toStream, bool isLastFrame, bool isClient)
+        /// <param name="isClient">Indicate if this is called from a client or server</param>
+        public static void Write(
+            WebSocketOpCode opCode,
+            ArraySegment<byte> fromPayload,
+            ArrayPoolStream toStream,
+            bool isLastFrame,
+            bool isClient)
         {
             var finBitSetAsByte = isLastFrame ? (byte)0x80 : (byte)0x00;
             var byte1 = (byte)(finBitSetAsByte | (byte)opCode);

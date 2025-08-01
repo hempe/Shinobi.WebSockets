@@ -21,6 +21,7 @@
 // ---------------------------------------------------------------------
 
 using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -44,6 +45,7 @@ namespace Samurai.WebSockets.Internal
     public sealed class SamuraiWebSocket : WebSocket
     {
         private const int MAX_PING_PONG_PAYLOAD_LEN = 125;
+        private static readonly byte[] EMPTY = new byte[0];
         private readonly SemaphoreSlim semaphore = new SemaphoreSlim(1);
         private readonly Stopwatch stopwatch;
         private readonly Guid guid;
@@ -282,11 +284,18 @@ namespace Samurai.WebSockets.Internal
             }
 
             using var stream = new ArrayPoolStream();
-
-            ArraySegment<byte> buffer = BuildClosePayload(closeStatus, statusDescription);
-            WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
-            Events.Log.CloseHandshakeStarted(this.guid, closeStatus, statusDescription);
-            Events.Log.SendingFrame(this.guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+            (var buffer, var doReturn) = BuildClosePayload(closeStatus, statusDescription);
+            try
+            {
+                WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
+                Events.Log.CloseHandshakeStarted(this.guid, closeStatus, statusDescription);
+                Events.Log.SendingFrame(this.guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+            }
+            finally
+            {
+                if (doReturn)
+                    ArrayPool<byte>.Shared.Return(buffer.Array);
+            }
             await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
             this.state = WebSocketState.CloseSent;
         }
@@ -301,10 +310,19 @@ namespace Samurai.WebSockets.Internal
                 this.state = WebSocketState.Closed; // set this before we write to the network because the write may fail
 
                 using var stream = new ArrayPoolStream();
-                var buffer = BuildClosePayload(closeStatus, statusDescription);
-                WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
-                Events.Log.CloseOutputNoHandshake(this.guid, closeStatus, statusDescription);
-                Events.Log.SendingFrame(this.guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+                (var buffer, var doReturn) = BuildClosePayload(closeStatus, statusDescription);
+                try
+                {
+                    WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
+                    Events.Log.CloseOutputNoHandshake(this.guid, closeStatus, statusDescription);
+                    Events.Log.SendingFrame(this.guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+                }
+                finally
+                {
+                    if (doReturn)
+                        ArrayPool<byte>.Shared.Return(buffer.Array);
+                }
+
                 await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
             }
             else
@@ -417,19 +435,20 @@ namespace Samurai.WebSockets.Internal
         /// <param name="closeStatus">The close status</param>
         /// <param name="statusDescription">Optional extra close details</param>
         /// <returns>The payload to sent in the close frame</returns>
-        private static ArraySegment<byte> BuildClosePayload(WebSocketCloseStatus closeStatus, string? statusDescription)
+        private static (ArraySegment<byte>, bool Return) BuildClosePayload(WebSocketCloseStatus closeStatus, string? statusDescription)
         {
             var statusBuffer = BitConverter.GetBytes((ushort)closeStatus);
             Array.Reverse(statusBuffer); // network byte order (big endian)
 
             if (statusDescription is null)
-                return new ArraySegment<byte>(statusBuffer);
+                return (new ArraySegment<byte>(statusBuffer), false);
 
             var descBuffer = Encoding.UTF8.GetBytes(statusDescription);
-            var payload = new byte[statusBuffer.Length + descBuffer.Length];
+            var size = statusBuffer.Length + descBuffer.Length;
+            var payload = ArrayPool<byte>.Shared.Rent(size);
             Buffer.BlockCopy(statusBuffer, 0, payload, 0, statusBuffer.Length);
             Buffer.BlockCopy(descBuffer, 0, payload, statusBuffer.Length, descBuffer.Length);
-            return new ArraySegment<byte>(payload);
+            return (new ArraySegment<byte>(payload, 0, size), true);
 
         }
 
@@ -486,7 +505,7 @@ namespace Samurai.WebSockets.Internal
             {
                 // do not echo the close payload back to the client, there is no requirement for it in the spec. 
                 // However, the same CloseStatus as recieved should be sent back.
-                var closePayload = new ArraySegment<byte>(new byte[0], 0, 0);
+                var closePayload = new ArraySegment<byte>(EMPTY, 0, 0);
                 this.state = WebSocketState.CloseReceived;
                 Events.Log.CloseHandshakeRespond(this.guid, frame.CloseStatus, frame.CloseStatusDescription);
 
