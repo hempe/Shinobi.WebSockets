@@ -15,7 +15,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 
-using Samurai.WebSockets;
+using Ninja.WebSockets;
 
 [SimpleJob(RuntimeMoniker.Net90)]
 [MemoryDiagnoser]

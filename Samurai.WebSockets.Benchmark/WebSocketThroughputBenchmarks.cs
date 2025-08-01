@@ -1,8 +1,10 @@
 using System;
+using System.Buffers;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,90 +17,90 @@ using Samurai.WebSockets;
 [SimpleJob(RuntimeMoniker.Net90)]
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+[MinIterationCount(1)]
+[MaxIterationCount(10)]
 public class WebSocketThroughputBenchmarks
 {
-    private WebSocketServerFactory server;
-    private TcpListener listener;
-    private ClientWebSocket client;
+    private WebSocket[] clients;
     private int port;
     private string serverUrl;
     private CancellationTokenSource serverCts;
-    private WebSocket serverWebSocket;
     private Task serverTask;
 
-    [Params(50, 100, 250)] // Reduced counts to prevent hangs
+
+    [Params(1_000, 10_000)]
     public int MessageCount { get; set; }
+
+    [Params(16, 64)]
+    public int MessageSizeKb { get; set; }
+
+    [Params(100, 1000)]
+    public int ClientCount { get; set; }
+
+    private byte[] data;
 
     [GlobalSetup]
     public async Task SetupAsync()
     {
+        var random = new Random(42069);
+        this.data = ArrayPool<byte>.Shared.Rent(this.MessageSizeKb * 1024);
+        random.NextBytes(this.data);
+
         this.port = GetAvailablePort();
         this.serverUrl = $"ws://localhost:{this.port}/";
         this.serverCts = new CancellationTokenSource();
-        this.server = new WebSocketServerFactory();
+        this.clients = new WebSocket[this.ClientCount];
 
-        var serverReady = new TaskCompletionSource<WebSocket>();
-
-        this.listener = new TcpListener(IPAddress.Loopback, this.port);
-        this.listener.Start();
+        var server = new WebSocketServerFactory();
+        var serverReady = new TaskCompletionSource<bool>();
 
         this.serverTask = Task.Run(async () =>
         {
             try
             {
-                var tcpClient = await this.listener.AcceptTcpClientAsync().ConfigureAwait(false);
-                tcpClient.ReceiveTimeout = 10000;
-                tcpClient.SendTimeout = 10000;
-
-                var stream = tcpClient.GetStream();
-                var context = await this.server.ReadHttpHeaderFromStreamAsync(stream).ConfigureAwait(false);
-
-                if (context.IsWebSocketRequest)
+                using var listener = new TcpListener(IPAddress.Loopback, this.port);
+                listener.Start();
+                var tasks = new List<Task>();
+                for (var i = 0; i < this.ClientCount; i++)
                 {
-                    var webSocket = await this.server.AcceptWebSocketAsync(context).ConfigureAwait(false);
-                    serverReady.SetResult(webSocket);
+                    var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    var stream = tcpClient.GetStream();
+                    using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-                    // Keep connection alive for benchmarking
-                    var buffer = new byte[64 * 1024];
-                    while (webSocket.State == WebSocketState.Open && !this.serverCts.Token.IsCancellationRequested)
+                    var context = await server.ReadHttpHeaderFromStreamAsync(stream, connectCts.Token).ConfigureAwait(false);
+                    if (context.IsWebSocketRequest)
                     {
-                        try
-                        {
-                            using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(this.serverCts.Token);
-                            receiveCts.CancelAfter(TimeSpan.FromSeconds(30));
-
-                            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), receiveCts.Token).ConfigureAwait(false);
-                            if (result.MessageType == WebSocketMessageType.Close)
-                                break;
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            break;
-                        }
+                        var webSocket = await server.AcceptWebSocketAsync(context, connectCts.Token).ConfigureAwait(false);
+                        tasks.Add(EchoLoopAsync(webSocket, this.serverCts.Token, [tcpClient, stream]));
+                    }
+                    else
+                    {
+                        stream.Dispose();
+                        tcpClient.Dispose();
                     }
                 }
+
+                Console.WriteLine($"All {this.ClientCount} clients connected and ready for WebSocket communication.");
+                serverReady.SetResult(true);
+                listener.Stop();
+                await Task.WhenAll(tasks).WaitAsync(this.serverCts.Token).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                if (!serverReady.Task.IsCompleted)
-                {
-                    serverReady.SetException(ex);
-                }
+                Console.WriteLine($"Error in WebSocket server setup: {ex.Message}");
+                serverReady.TrySetException(new Exception($"Error in WebSocket setup server: {ex.Message}", ex));
             }
         });
 
-        // Connect client
-        this.client = new ClientWebSocket();
-        this.client.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
-
-        using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await this.client.ConnectAsync(new Uri(this.serverUrl), connectCts.Token).ConfigureAwait(false);
+        var client = new WebSocketClientFactory();
+        for (var i = 0; i < this.ClientCount; i++)
+        {
+            this.clients[i] = await client.ConnectAsync(new Uri(this.serverUrl), this.serverCts.Token).ConfigureAwait(false);
+        }
 
         // Wait for server WebSocket with timeout
-        using var serverCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        this.serverWebSocket = await serverReady.Task.WaitAsync(serverCts.Token).ConfigureAwait(false);
-
-        await Task.Delay(100); // Ensure connection is stable
+        using var readyCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await serverReady.Task.WaitAsync(readyCts.Token).ConfigureAwait(false);
     }
 
     [GlobalCleanup]
@@ -108,40 +110,33 @@ public class WebSocketThroughputBenchmarks
         {
             this.serverCts?.Cancel();
 
-            if (this.client?.State == WebSocketState.Open)
+            foreach (var client in this.clients)
             {
-                try
+                if (client?.State == WebSocketState.Open)
                 {
-                    using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    await this.client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", closeCts.Token).ConfigureAwait(false);
+                    try
+                    {
+                        using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                        await client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", closeCts.Token).ConfigureAwait(false);
+                    }
+                    catch { }
                 }
-                catch { }
+                client?.Dispose();
             }
-            this.client?.Dispose();
 
             try
             {
-                this.listener?.Stop();
-            }
-            catch { }
+                await (this.serverTask?.WaitAsync(TimeSpan.FromSeconds(3)) ?? Task.CompletedTask).ConfigureAwait(false);
 
-            if (this.serverTask != null)
+            }
+            catch (TimeoutException)
             {
-                try
-                {
-                    await this.serverTask.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
-                }
-                catch (TimeoutException)
-                {
-                    // Server task didn't complete in time, that's ok during cleanup
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected if server was cancelled
-                }
+                // Server task didn't complete in time, that's ok during cleanup
             }
-
-            await Task.Delay(100).ConfigureAwait(false);
+            catch (OperationCanceledException)
+            {
+                // Expected if server was cancelled
+            }
         }
         catch (Exception ex)
         {
@@ -150,67 +145,79 @@ public class WebSocketThroughputBenchmarks
         }
         finally
         {
-            this.serverWebSocket.Dispose();
             this.serverCts?.Dispose();
-            this.listener = null;
-            this.serverWebSocket = null;
-            this.server = null;
-            this.client = null;
+            this.clients = null;
             this.serverTask = null;
+            ArrayPool<byte>.Shared.Return(this.data);
         }
     }
+
 
     [Benchmark]
-    public async Task ClientToServer_SmallMessagesAsync()
+    public async Task RunThrouputBenchmarkAsync()
     {
-        var message = Encoding.UTF8.GetBytes("test message");
+        await Task.WhenAll(this.clients.Select(client => this.RunBenchmarkAsync(client, this.MessageCount / this.clients.Length, CancellationToken.None)));
+    }
 
-        for (int i = 0; i < this.MessageCount; i++)
+    private async Task RunBenchmarkAsync(WebSocket client, int messageCount, CancellationToken cancellationToken)
+    {
+        var receiveBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+        try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await this.client.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Text, true, cts.Token).ConfigureAwait(false);
+            for (var i = 0; i < messageCount; i++)
+            {
+                await client.SendAsync(this.data, WebSocketMessageType.Binary, true, cancellationToken);
+                var received = 0;
+
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var result = await client.ReceiveAsync(new ArraySegment<byte>(receiveBuffer), cancellationToken);
+                    received += result.Count;
+                    if (result.EndOfMessage)
+                        break;
+                }
+
+                if (received != this.data.Length)
+                    throw new Exception($"Expected {this.data.Length} got {received}");
+
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(receiveBuffer);
         }
     }
 
-    [Benchmark]
-    public async Task ClientToServer_MediumMessagesAsync()
+    private static async Task EchoLoopAsync(WebSocket webSocket, CancellationToken cancellationToken, IDisposable[] disposables)
     {
-        var message = new byte[1024]; // 1KB
-        Random.Shared.NextBytes(message);
-
-        for (int i = 0; i < this.MessageCount; i++)
+        using (webSocket)
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await this.client.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary, true, cts.Token).ConfigureAwait(false);
+            var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+            try
+            {
+                while (webSocket.State == WebSocketState.Open)
+                {
+                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                        break;
+
+                    var msg = new ArraySegment<byte>(buffer, 0, result.Count);
+                    await webSocket.SendAsync(msg, WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);
+                }
+
+                await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", cancellationToken);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                foreach (var disposable in disposables)
+                {
+                    disposable.Dispose();
+                }
+            }
         }
     }
-
-    /*
-        [Benchmark]
-        public async Task ServerToClient_SmallMessagesAsync()
-        {
-            var message = Encoding.UTF8.GetBytes("server message");
-
-            for (int i = 0; i < this.MessageCount; i++)
-            {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                await this.serverWebSocket.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Text, true, cts.Token);
-            }
-        }
-
-        [Benchmark]
-        public async Task ServerToClient_MediumMessagesAsync()
-        {
-            var message = new byte[1024]; // 1KB
-            Random.Shared.NextBytes(message);
-
-            for (int i = 0; i < this.MessageCount; i++)
-            {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                await this.serverWebSocket.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary, true, cts.Token);
-            }
-        }
-        */
 
     private static int GetAvailablePort()
     {

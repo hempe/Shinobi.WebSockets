@@ -3,7 +3,7 @@ using System.Net.WebSockets;
 
 namespace Samurai.WebSockets.Internal
 {
-    internal class WebSocketFrame
+    internal readonly struct WebSocketFrame
     {
         public bool IsFinBitSet { get; }
 

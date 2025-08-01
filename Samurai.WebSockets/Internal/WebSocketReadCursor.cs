@@ -1,6 +1,6 @@
 ﻿namespace Samurai.WebSockets.Internal
 {
-    internal class WebSocketReadCursor
+    internal readonly struct WebSocketReadCursor
     {
         public WebSocketFrame WebSocketFrame { get; }
 

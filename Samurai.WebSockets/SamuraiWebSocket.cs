@@ -61,7 +61,7 @@ namespace Samurai.WebSockets.Internal
         private string? closeStatusDescription;
         private long pingSentTicks;
 
-        internal SamuraiWebSocket(
+        public SamuraiWebSocket(
             Guid guid,
             Stream stream,
             TimeSpan keepAliveInterval,
@@ -135,18 +135,18 @@ namespace Samurai.WebSockets.Internal
 
                     try
                     {
-                        if (this.readCursor != null && this.readCursor.NumBytesLeftToRead > 0)
+                        if (this.readCursor.HasValue && this.readCursor.Value.NumBytesLeftToRead > 0)
                         {
                             // If the buffer used to read the frame was too small to fit the whole frame then we need to "remember" this frame
                             // and return what we have. Subsequent calls to the read function will simply continue reading off the stream without 
                             // decoding the first few bytes as a websocket header.
-                            this.readCursor = await WebSocketFrameReader.ReadFromCursorAsync(this.stream, buffer, this.readCursor, linkedCts.Token).ConfigureAwait(false);
-                            frame = this.readCursor.WebSocketFrame;
+                            this.readCursor = await WebSocketFrameReader.ReadFromCursorAsync(this.stream, buffer, this.readCursor.Value, linkedCts.Token).ConfigureAwait(false);
+                            frame = this.readCursor.Value.WebSocketFrame;
                         }
                         else
                         {
                             this.readCursor = await WebSocketFrameReader.ReadAsync(this.stream, buffer, linkedCts.Token).ConfigureAwait(false);
-                            frame = this.readCursor.WebSocketFrame;
+                            frame = this.readCursor.Value.WebSocketFrame;
                             Events.Log.ReceivedFrame(this.guid, frame.OpCode, frame.IsFinBitSet, frame.Count);
                         }
                     }
@@ -176,13 +176,13 @@ namespace Samurai.WebSockets.Internal
                         throw;
                     }
 
-                    var endOfMessage = frame.IsFinBitSet && this.readCursor.NumBytesLeftToRead == 0;
+                    var endOfMessage = frame.IsFinBitSet && this.readCursor.Value.NumBytesLeftToRead == 0;
                     switch (frame.OpCode)
                     {
                         case WebSocketOpCode.ConnectionClose:
                             return await this.RespondToCloseFrameAsync(frame, linkedCts.Token).ConfigureAwait(false);
                         case WebSocketOpCode.Ping:
-                            ArraySegment<byte> pingPayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, this.readCursor.NumBytesRead);
+                            ArraySegment<byte> pingPayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, this.readCursor.Value.NumBytesRead);
                             await this.SendPongAsync(pingPayload, linkedCts.Token).ConfigureAwait(false);
                             break;
                         case WebSocketOpCode.Pong:
@@ -194,16 +194,16 @@ namespace Samurai.WebSockets.Internal
                                 // continuation frames will follow, record the message type Text
                                 this.continuationFrameMessageType = WebSocketMessageType.Text;
                             }
-                            return new WebSocketReceiveResult(this.readCursor.NumBytesRead, WebSocketMessageType.Text, endOfMessage);
+                            return new WebSocketReceiveResult(this.readCursor.Value.NumBytesRead, WebSocketMessageType.Text, endOfMessage);
                         case WebSocketOpCode.BinaryFrame:
                             if (!frame.IsFinBitSet)
                             {
                                 // continuation frames will follow, record the message type Binary
                                 this.continuationFrameMessageType = WebSocketMessageType.Binary;
                             }
-                            return new WebSocketReceiveResult(this.readCursor.NumBytesRead, WebSocketMessageType.Binary, endOfMessage);
+                            return new WebSocketReceiveResult(this.readCursor.Value.NumBytesRead, WebSocketMessageType.Binary, endOfMessage);
                         case WebSocketOpCode.ContinuationFrame:
-                            return new WebSocketReceiveResult(this.readCursor.NumBytesRead, this.continuationFrameMessageType, endOfMessage);
+                            return new WebSocketReceiveResult(this.readCursor.Value.NumBytesRead, this.continuationFrameMessageType, endOfMessage);
                         default:
                             Exception ex = new NotSupportedException($"Unknown WebSocket opcode {frame.OpCode}");
                             await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
@@ -243,7 +243,7 @@ namespace Samurai.WebSockets.Internal
                 // of data to get the best compression. And we don't want to create new buffers which is bad for GC.
                 using (var temp = new MemoryStream())
                 {
-                    DeflateStream deflateStream = new DeflateStream(temp, CompressionMode.Compress);
+                    using var deflateStream = new DeflateStream(temp, CompressionMode.Compress);
                     deflateStream.Write(buffer.Array, buffer.Offset, buffer.Count);
                     deflateStream.Flush();
                     var compressedBuffer = new ArraySegment<byte>(temp.ToArray());
