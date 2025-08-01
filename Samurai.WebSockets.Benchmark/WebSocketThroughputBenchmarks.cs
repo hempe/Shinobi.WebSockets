@@ -37,22 +37,18 @@ public class WebSocketThroughputBenchmarks
     [Params(100, 1000)]
     public int ClientCount { get; set; }
 
+    //    [Params("ninja", "samurai")]
     [Params("ninja", "samurai")]
-    //[Params("samurai")]
     public string Implementation { get; set; }
 
-    private byte[][] messages;
+    private byte[] data;
 
     [GlobalSetup]
     public async Task SetupAsync()
     {
         var random = new Random(42069);
-        for (var i = 0; i < this.MessageCount; i++)
-        {
-            var data = ArrayPool<byte>.Shared.Rent(this.MessageSizeKb * 1024);
-            random.NextBytes(data);
-            this.messages[i] = data;
-        }
+        this.data = ArrayPool<byte>.Shared.Rent(this.MessageSizeKb * 1024);
+        random.NextBytes(this.data);
 
         this.port = GetAvailablePort();
         this.serverUrl = $"ws://localhost:{this.port}/";
@@ -197,10 +193,7 @@ public class WebSocketThroughputBenchmarks
             this.serverCts?.Dispose();
             this.clients = null;
             this.serverTask = null;
-            foreach (var data in this.messages ?? [])
-            {
-                ArrayPool<byte>.Shared.Return(data);
-            }
+            ArrayPool<byte>.Shared.Return(this.data);
         }
     }
 
@@ -218,8 +211,7 @@ public class WebSocketThroughputBenchmarks
         {
             for (var i = 0; i < messageCount; i++)
             {
-                var data = this.messages[i];
-                await client.SendAsync(data, WebSocketMessageType.Binary, true, cancellationToken);
+                await client.SendAsync(this.data, WebSocketMessageType.Binary, true, cancellationToken);
                 var received = 0;
 
                 while (!cancellationToken.IsCancellationRequested)
@@ -230,8 +222,8 @@ public class WebSocketThroughputBenchmarks
                         break;
                 }
 
-                if (received != data.Length)
-                    throw new Exception($"Expected {data.Length} got {received}");
+                if (received != this.data.Length)
+                    throw new Exception($"Expected {this.data.Length} got {received}");
 
                 cancellationToken.ThrowIfCancellationRequested();
             }
