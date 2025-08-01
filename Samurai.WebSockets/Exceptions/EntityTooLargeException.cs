@@ -15,12 +15,10 @@ namespace Samurai.WebSockets.Exceptions
         /// </summary>
         public EntityTooLargeException(string message) : base(message)
         {
-
         }
 
         public EntityTooLargeException(string message, Exception inner) : base(message, inner)
         {
-
         }
     }
 }

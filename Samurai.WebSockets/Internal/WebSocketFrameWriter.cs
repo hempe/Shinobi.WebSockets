@@ -20,7 +20,6 @@
 // THE SOFTWARE.
 // ---------------------------------------------------------------------
 
-using System.IO;
 using System;
 
 namespace Samurai.WebSockets.Internal
@@ -34,13 +33,13 @@ namespace Samurai.WebSockets.Internal
     internal static class WebSocketFrameWriter
     {
         /// <summary>
-        /// No async await stuff here because we are dealing with a memory stream
+        /// No async await stuff here because we are dealing with a array pool stream
         /// </summary>
         /// <param name="opCode">The web socket opcode</param>
         /// <param name="fromPayload">Array segment to get payload data from</param>
         /// <param name="toStream">Stream to write to</param>
         /// <param name="isLastFrame">True is this is the last frame in this message (usually true)</param>
-        public static void Write(WebSocketOpCode opCode, ArraySegment<byte> fromPayload, MemoryStream toStream, bool isLastFrame, bool isClient)
+        public static void Write(WebSocketOpCode opCode, ArraySegment<byte> fromPayload, ArrayPoolStream toStream, bool isLastFrame, bool isClient)
         {
             var finBitSetAsByte = isLastFrame ? (byte)0x80 : (byte)0x00;
             var byte1 = (byte)(finBitSetAsByte | (byte)opCode);
@@ -68,10 +67,17 @@ namespace Samurai.WebSockets.Internal
             // if we are creating a client frame then we MUST mack the payload as per the spec
             if (isClient)
             {
-                var maskKey = SharedRandom.MaskKey();
-                toStream.Write(maskKey.Array, maskKey.Offset, maskKey.Count);
-                // mask the payload
-                maskKey.ToggleMask(fromPayload);
+                var maskKey = SharedRandom.GetArraySegment(WebSocketFrameCommon.MaskKeyLength);
+                try
+                {
+                    toStream.Write(maskKey.Array, maskKey.Offset, maskKey.Count);
+                    // mask the payload
+                    maskKey.ToggleMask(fromPayload);
+                }
+                finally
+                {
+                    SharedRandom.ReturnArraySegment(maskKey);
+                }
             }
 
             toStream.Write(fromPayload.Array, fromPayload.Offset, fromPayload.Count);

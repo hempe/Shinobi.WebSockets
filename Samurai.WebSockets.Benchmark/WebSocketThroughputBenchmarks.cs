@@ -5,9 +5,11 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Order;
+
 using Samurai.WebSockets;
 
 [SimpleJob(RuntimeMoniker.Net90)]

@@ -1,18 +1,24 @@
-﻿using Samurai.WebSockets.DemoClient.Complex;
-using System;
+﻿using System;
 using System.Threading.Tasks;
+
+using Samurai.WebSockets.DemoClient.Complex;
+
 using WebSockets.DemoClient.Complex;
 using WebSockets.DemoClient.Simple;
 
 namespace WebSockets.DemoClient
 {
-    class Program
+    internal static class Program
     {
-        static void Main(string[] args)
+        private static async Task Main(string[] args)
         {
             if (args.Length == 0)
             {
-                RunSimpleTest().Wait();
+                await RunSimpleTestAsync();
+            }
+            else if (args.Length == 1)
+            {
+                await RunLoadTestAsync();
             }
             else if (args.Length == 5)
             {
@@ -23,7 +29,7 @@ namespace WebSockets.DemoClient
             else
             {
                 Console.WriteLine("Wrong number of arguments. 0 for simple test. 5 for complex test.");
-                Console.WriteLine($"Complex Test: uri numThreads numItemsPerThread minNumBytesPerMessage maxNumBytesPerMessage");
+                Console.WriteLine("Complex Test: uri numThreads numItemsPerThread minNumBytesPerMessage maxNumBytesPerMessage");
                 Console.WriteLine("e.g: ws://localhost:27416/chat/echo 5 100 4 4");
             }
 
@@ -31,7 +37,7 @@ namespace WebSockets.DemoClient
             Console.ReadKey();
         }
 
-        private static async Task RunLoadTest()
+        private static async Task RunLoadTestAsync()
         {
             var client = new LoadTest();
             await client.RunAsync();
@@ -51,7 +57,7 @@ namespace WebSockets.DemoClient
             runner.Run();
         }
 
-        private static async Task RunSimpleTest()
+        private static async Task RunSimpleTestAsync()
         {
             var client = new SimpleClient();
             await client.Run();

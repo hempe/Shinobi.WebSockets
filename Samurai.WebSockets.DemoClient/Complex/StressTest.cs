@@ -6,20 +6,21 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Samurai.WebSockets;
 
 namespace WebSockets.DemoClient.Complex
 {
-    class StressTest
+    internal class StressTest
     {
         private readonly int seed;
         private readonly Uri uri;
         private readonly int numItems;
         private readonly int minNumBytesPerMessage;
         private readonly int maxNumBytesPerMessage;
-        WebSocket webSocket;
-        CancellationToken cancellationToken;
-        byte[][] expectedValues;
+        private WebSocket webSocket;
+        private CancellationToken cancellationToken;
+        private byte[][] expectedValues;
         private readonly IWebSocketClientFactory clientFactory;
 
         public StressTest(int seed, Uri uri, int numItems, int minNumBytesPerMessage, int maxNumBytesPerMessage)

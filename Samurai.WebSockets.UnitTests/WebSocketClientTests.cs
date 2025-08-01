@@ -6,8 +6,11 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Logging;
+
 using Samurai.WebSockets.Internal;
+
 using Xunit;
 
 namespace Samurai.WebSockets.UnitTests

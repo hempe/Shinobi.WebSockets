@@ -9,11 +9,11 @@ Intel Core i7-8565U CPU 1.80GHz (Whiskey Lake), 1 CPU, 8 logical and 4 physical 
 Job=.NET 9.0  Runtime=.NET 9.0  
 
 ```
-| Method                             | MessageCount | Mean       | Error     | StdDev    | Median     | Gen0    | Allocated |
-|----------------------------------- |------------- |-----------:|----------:|----------:|-----------:|--------:|----------:|
-| ClientToServer_SmallMessagesAsync  | 50           |   163.0 μs |   9.58 μs |  28.26 μs |   164.3 μs | 14.2822 |  58.32 KB |
-| ClientToServer_MediumMessagesAsync | 50           |   228.0 μs |  12.01 μs |  34.66 μs |   216.6 μs | 14.6484 |  59.75 KB |
-| ClientToServer_MediumMessagesAsync | 100          |   477.8 μs |  28.95 μs |  84.46 μs |   443.5 μs | 28.3203 | 118.63 KB |
-| ClientToServer_SmallMessagesAsync  | 100          |   904.7 μs |  45.73 μs | 134.11 μs |   932.0 μs | 27.3438 | 114.56 KB |
-| ClientToServer_MediumMessagesAsync | 250          | 1,217.7 μs |  60.14 μs | 174.48 μs | 1,184.5 μs | 72.2656 | 295.09 KB |
-| ClientToServer_SmallMessagesAsync  | 250          | 2,260.6 μs | 100.97 μs | 297.70 μs | 2,242.1 μs | 68.3594 | 279.99 KB |
+| Method                             | MessageCount | Mean       | Error    | StdDev   | Gen0    | Allocated |
+|----------------------------------- |------------- |-----------:|---------:|---------:|--------:|----------:|
+| ClientToServer_MediumMessagesAsync | 50           |   182.1 μs |  3.09 μs |  2.89 μs | 12.2070 |  49.22 KB |
+| ClientToServer_SmallMessagesAsync  | 50           |   349.9 μs |  6.94 μs |  9.96 μs | 12.2070 |   50.8 KB |
+| ClientToServer_MediumMessagesAsync | 100          |   371.1 μs |  5.10 μs |  4.26 μs | 23.9258 |  97.79 KB |
+| ClientToServer_SmallMessagesAsync  | 100          |   641.7 μs | 12.81 μs | 18.37 μs | 23.4375 |  95.67 KB |
+| ClientToServer_MediumMessagesAsync | 250          |   931.9 μs | 18.46 μs | 17.27 μs | 59.5703 | 242.77 KB |
+| ClientToServer_SmallMessagesAsync  | 250          | 1,638.7 μs | 31.75 μs | 49.44 μs | 58.5938 | 244.31 KB |

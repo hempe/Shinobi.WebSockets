@@ -1,45 +1,54 @@
-﻿using Microsoft.Extensions.Logging;
-using Samurai.WebSockets;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
+using Samurai.WebSockets;
+
 namespace WebSockets.DemoServer
 {
-    class Program
+    internal class Program
     {
-        static ILogger _logger;
-        static ILoggerFactory _loggerFactory;
-        static IWebSocketServerFactory _webSocketServerFactory;
+        private static ILogger logger;
+        private static ILoggerFactory loggerFactory;
+        private static IWebSocketServerFactory webSocketServerFactory;
 
-        static void Main(string[] args)
+        private static async Task Main(string[] _)
         {
-            _loggerFactory = new LoggerFactory();
-            _loggerFactory.AddConsole(LogLevel.Trace);
-            _logger = _loggerFactory.CreateLogger<Program>();
-            _webSocketServerFactory = new WebSocketServerFactory();
-            Task task = StartWebServer();
-            task.Wait();
+            loggerFactory = LoggerFactory.Create(builder => builder
+                    .SetMinimumLevel(LogLevel.Trace)
+                    .AddConsole());
+
+            logger = loggerFactory.CreateLogger<Program>();
+
+            Samurai.WebSockets.Internal.Events.Log
+                = new Samurai.WebSockets.Internal.Events(loggerFactory.CreateLogger<Samurai.WebSockets.Internal.Events>());
+
+            webSocketServerFactory = new WebSocketServerFactory();
+            await StartWebServerAsync();
+            logger.LogInformation("Server stopped. Press any key to exit.");
+            Console.ReadKey();
         }
 
-        static async Task StartWebServer()
+        private static async Task StartWebServerAsync()
         {
             try
             {
                 int port = 27416;
                 IList<string> supportedSubProtocols = new string[] { "chatV1", "chatV2", "chatV3" };
-                using (WebServer server = new WebServer(_webSocketServerFactory, _loggerFactory, supportedSubProtocols))
+                using (WebServer server = new WebServer(webSocketServerFactory, loggerFactory, supportedSubProtocols))
                 {
-                    await server.Listen(port);
-                    _logger.LogInformation($"Listening on port {port}");
-                    _logger.LogInformation("Press any key to quit");
+                    await server.ListenAsync(port);
+                    logger.LogInformation($"Listening on port {port}");
+                    logger.LogInformation("Press any key to quit");
                     Console.ReadKey();
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.ToString());
+                logger.LogError(ex.ToString());
                 Console.ReadKey();
             }
         }

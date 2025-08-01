@@ -21,14 +21,8 @@ namespace Samurai.WebSockets.Internal
             return bytes;
         }
 
-        public static ArraySegment<byte> MaskKey()
-        {
-            if (rand == null)
-                rand = new Random((int)DateTime.Now.Ticks);
-            var bytes = new byte[WebSocketFrameCommon.MaskKeyLength];
-            rand.NextBytes(bytes);
-            return new ArraySegment<byte>(bytes, 0, WebSocketFrameCommon.MaskKeyLength);
-        }
+        public static ArraySegment<byte> GetArraySegment(int size)
+            => new ArraySegment<byte>(NextBytes(size), 0, size);
 
         public static string SecWebSocketKey()
         {
@@ -45,5 +39,8 @@ namespace Samurai.WebSockets.Internal
 
         public static void ReturnBytes(byte[] bytes)
             => ArrayPool<byte>.Shared.Return(bytes, clearArray: false);
+
+        public static void ReturnArraySegment(ArraySegment<byte> segment)
+            => ArrayPool<byte>.Shared.Return(segment.Array, clearArray: false);
     }
 }

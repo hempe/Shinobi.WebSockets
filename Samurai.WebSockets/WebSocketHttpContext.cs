@@ -11,27 +11,27 @@ namespace Samurai.WebSockets
         /// <summary>
         /// True if this is a valid WebSocket request
         /// </summary>
-        public bool IsWebSocketRequest { get; private set; }
+        public bool IsWebSocketRequest { get; }
 
         /// <summary>
         /// The protocols requested by the client in the WebSocket handshake
         /// </summary>
-        public IList<string> WebSocketRequestedProtocols { get; private set; }
+        public IList<string> WebSocketRequestedProtocols { get; }
 
         /// <summary>
         /// The raw http header extracted from the stream
         /// </summary>
-        public string HttpHeader { get; private set; }
+        public string HttpHeader { get; }
 
         /// <summary>
         /// The Path extracted from the http header
         /// </summary>
-        public string Path { get; private set; }
+        public string Path { get; }
 
         /// <summary>
         /// The stream AFTER the header has already been read
         /// </summary>
-        public Stream Stream { get; private set; }
+        public Stream Stream { get; }
 
         /// <summary>
         /// Initialises a new instance of the WebSocketHttpContext class

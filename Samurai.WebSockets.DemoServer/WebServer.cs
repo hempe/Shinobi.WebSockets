@@ -1,13 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using System.Threading;
+using System.Threading.Tasks;
+
+using Microsoft.Extensions.Logging;
+
 using Samurai.WebSockets;
-using System.Collections.Generic;
 
 namespace WebSockets.DemoServer
 {
@@ -15,11 +17,12 @@ namespace WebSockets.DemoServer
     {
         private TcpListener listener;
         private bool isDisposed = false;
-        ILogger logger;
+        private ILogger logger;
         private readonly IWebSocketServerFactory webSocketServerFactory;
         private readonly HashSet<string> supportedSubProtocols;
+
         // const int BUFFER_SIZE = 1 * 1024 * 1024 * 1024; // 1GB
-        const int BUFFER_SIZE = 4 * 1024 * 1024; // 4MB
+        private const int BUFFER_SIZE = 4 * 1024 * 1024; // 4MB
 
         public WebServer(IWebSocketServerFactory webSocketServerFactory, ILoggerFactory loggerFactory, IList<string> supportedSubProtocols = null)
         {
@@ -56,61 +59,63 @@ namespace WebSockets.DemoServer
 
         private async Task ProcessTcpClientAsync(TcpClient tcpClient)
         {
-            CancellationTokenSource source = new CancellationTokenSource();
-
-            try
-            {
-                if (this.isDisposed)
-                {
-                    return;
-                }
-
-                // this worker thread stays alive until either of the following happens:
-                // Client sends a close conection request OR
-                // An unhandled exception is thrown OR
-                // The server is disposed
-                this.logger.LogInformation("Server: Connection opened. Reading Http header from stream");
-
-                // get a secure or insecure stream
-                Stream stream = tcpClient.GetStream();
-                WebSocketHttpContext context = await this.webSocketServerFactory.ReadHttpHeaderFromStreamAsync(stream);
-                if (context.IsWebSocketRequest)
-                {
-                    string subProtocol = this.GetSubProtocol(context.WebSocketRequestedProtocols);
-                    var options = new WebSocketServerOptions() { KeepAliveInterval = TimeSpan.FromSeconds(30), SubProtocol = subProtocol };
-                    this.logger.LogInformation("Http header has requested an upgrade to Web Socket protocol. Negotiating Web Socket handshake");
-
-                    WebSocket webSocket = await this.webSocketServerFactory.AcceptWebSocketAsync(context, options);
-
-                    this.logger.LogInformation("Web Socket handshake response sent. Stream ready.");
-                    await this.RespondToWebSocketRequestAsync(webSocket, source.Token);
-                }
-                else
-                {
-                    this.logger.LogInformation("Http header contains no web socket upgrade request. Ignoring");
-                }
-
-                this.logger.LogInformation("Server: Connection closed");
-            }
-            catch (ObjectDisposedException)
-            {
-                // do nothing. This will be thrown if the Listener has been stopped
-            }
-            catch (Exception ex)
-            {
-                this.logger.LogError(ex.ToString());
-            }
-            finally
+            using var source = new CancellationTokenSource();
+            using (tcpClient)
             {
                 try
                 {
-                    tcpClient.Client.Close();
-                    tcpClient.Close();
-                    source.Cancel();
+                    if (this.isDisposed)
+                    {
+                        return;
+                    }
+
+                    // this worker thread stays alive until either of the following happens:
+                    // Client sends a close conection request OR
+                    // An unhandled exception is thrown OR
+                    // The server is disposed
+                    this.logger.LogInformation("Server: Connection opened. Reading Http header from stream");
+
+                    // get a secure or insecure stream
+                    Stream stream = tcpClient.GetStream();
+                    WebSocketHttpContext context = await this.webSocketServerFactory.ReadHttpHeaderFromStreamAsync(stream);
+                    if (context.IsWebSocketRequest)
+                    {
+                        string subProtocol = this.GetSubProtocol(context.WebSocketRequestedProtocols);
+                        var options = new WebSocketServerOptions() { KeepAliveInterval = TimeSpan.FromSeconds(30), SubProtocol = subProtocol };
+                        this.logger.LogInformation("Http header has requested an upgrade to Web Socket protocol. Negotiating Web Socket handshake");
+
+                        WebSocket webSocket = await this.webSocketServerFactory.AcceptWebSocketAsync(context, options);
+
+                        this.logger.LogInformation("Web Socket handshake response sent. Stream ready.");
+                        await this.RespondToWebSocketRequestAsync(webSocket, source.Token);
+                    }
+                    else
+                    {
+                        this.logger.LogInformation("Http header contains no web socket upgrade request. Ignoring");
+                    }
+
+                    this.logger.LogInformation("Server: Connection closed");
+                }
+                catch (ObjectDisposedException)
+                {
+                    // do nothing. This will be thrown if the Listener has been stopped
                 }
                 catch (Exception ex)
                 {
-                    this.logger.LogError($"Failed to close TCP connection: {ex}");
+                    this.logger.LogError(ex.ToString());
+                }
+                finally
+                {
+                    try
+                    {
+                        tcpClient.Client.Close();
+                        tcpClient.Close();
+                        source.Cancel();
+                    }
+                    catch (Exception ex)
+                    {
+                        this.logger.LogError($"Failed to close TCP connection: {ex}");
+                    }
                 }
             }
         }
@@ -142,17 +147,17 @@ namespace WebSockets.DemoServer
             }
         }
 
-        public async Task Listen(int port)
+        public async Task ListenAsync(int port)
         {
             try
             {
-                IPAddress localAddress = IPAddress.Any;
+                var localAddress = IPAddress.Any;
                 this.listener = new TcpListener(localAddress, port);
                 this.listener.Start();
                 this.logger.LogInformation($"Server started listening on port {port}");
                 while (true)
                 {
-                    TcpClient tcpClient = await this.listener.AcceptTcpClientAsync();
+                    var tcpClient = await this.listener.AcceptTcpClientAsync();
                     this.ProcessTcpClient(tcpClient);
                 }
             }

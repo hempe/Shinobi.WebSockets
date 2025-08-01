@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Samurai.WebSockets.UnitTests
 {
-    class MockNetworkStream : Stream
+    internal class MockNetworkStream : Stream
     {
         private readonly string streamName;
         private readonly MemoryStream remoteStream;
@@ -35,7 +35,7 @@ namespace Samurai.WebSockets.UnitTests
             this.remoteWriteSlim = remoteWriteSlim;
         }
 
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        public async override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             this.remoteReadSlim.Wait(cancellationToken);
             if (cancellationToken.IsCancellationRequested)
@@ -54,7 +54,7 @@ namespace Samurai.WebSockets.UnitTests
             return numBytesRead;
         }
 
-        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        public async override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             this.localWriteSlim.Wait(cancellationToken);
             this.localWriteSlim.Reset();

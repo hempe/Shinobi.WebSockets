@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace WebSockets.DemoClient.Complex
 {
-    class TestRunner
+    internal class TestRunner
     {
         private readonly Uri uri;
         private readonly int numThreads;

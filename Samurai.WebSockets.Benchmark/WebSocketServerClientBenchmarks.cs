@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
@@ -7,11 +9,11 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
+
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Order;
+
 using Samurai.WebSockets;
 
 [SimpleJob(RuntimeMoniker.Net90)]
@@ -292,7 +294,7 @@ public class WebSocketServerClientBenchmarks
         {
             // Connection closed unexpectedly
         }
-        catch (Exception)
+        catch
         {
             // Handle other errors silently for benchmarking
         }

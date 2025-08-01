@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Samurai.WebSockets.DemoClient.Complex
 {
-    class PingPongTest
+    internal class PingPongTest
     {
     }
 }

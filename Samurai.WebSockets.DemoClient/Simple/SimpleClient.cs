@@ -1,13 +1,14 @@
-﻿using Samurai.WebSockets;
-using System;
+﻿using System;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Samurai.WebSockets;
+
 namespace WebSockets.DemoClient.Simple
 {
-    class SimpleClient
+    internal class SimpleClient
     {
         public async Task Run()
         {

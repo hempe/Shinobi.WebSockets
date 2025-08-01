@@ -5,38 +5,30 @@ namespace Samurai.WebSockets.Internal
 {
     internal class WebSocketFrame
     {
-        public bool IsFinBitSet { get; private set; }
+        public bool IsFinBitSet { get; }
 
-        public WebSocketOpCode OpCode { get; private set; }
+        public WebSocketOpCode OpCode { get; }
 
-        public int Count { get; private set; }
+        public int Count { get; }
 
-        public WebSocketCloseStatus? CloseStatus { get; private set; }
+        public WebSocketCloseStatus? CloseStatus { get; }
 
-        public string CloseStatusDescription { get; private set; }
+        public string CloseStatusDescription { get; }
 
-        public ArraySegment<byte> MaskKey { get; private set; }
+        public ArraySegment<byte> MaskKey { get; }
 
         public WebSocketFrame(
             bool isFinBitSet,
             WebSocketOpCode webSocketOpCode,
             int count,
-            ArraySegment<byte> maskKey)
+            ArraySegment<byte> maskKey,
+            WebSocketCloseStatus? closeStatus = null,
+            string closeStatusDescription = null)
         {
             this.IsFinBitSet = isFinBitSet;
             this.OpCode = webSocketOpCode;
             this.Count = count;
             this.MaskKey = maskKey;
-        }
-
-        public WebSocketFrame(
-            bool isFinBitSet,
-            WebSocketOpCode webSocketOpCode,
-            int count, WebSocketCloseStatus closeStatus,
-            string closeStatusDescription,
-            ArraySegment<byte> maskKey)
-        : this(isFinBitSet, webSocketOpCode, count, maskKey)
-        {
             this.CloseStatus = closeStatus;
             this.CloseStatusDescription = closeStatusDescription;
         }

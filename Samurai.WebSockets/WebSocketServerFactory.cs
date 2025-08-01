@@ -21,12 +21,12 @@
 // ---------------------------------------------------------------------
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Samurai.WebSockets.Exceptions;
 using Samurai.WebSockets.Internal;
 

@@ -37,15 +37,10 @@ namespace Samurai.WebSockets.Internal
     {
         private static int CalculateNumBytesToRead(int numBytesLetfToRead, int bufferSize)
         {
-            if (bufferSize < numBytesLetfToRead)
-            {
-                // the count needs to be a multiple of the mask key
-                return bufferSize - bufferSize % 4;
-            }
-            else
-            {
-                return numBytesLetfToRead;
-            }
+            // the count needs to be a multiple of the mask key
+            return (bufferSize < numBytesLetfToRead)
+                ? bufferSize - bufferSize % WebSocketFrameCommon.MaskKeyLength
+                : numBytesLetfToRead;
         }
 
         /// <summary>
@@ -82,35 +77,36 @@ namespace Samurai.WebSockets.Internal
             var smallBuffer = new ArraySegment<byte>(new byte[8]);
 
             await fromStream.ReadFixedLengthAsync(2, smallBuffer, cancellationToken).ConfigureAwait(false);
-            byte byte1 = smallBuffer.Array[0];
-            byte byte2 = smallBuffer.Array[1];
+            var byte1 = smallBuffer.Array[0];
+            var byte2 = smallBuffer.Array[1];
 
             // process first byte
-            byte finBitFlag = 0x80;
-            byte opCodeFlag = 0x0F;
-            bool isFinBitSet = (byte1 & finBitFlag) == finBitFlag;
-            WebSocketOpCode opCode = (WebSocketOpCode)(byte1 & opCodeFlag);
+            const byte finBitFlag = 0x80;
+            const byte opCodeFlag = 0x0F;
+            var isFinBitSet = (byte1 & finBitFlag) == finBitFlag;
+            var opCode = (WebSocketOpCode)(byte1 & opCodeFlag);
 
             // read and process second byte
-            byte maskFlag = 0x80;
-            bool isMaskBitSet = (byte2 & maskFlag) == maskFlag;
-            uint len = await ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken);
-            int count = (int)len;
+            const byte maskFlag = 0x80;
+            var isMaskBitSet = (byte2 & maskFlag) == maskFlag;
+            var len = await ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken);
+            var count = (int)len;
             var minCount = CalculateNumBytesToRead(count, intoBuffer.Count);
-            ArraySegment<byte> maskKey = new ArraySegment<byte>();
+            ArraySegment<byte> maskKey;
 
             try
             {
                 // use the masking key to decode the data if needed
                 if (isMaskBitSet)
                 {
-                    maskKey = new ArraySegment<byte>(smallBuffer.Array, 0, WebSocketFrameCommon.MaskKeyLength);
+                    maskKey = smallBuffer.Array.AsMaskKey();
                     await fromStream.ReadFixedLengthAsync(maskKey.Count, maskKey, cancellationToken).ConfigureAwait(false);
                     await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
                     maskKey.ToggleMask(new ArraySegment<byte>(intoBuffer.Array, intoBuffer.Offset, minCount));
                 }
                 else
                 {
+                    maskKey = new ArraySegment<byte>();
                     await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -119,16 +115,10 @@ namespace Samurai.WebSockets.Internal
                 throw new InternalBufferOverflowException($"Supplied buffer too small to read {0} bytes from {Enum.GetName(typeof(WebSocketOpCode), opCode)} frame", e);
             }
 
-            WebSocketFrame frame;
-            if (opCode == WebSocketOpCode.ConnectionClose)
-            {
-                frame = DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer, maskKey);
-            }
-            else
-            {
+            var frame = (opCode == WebSocketOpCode.ConnectionClose)
+                ? DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer, maskKey)
                 // note that by this point the payload will be populated
-                frame = new WebSocketFrame(isFinBitSet, opCode, count, maskKey);
-            }
+                : new WebSocketFrame(isFinBitSet, opCode, count, maskKey);
 
             return new WebSocketReadCursor(frame, minCount, count - minCount);
         }
@@ -138,41 +128,28 @@ namespace Samurai.WebSockets.Internal
         /// </summary>
         private static WebSocketFrame DecodeCloseFrame(bool isFinBitSet, WebSocketOpCode opCode, int count, ArraySegment<byte> buffer, ArraySegment<byte> maskKey)
         {
-            WebSocketCloseStatus closeStatus;
-            string closeStatusDescription;
+            if (count < 2)
+                return new WebSocketFrame(
+                    isFinBitSet,
+                    opCode,
+                    count,
+                    maskKey,
+                    WebSocketCloseStatus.Empty);
 
-            if (count >= 2)
-            {
-                Array.Reverse(buffer.Array, buffer.Offset, 2); // network byte order
-                int closeStatusCode = (int)BitConverter.ToUInt16(buffer.Array, buffer.Offset);
-                if (Enum.IsDefined(typeof(WebSocketCloseStatus), closeStatusCode))
-                {
-                    closeStatus = (WebSocketCloseStatus)closeStatusCode;
-                }
-                else
-                {
-                    closeStatus = WebSocketCloseStatus.Empty;
-                }
+            // network byte order
+            Array.Reverse(buffer.Array, buffer.Offset, 2);
 
-                int offset = buffer.Offset + 2;
-                int descCount = count - 2;
+            var closeStatusCode = (int)BitConverter.ToUInt16(buffer.Array, buffer.Offset);
+            var closeStatus = Enum.IsDefined(typeof(WebSocketCloseStatus), closeStatusCode)
+                ? (WebSocketCloseStatus)closeStatusCode
+                : WebSocketCloseStatus.Empty;
 
-                if (descCount > 0)
-                {
-                    closeStatusDescription = Encoding.UTF8.GetString(buffer.Array, offset, descCount);
-                }
-                else
-                {
-                    closeStatusDescription = null;
-                }
-            }
-            else
-            {
-                closeStatus = WebSocketCloseStatus.Empty;
-                closeStatusDescription = null;
-            }
+            var descCount = count - 2;
+            var closeStatusDescription = (descCount > 0)
+                ? Encoding.UTF8.GetString(buffer.Array, buffer.Offset + 2, descCount) :
+                null;
 
-            return new WebSocketFrame(isFinBitSet, opCode, count, closeStatus, closeStatusDescription, maskKey);
+            return new WebSocketFrame(isFinBitSet, opCode, count, maskKey, closeStatus, closeStatusDescription);
         }
 
         /// <summary>
@@ -180,15 +157,12 @@ namespace Samurai.WebSockets.Internal
         /// </summary>
         private static async ValueTask<uint> ReadLengthAsync(byte byte2, ArraySegment<byte> smallBuffer, Stream fromStream, CancellationToken cancellationToken)
         {
-            byte payloadLenFlag = 0x7F;
-            uint len = (uint)(byte2 & payloadLenFlag);
+            const byte payloadLenFlag = 0x7F;
+            var len = (uint)(byte2 & payloadLenFlag);
 
             // read a short length or a long length depending on the value of len
             if (len == 126)
-            {
-                len = await fromStream.ReadUShortAsync(false, smallBuffer, cancellationToken).ConfigureAwait(false);
-                return len;
-            }
+                return await fromStream.ReadUShortAsync(false, smallBuffer, cancellationToken).ConfigureAwait(false);
 
             if (len == 127)
             {
@@ -196,7 +170,7 @@ namespace Samurai.WebSockets.Internal
                 const uint maxLen = 2147483648; // 2GB - not part of the spec but just a precaution. Send large volumes of data in smaller frames.
 
                 // protect ourselves against bad data
-                if (len > maxLen || len < 0)
+                if (len > maxLen)
                     throw new ArgumentOutOfRangeException($"Payload length out of range. Min 0 max 2GB. Actual {len:#,##0} bytes.");
             }
 

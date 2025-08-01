@@ -21,7 +21,6 @@
 // THE SOFTWARE.
 // ---------------------------------------------------------------------
 
-using Samurai.WebSockets.Exceptions;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -31,6 +30,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+
+using Samurai.WebSockets.Exceptions;
 
 namespace Samurai.WebSockets
 {
@@ -66,7 +67,6 @@ namespace Samurai.WebSockets
         /// Reads an http header as per the HTTP spec
         /// </summary>
         /// <param name="stream">The stream to read UTF8 text from</param>
-        /// <param name="token">The cancellation token</param>
         /// <returns>The HTTP header</returns>
         public static async ValueTask<string> ReadHttpHeaderAsync(this Stream stream, CancellationToken cancellationToken)
         {

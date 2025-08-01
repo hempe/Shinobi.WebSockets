@@ -35,6 +35,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Samurai.WebSockets.Exceptions;
 using Samurai.WebSockets.Internal;
 
@@ -96,7 +97,7 @@ namespace Samurai.WebSockets
         /// <param name="responseStream">The full duplex response stream from the server</param>
         /// <param name="secWebSocketKey">The secWebSocketKey you used in the handshake request</param>
         /// <param name="options">The WebSocket client options</param>
-        /// <param name="token">The optional cancellation token</param>
+        /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns></returns>
         public ValueTask<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken = default(CancellationToken))
             => this.ConnectAsync(Guid.NewGuid(),
@@ -189,7 +190,7 @@ namespace Samurai.WebSockets
         /// <param name="port">The destination port</param>
         /// <param name="cancellationToken">Used to cancel the request</param>
         /// <returns>A connected and open stream</returns>
-        protected virtual async ValueTask<Stream> GetStreamAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
+        protected async virtual ValueTask<Stream> GetStreamAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
         {
             var tcpClient = new TcpClient { NoDelay = noDelay };
             if (IPAddress.TryParse(host, out var ipAddress))

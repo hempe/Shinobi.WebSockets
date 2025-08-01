@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Samurai.WebSockets.Exceptions
 {
@@ -17,18 +15,21 @@ namespace Samurai.WebSockets.Exceptions
         {
         }
 
-        public InvalidHttpResponseCodeException(string message) : base(message)
+        public InvalidHttpResponseCodeException(string message)
+         : base(message)
         {
         }
 
-        public InvalidHttpResponseCodeException(string responseCode, string responseDetails, string responseHeader) : base(responseCode)
+        public InvalidHttpResponseCodeException(string responseCode, string responseDetails, string responseHeader)
+        : base(responseCode)
         {
             this.ResponseCode = responseCode;
             this.ResponseDetails = responseDetails;
             this.ResponseHeader = responseHeader;
         }
 
-        public InvalidHttpResponseCodeException(string message, Exception inner) : base(message, inner)
+        public InvalidHttpResponseCodeException(string message, Exception inner)
+        : base(message, inner)
         {
         }
     }

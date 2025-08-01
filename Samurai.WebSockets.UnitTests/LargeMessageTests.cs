@@ -8,8 +8,11 @@ using System.Net.NetworkInformation;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Logging;
+
 using Samurai.WebSockets.Internal;
+
 using Xunit;
 
 namespace Samurai.WebSockets.UnitTests
@@ -169,7 +172,7 @@ namespace Samurai.WebSockets.UnitTests
         }
 
         [Theory]
-        //[InlineData(false)]
+        [InlineData(false)]
         [InlineData(true)]
         public async Task SendLargeBinaryMessage(bool useSamurai)
         {

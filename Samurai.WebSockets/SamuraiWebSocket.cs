@@ -58,7 +58,6 @@ namespace Samurai.WebSockets.Internal
         private WebSocketMessageType continuationFrameMessageType = WebSocketMessageType.Binary;
         private WebSocketReadCursor readCursor;
         private readonly bool usePerMessageDeflate = false;
-        private bool tryGetBufferFailureLogged = false;
         private WebSocketCloseStatus? closeStatus;
         private string closeStatusDescription;
         private long pingSentTicks;
@@ -117,7 +116,7 @@ namespace Samurai.WebSockets.Internal
         /// <param name="buffer">The buffer to copy data into</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <returns>The web socket result details</returns>
-        public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        public async override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
             try
             {
@@ -229,9 +228,9 @@ namespace Samurai.WebSockets.Internal
         /// <param name="endOfMessage">True if this message is a standalone message (this is the norm)
         /// If it is a multi-part message then false (and true for the last message)</param>
         /// <param name="cancellationToken">the cancellation token</param>
-        public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
+        public async override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
         {
-            using (var stream = new ArrayPoolMemoryStream())
+            using (var stream = new ArrayPoolStream())
             {
                 var opCode = this.GetOppCode(messageType);
 
@@ -273,11 +272,11 @@ namespace Samurai.WebSockets.Internal
         /// <summary>
         /// Polite close (use the close handshake)
         /// </summary>
-        public override async Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+        public async override Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
         {
             if (this.state == WebSocketState.Open)
             {
-                using (var stream = new ArrayPoolMemoryStream())
+                using (var stream = new ArrayPoolStream())
                 {
                     ArraySegment<byte> buffer = this.BuildClosePayload(closeStatus, statusDescription);
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
@@ -296,13 +295,13 @@ namespace Samurai.WebSockets.Internal
         /// <summary>
         /// Fire and forget close
         /// </summary>
-        public override async Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+        public async override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
         {
             if (this.state == WebSocketState.Open)
             {
                 this.state = WebSocketState.Closed; // set this before we write to the network because the write may fail
 
-                using (var stream = new ArrayPoolMemoryStream())
+                using (var stream = new ArrayPoolStream())
                 {
                     ArraySegment<byte> buffer = this.BuildClosePayload(closeStatus, statusDescription);
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
@@ -408,7 +407,7 @@ namespace Samurai.WebSockets.Internal
 
             if (this.state == WebSocketState.Open)
             {
-                using (var stream = new ArrayPoolMemoryStream())
+                using (var stream = new ArrayPoolStream())
                 {
                     WebSocketFrameWriter.Write(WebSocketOpCode.Ping, payload, stream, true, this.isClient);
                     Events.Log.SendingFrame(this.guid, WebSocketOpCode.Ping, true, payload.Count, false);
@@ -442,8 +441,13 @@ namespace Samurai.WebSockets.Internal
             }
         }
 
+        /// <summary>
         /// NOTE: pong payload must be 125 bytes or less
         /// Pong should contain the same payload as the ping
+        /// </summary>
+        /// <param name="payload">The payload of the ping.</param>
+        /// <param name="cancellationToken">The cancellation token</param>
+        /// <returns></returns>
         private async ValueTask SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
         {
             // as per websocket spec
@@ -458,7 +462,7 @@ namespace Samurai.WebSockets.Internal
             {
                 if (this.state == WebSocketState.Open)
                 {
-                    using (var stream = new ArrayPoolMemoryStream())
+                    using (var stream = new ArrayPoolStream())
                     {
                         WebSocketFrameWriter.Write(WebSocketOpCode.Pong, payload, stream, true, this.isClient);
                         Events.Log.SendingFrame(this.guid, WebSocketOpCode.Pong, true, payload.Count, false);
@@ -496,7 +500,7 @@ namespace Samurai.WebSockets.Internal
                 this.state = WebSocketState.CloseReceived;
                 Events.Log.CloseHandshakeRespond(this.guid, frame.CloseStatus, frame.CloseStatusDescription);
 
-                using (var stream = new ArrayPoolMemoryStream())
+                using (var stream = new ArrayPoolStream())
                 {
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.isClient);
                     Events.Log.SendingFrame(this.guid, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
@@ -511,59 +515,14 @@ namespace Samurai.WebSockets.Internal
             return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Close, frame.IsFinBitSet, frame.CloseStatus, frame.CloseStatusDescription);
         }
 
-        /// <summary>
-        /// Note that the way in which the stream buffer is accessed can lead to significant performance problems
-        /// You want to avoid a call to stream.ToArray to avoid extra memory allocation
-        /// MemoryStream can be configured to have its internal buffer accessible. 
-        /// </summary>
-        private ArraySegment<byte> GetBuffer(MemoryStream stream)
-        {
-#if NET45
-            // NET45 does not have a TryGetBuffer function on Stream
-            if (_tryGetBufferFailureLogged)
-            {
-                return new ArraySegment<byte>(stream.ToArray(), 0, (int)stream.Position);
-            }
-
-            // note that a MemoryStream will throw an UnuthorizedAccessException if the internal buffer is not public. Set publiclyVisible = true
-            try
-            {
-                return new ArraySegment<byte>(stream.GetBuffer(), 0, (int)stream.Position);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                Events.Log.TryGetBufferNotSupported(_guid, stream?.GetType()?.ToString());
-                _tryGetBufferFailureLogged = true;
-                return new ArraySegment<byte>(stream.ToArray(), 0, (int)stream.Position);
-            }
-#else
-            // Avoid calling ToArray on the MemoryStream because it allocates a new byte array on tha heap
-            // We avaoid this by attempting to access the internal memory stream buffer
-            // This works with supported streams like the recyclable memory stream and writable memory streams
-            if (!stream.TryGetBuffer(out ArraySegment<byte> buffer))
-            {
-                if (!this.tryGetBufferFailureLogged)
-                {
-                    Events.Log.TryGetBufferNotSupported(this.guid, stream?.GetType()?.ToString());
-                    this.tryGetBufferFailureLogged = true;
-                }
-
-                // internal buffer not suppoted, fall back to ToArray()
-                byte[] array = stream.ToArray();
-                buffer = new ArraySegment<byte>(array, 0, array.Length);
-            }
-
-            return new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position);
-#endif
-        }
 
         /// <summary>
         /// Puts data on the wire
         /// </summary>
         /// <param name="stream">The stream to read data from</param>
-        private async ValueTask WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
+        private async ValueTask WriteStreamToNetworkAsync(ArrayPoolStream stream, CancellationToken cancellationToken)
         {
-            ArraySegment<byte> buffer = this.GetBuffer(stream);
+            var buffer = stream.GetArraySegmentBuffer();
             await this.semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {

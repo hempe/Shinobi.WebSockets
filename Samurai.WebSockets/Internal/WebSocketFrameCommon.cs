@@ -1,11 +1,15 @@
 ﻿using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+
 namespace Samurai.WebSockets.Internal
 {
     public static class WebSocketFrameCommon
     {
         public const int MaskKeyLength = 4;
+
+        public static ArraySegment<byte> AsMaskKey(this byte[] bytes)
+            => new ArraySegment<byte>(bytes, 0, MaskKeyLength);
 
         public static void ToggleMask(this ArraySegment<byte> maskKey, ArraySegment<byte> payload)
         {

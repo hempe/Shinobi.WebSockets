@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace Samurai.WebSockets.UnitTests
 {
-    class TheInternet : IDisposable
+    internal class TheInternet : IDisposable
     {
         private readonly MemoryStream clientStream;
         private readonly MemoryStream serverStream;

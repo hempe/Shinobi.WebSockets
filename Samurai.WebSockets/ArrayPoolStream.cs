@@ -1,0 +1,291 @@
+using System;
+using System.Buffers;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Samurai.WebSockets
+{
+    public class ArrayPoolStream : Stream
+    {
+        private byte[] buffer;
+        private MemoryStream innerStream;
+        private bool isDisposed;
+
+        public ArrayPoolStream(int size = 16384)
+        {
+            this.buffer = ArrayPool<byte>.Shared.Rent(size);
+            this.innerStream = new MemoryStream(this.buffer, 0, this.buffer.Length, true, true);
+        }
+
+        public override long Length => this.innerStream?.Length ?? 0;
+
+        public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.BeginRead(buffer, offset, count, callback, state);
+        }
+
+        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.BeginWrite(buffer, offset, count, callback, state);
+        }
+
+        public override bool CanRead => !this.isDisposed && this.innerStream.CanRead;
+        public override bool CanSeek => !this.isDisposed && this.innerStream.CanSeek;
+        public override bool CanTimeout => !this.isDisposed && this.innerStream.CanTimeout;
+        public override bool CanWrite => !this.isDisposed && this.innerStream.CanWrite;
+
+        public int Capacity
+        {
+            get => this.innerStream?.Capacity ?? 0;
+            set
+            {
+                this.ThrowIfDisposed();
+                // Note: Setting capacity on the inner MemoryStream won't help us
+                // because we manage the buffer ourselves
+                if (value > this.buffer.Length)
+                {
+                    this.EnlargeBuffer(value - (int)this.innerStream.Position);
+                }
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (!this.isDisposed && disposing)
+            {
+                if (this.buffer != null)
+                {
+                    // Clear the buffer - we only need to clear up to the number of bytes we have written
+                    // TODO: Do I care?
+                    Array.Clear(this.buffer, 0, (int)(this.innerStream?.Position ?? 0));
+
+                    // Return the buffer to ArrayPool
+                    ArrayPool<byte>.Shared.Return(this.buffer); ;
+                    this.buffer = null;
+                }
+
+                this.innerStream?.Dispose();
+                this.innerStream = null;
+                this.isDisposed = true;
+            }
+            base.Dispose(disposing);
+        }
+
+        public override void Close()
+        {
+            this.Dispose(true);
+        }
+
+        public override Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.CopyToAsync(destination, bufferSize, cancellationToken);
+        }
+
+        public override int EndRead(IAsyncResult asyncResult)
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.EndRead(asyncResult);
+        }
+
+        public override void EndWrite(IAsyncResult asyncResult)
+        {
+            this.ThrowIfDisposed();
+            this.innerStream.EndWrite(asyncResult);
+        }
+
+        public override void Flush()
+        {
+            this.ThrowIfDisposed();
+            this.innerStream.Flush();
+        }
+
+        public override Task FlushAsync(CancellationToken cancellationToken)
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.FlushAsync(cancellationToken);
+        }
+
+        public byte[] GetBuffer()
+        {
+            this.ThrowIfDisposed();
+            return this.buffer;
+        }
+
+        public override long Position
+        {
+            get => this.innerStream?.Position ?? 0;
+            set
+            {
+                this.ThrowIfDisposed();
+                this.innerStream.Position = value;
+            }
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.Read(buffer, offset, count);
+        }
+
+        private void EnlargeBuffer(int additionalBytesNeeded)
+        {
+            // We cannot fit the data into the existing buffer, time for a new buffer
+            if (additionalBytesNeeded > (this.buffer.Length - this.innerStream.Position))
+            {
+                var position = (int)this.innerStream.Position;
+
+                // Calculate new size - double the buffer size or accommodate required size
+                var newSize = Math.Max((long)this.buffer.Length * 2, (long)this.buffer.Length + additionalBytesNeeded);
+
+                // Ensure we don't exceed int.MaxValue
+                if (newSize > int.MaxValue)
+                {
+                    long requiredSize = (long)additionalBytesNeeded + this.buffer.Length;
+                    if (requiredSize > int.MaxValue)
+                    {
+                        throw new InvalidOperationException($"Tried to create a buffer ({requiredSize:#,##0} bytes) that was larger than the max allowed size ({int.MaxValue:#,##0})");
+                    }
+                    newSize = requiredSize;
+                }
+
+                // Round up to next power of 2 for better memory allocation
+                if (newSize < int.MaxValue)
+                {
+                    long candidateSize = (long)Math.Pow(2, Math.Ceiling(Math.Log(newSize) / Math.Log(2)));
+                    if (candidateSize <= int.MaxValue)
+                    {
+                        newSize = candidateSize;
+                    }
+                }
+
+                // Get new buffer from ArrayPool
+                var newBuffer = ArrayPool<byte>.Shared.Rent((int)newSize);
+
+                // Copy existing data
+                Buffer.BlockCopy(this.buffer, 0, newBuffer, 0, position);
+
+                // Return old buffer to pool
+                ArrayPool<byte>.Shared.Return(this.buffer);
+
+                // Create new MemoryStream with the new buffer
+                this.innerStream.Dispose();
+                this.innerStream = new MemoryStream(newBuffer, 0, newBuffer.Length, true, true)
+                {
+                    Position = position
+                };
+
+                this.buffer = newBuffer;
+            }
+        }
+
+        public override void WriteByte(byte value)
+        {
+            this.ThrowIfDisposed();
+            this.EnlargeBuffer(1);
+            this.innerStream.WriteByte(value);
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            this.ThrowIfDisposed();
+            this.EnlargeBuffer(count);
+            this.innerStream.Write(buffer, offset, count);
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            this.ThrowIfDisposed();
+            this.EnlargeBuffer(count);
+            return this.innerStream.WriteAsync(buffer, offset, count, cancellationToken);
+        }
+
+        public override object InitializeLifetimeService()
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.InitializeLifetimeService();
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.ReadAsync(buffer, offset, count, cancellationToken);
+        }
+
+        public override int ReadByte()
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.ReadByte();
+        }
+
+        public override int ReadTimeout
+        {
+            get => this.innerStream?.ReadTimeout ?? 0;
+            set
+            {
+                this.ThrowIfDisposed();
+                this.innerStream.ReadTimeout = value;
+            }
+        }
+
+        public override long Seek(long offset, SeekOrigin loc)
+        {
+            this.ThrowIfDisposed();
+            return this.innerStream.Seek(offset, loc);
+        }
+
+        /// <summary>
+        /// Note: This will not make the MemoryStream any smaller, only larger
+        /// </summary>
+        public override void SetLength(long value)
+        {
+            this.ThrowIfDisposed();
+            if (value > this.buffer.Length)
+            {
+                this.EnlargeBuffer((int)(value - this.innerStream.Position));
+            }
+            this.innerStream.SetLength(value);
+        }
+
+        public byte[] ToArray()
+        {
+            this.ThrowIfDisposed();
+            // Create a copy of only the used portion
+            var result = new byte[this.innerStream.Position];
+            Buffer.BlockCopy(this.buffer, 0, result, 0, (int)this.innerStream.Position);
+            return result;
+        }
+
+        public override int WriteTimeout
+        {
+            get => this.innerStream?.WriteTimeout ?? 0;
+            set
+            {
+                this.ThrowIfDisposed();
+                this.innerStream.WriteTimeout = value;
+            }
+        }
+
+        public ArraySegment<byte> GetArraySegmentBuffer()
+        {
+            this.ThrowIfDisposed();
+            return new ArraySegment<byte>(this.buffer, 0, (int)this.innerStream.Position);
+        }
+
+        public void WriteTo(Stream stream)
+        {
+            this.ThrowIfDisposed();
+            // Write only the used portion of the buffer
+            stream.Write(this.buffer, 0, (int)this.innerStream.Position);
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (this.isDisposed)
+                throw new ObjectDisposedException(nameof(ArrayPoolStream));
+        }
+    }
+}

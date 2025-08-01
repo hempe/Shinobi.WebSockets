@@ -11,9 +11,9 @@ namespace Samurai.WebSockets.DemoClient.Complex
     // This test sends a large buffer
     // NOTE: you would never normally do this. In order to send a large amount of data use a small buffer and make multiple calls
     // to SendAsync with endOfMessage false and the last SendAsync function call with endOfMessage set to true.
-    class LoadTest
+    internal class LoadTest
     {
-        const int BUFFER_SIZE = 1 * 1024 * 1024 * 1024; // 1GB
+        private const int BUFFER_SIZE = 1 * 1024 * 1024 * 1024; // 1GB
 
         public async ValueTask RunAsync()
         {
