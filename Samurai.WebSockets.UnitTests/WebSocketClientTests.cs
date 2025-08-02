@@ -28,6 +28,7 @@ namespace Samurai.WebSockets.UnitTests
             Events.Log = new Events(loggerFactory.CreateLogger<Events>());
         }
 
+
         [Fact]
         public async Task CanCancelReceiveAsync()
         {
@@ -248,8 +249,6 @@ namespace Samurai.WebSockets.UnitTests
                     if (result.MessageType == WebSocketMessageType.Close)
                         break;
 
-                    Console.WriteLine("Received some " + result.Count);
-
                     count++;
                     size += result.Count;
                     ms.Write(buffer.Array!, 0, result.Count);
@@ -342,9 +341,7 @@ namespace Samurai.WebSockets.UnitTests
 
                         for (var i = 0; i < chunks.Length; i++)
                         {
-                            Console.WriteLine($"Sending chunk {i + 1} of {chunks.Length}");
                             await webSocket.SendAsync(chunks[i], WebSocketMessageType.Binary, i == chunks.Length - 1, cancellationToken);
-                            Console.WriteLine($"Sent chunk {i + 1} of {chunks.Length}");
                         }
 
                     }

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,19 +18,35 @@ using Xunit;
 namespace Samurai.WebSockets.UnitTests
 {
     // Thanks Esbjörn for adding this unit test!!
+
+    public enum Implementation
+    {
+        Native,
+        Ninja,
+        Samurai
+    }
+
     public class LargeMessageTests
     {
-        private class Server : IDisposable
+        private interface IServer : IDisposable
+        {
+            public Uri? Address { get; }
+            public WebSocketState State { get; }
+            public List<byte[]> ReceivedMessages { get; }
+
+            public void StartListener();
+        }
+
+        private class EsbjörnServer : IServer
         {
             private HttpListener? listener;
             private Task? connectionPointTask;
-            private WebSocket? webSocket;
             public Uri? Address { get; private set; }
-            public readonly List<byte[]> ReceivedMessages = new List<byte[]>();
+            public List<byte[]> ReceivedMessages { get; } = new List<byte[]>();
+            private WebSocket? webSocket;
             public WebSocketState State => this.webSocket?.State ?? WebSocketState.None;
-            private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
-            public Server()
+            public EsbjörnServer()
             {
                 var os = Environment.OSVersion.Version;
                 if (os.Major < 6 || os.Major == 6 && os.Minor < 2)
@@ -43,75 +59,140 @@ namespace Samurai.WebSockets.UnitTests
             public void StartListener()
             {
                 if (this.listener != null)
-                {
                     throw new InvalidOperationException("Listener already started.");
-                }
 
-                // Create new listener
-                var usedPorts = new HashSet<int>(IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Select(a => a.Port));
-
-                for (int i = 49152; i <= 65535; i++)
-                {
-                    if (usedPorts.Contains(i))
-                    {
-                        continue;
-                    }
-
-                    var listener = new HttpListener();
-
-                    listener.Prefixes.Add($"http://localhost:{i}/");
-                    try
-                    {
-                        listener.Start();
-                        this.Address = new Uri($"ws://localhost:{i}/");
-                        this.listener = listener;
-                        this.connectionPointTask = Task.Run(() => this.ConnectionPointAsync(listener, this.cancellationTokenSource.Token), this.cancellationTokenSource.Token);
-                        break;
-                    }
-                    catch (HttpListenerException)
-                    {
-                        // right - for some reason we couldn't connect. Try the next port
-                    }
-                }
-
-                if (this.listener == null)
-                {
-                    throw new InvalidOperationException("Could not find free port to bind to.");
-                }
+                var port = GetAvailablePort();
+                this.Address = new Uri($"ws://localhost:{port}/");
+                this.listener = new HttpListener();
+                this.listener.Prefixes.Add($"http://localhost:{port}/");
+                this.listener.Start();
+                this.connectionPointTask = Task.Run(this.ConnectionPointAsync);
             }
 
-            private async Task ConnectionPointAsync(
-                HttpListener listener,
-                CancellationToken cancellationToken)
+            private async Task ConnectionPointAsync()
             {
                 try
                 {
-                    Console.WriteLine("[Server] Waiting for connection...");
-                    var context = await listener.GetContextAsync();
-                    Console.WriteLine("[Server] Connection established.");
+                    var context = await this.listener!.GetContextAsync();
                     if (context.Request.IsWebSocketRequest)
                     {
-                        Console.WriteLine("[Server] WebSocket request received.");
-                        var webSocketContext = await context.AcceptWebSocketAsync(null);
-                        Console.WriteLine("[Server] WebSocket accepted.");
+                        HttpListenerWebSocketContext webSocketContext = await context.AcceptWebSocketAsync(null);
                         var webSocket = webSocketContext.WebSocket;
                         this.webSocket = webSocket;
                         var receiveBuffer = new byte[4096];
-                        var stream = new MemoryStream();
-
+                        using var stream = new MemoryStream();
 
                         while (webSocket.State == WebSocketState.Open)
                         {
                             var arraySegment = new ArraySegment<byte>(receiveBuffer);
-                            Console.WriteLine("[Server] Waiting for message...");
-                            var received = await webSocket.ReceiveAsync(arraySegment, cancellationToken);
-                            Console.WriteLine($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
+                            var received = await webSocket.ReceiveAsync(arraySegment, CancellationToken.None);
+
                             switch (received.MessageType)
                             {
                                 case WebSocketMessageType.Close:
                                     {
                                         if (webSocket.State == WebSocketState.CloseReceived)
-                                            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Ok", cancellationToken);
+                                            await webSocket.CloseAsync(
+                                                WebSocketCloseStatus.NormalClosure,
+                                                "Ok",
+                                                CancellationToken.None);
+
+                                        break;
+                                    }
+
+                                case WebSocketMessageType.Binary:
+                                    {
+                                        stream.Write(arraySegment.Array!, arraySegment.Offset, received.Count);
+                                        if (received.EndOfMessage)
+                                        {
+                                            this.ReceivedMessages.Add(stream.ToArray());
+                                            stream.SetLength(0);
+                                        }
+
+                                        break;
+                                    }
+                            }
+                        }
+                    }
+                }
+                catch (HttpListenerException)
+                {
+                    // This would happen when the server was stopped for instance.
+                }
+            }
+
+            public void Dispose()
+            {
+                this.listener?.Stop();
+                this.connectionPointTask?.Wait();
+            }
+        }
+
+        private class SamuraiServer : IServer
+        {
+            private TcpListener? listener;
+            private Task? connectionPointTask;
+            private WebSocket? webSocket;
+            public Uri? Address { get; private set; }
+            public List<byte[]> ReceivedMessages { get; } = new List<byte[]>();
+            public WebSocketState State => this.webSocket?.State ?? WebSocketState.None;
+            private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+
+            public SamuraiServer()
+            {
+                var os = Environment.OSVersion.Version;
+                if (os.Major < 6 || os.Major == 6 && os.Minor < 2)
+                {
+                    throw new InvalidOperationException(
+                        "Cannot create server - running on operating system that doesn't support native web sockets...");
+                }
+            }
+
+            public void StartListener()
+            {
+                if (this.listener != null)
+                    throw new InvalidOperationException("Listener already started.");
+
+                var port = GetAvailablePort();
+                this.Address = new Uri($"ws://localhost:{port}/");
+                this.listener = new TcpListener(IPAddress.Loopback, port);
+                this.listener.Start();
+                this.connectionPointTask = Task.Run(() => this.ConnectionPointAsync(this.listener, this.cancellationTokenSource.Token), this.cancellationTokenSource.Token);
+            }
+
+            private async Task ConnectionPointAsync(
+                TcpListener listener,
+                CancellationToken cancellationToken)
+            {
+                try
+                {
+                    Console.WriteLine("[Server] Waiting for connection...");
+                    var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+
+                    var server = new Samurai.WebSockets.WebSocketServerFactory();
+                    WebSocketHttpContext context = await server.ReadHttpHeaderFromStreamAsync(tcpClient.GetStream());
+
+                    Console.WriteLine("[Server] Connection established.");
+                    if (context.IsWebSocketRequest)
+                    {
+                        Console.WriteLine("[Server] WebSocket request received.");
+                        this.webSocket = await server.AcceptWebSocketAsync(context, cancellationToken);
+                        Console.WriteLine("[Server] WebSocket accepted.");
+                        var receiveBuffer = new byte[4096];
+                        var stream = new MemoryStream();
+
+                        while (this.webSocket.State == WebSocketState.Open)
+                        {
+                            var arraySegment = new ArraySegment<byte>(receiveBuffer);
+                            Console.WriteLine("[Server] Waiting for message...");
+                            var received = await this.webSocket.ReceiveAsync(arraySegment, cancellationToken);
+                            Console.WriteLine($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
+                            switch (received.MessageType)
+                            {
+                                case WebSocketMessageType.Close:
+                                    {
+                                        if (this.webSocket.State == WebSocketState.CloseReceived)
+                                            await this.webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Ok", cancellationToken);
 
                                         break;
                                     }
@@ -135,6 +216,11 @@ namespace Samurai.WebSockets.UnitTests
                 {
                     // This would happen when the server was stopped for instance.
                 }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! [Server] Unhandled Ex: {e.ToString()}");
+                    throw;
+                }
             }
 
             public void Dispose()
@@ -144,6 +230,15 @@ namespace Samurai.WebSockets.UnitTests
                 this.connectionPointTask?.Wait();
                 this.cancellationTokenSource.Dispose();
             }
+        }
+
+        private static int GetAvailablePort()
+        {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            return port;
         }
 
         public LargeMessageTests()
@@ -172,23 +267,36 @@ namespace Samurai.WebSockets.UnitTests
         }
 
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public async Task SendLargeBinaryMessageAsync(bool useSamurai)
+        [InlineData(Implementation.Native, Implementation.Native)]
+        [InlineData(Implementation.Native, Implementation.Ninja)]
+        [InlineData(Implementation.Native, Implementation.Samurai)]
+        [InlineData(Implementation.Ninja, Implementation.Native)]
+        [InlineData(Implementation.Ninja, Implementation.Ninja)]
+        [InlineData(Implementation.Ninja, Implementation.Samurai)]
+        [InlineData(Implementation.Samurai, Implementation.Native)]
+        [InlineData(Implementation.Samurai, Implementation.Ninja)]
+        [InlineData(Implementation.Samurai, Implementation.Samurai)]
+        public async Task SendLargeBinaryMessageAsync(Implementation clientImpl, Implementation serverImp)
         {
             Console.WriteLine("[Client] SendLargeBinaryMessage");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            using (var server = new Server())
+            using (IServer server = serverImp == Implementation.Samurai ? new SamuraiServer() : new EsbjörnServer())
             {
                 server.StartListener();
 
                 // Create client
                 WebSocket webSocket;
-                if (useSamurai)
+                if (clientImpl == Implementation.Samurai)
                 {
                     var factory = new WebSocketClientFactory();
                     Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync");
                     webSocket = await factory.ConnectAsync(server.Address!, new WebSocketClientOptions(), cts.Token);
+                }
+                else if (clientImpl == Implementation.Ninja)
+                {
+                    var factory = new Ninja.WebSockets.WebSocketClientFactory();
+                    Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync");
+                    webSocket = await factory.ConnectAsync(server.Address!, new Ninja.WebSockets.WebSocketClientOptions(), cts.Token);
                 }
                 else
                 {

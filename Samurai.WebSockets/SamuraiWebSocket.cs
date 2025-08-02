@@ -243,7 +243,7 @@ namespace Samurai.WebSockets.Internal
             {
                 var opCode = this.GetOppCode(messageType);
 
-                if (this.perMessageDeflateHandler != null)
+                if (this.perMessageDeflateHandler != null && (opCode == WebSocketOpCode.BinaryFrame || opCode == WebSocketOpCode.TextFrame))
                 {
                     this.perMessageDeflateHandler.Write(buffer, messageType, opCode);
                     Events.Log.BufferDeflateFrame(this.guid, opCode, buffer.Count);
@@ -280,7 +280,8 @@ namespace Samurai.WebSockets.Internal
             }
             catch (Exception e)
             {
-                await this.CloseAsync(WebSocketCloseStatus.InternalServerError, e.Message, cancellationToken);
+                Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! " + e.Message);
+                //await this.CloseAsync(WebSocketCloseStatus.InternalServerError, e.Message, cancellationToken);
                 throw;
             }
 

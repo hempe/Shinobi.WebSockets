@@ -80,7 +80,6 @@ namespace Samurai.WebSockets.UnitTests
             foreach (var chunk in chunks)
             {
                 ct++;
-                Console.WriteLine("Writing cunk " + ct);
                 sut.Write(chunk, System.Net.WebSockets.WebSocketMessageType.Text, WebSocketOpCode.TextFrame);
             }
 
@@ -110,11 +109,8 @@ namespace Samurai.WebSockets.UnitTests
                 .Select(g => g.Select(x => x.Byte).ToArray())
                 .ToArray();
 
-            var ct = 0;
             foreach (var chunk in chunks)
             {
-                ct++;
-                Console.WriteLine("Writing cunk " + ct);
                 sut.Write(chunk, System.Net.WebSockets.WebSocketMessageType.Text, WebSocketOpCode.TextFrame);
                 foreach (var frame in sut.GetFames(buffer))
                 {
