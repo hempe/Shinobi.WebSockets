@@ -1,12 +1,13 @@
 using System;
 using System.Buffers;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Samurai.WebSockets
 {
-    public class ArrayPoolStream : Stream
+    public sealed class ArrayPoolStream : Stream
     {
         private byte[]? buffer;
         private MemoryStream? innerStream;
@@ -16,6 +17,7 @@ namespace Samurai.WebSockets
         {
             this.buffer = ArrayPool<byte>.Shared.Rent(size);
             this.innerStream = new MemoryStream(this.buffer, 0, this.buffer.Length, true, true);
+            this.innerStream.SetLength(0);
         }
 
         public override long Length => this.innerStream?.Length ?? 0;
@@ -58,11 +60,6 @@ namespace Samurai.WebSockets
             {
                 if (this.buffer != null)
                 {
-                    // Clear the buffer - we only need to clear up to the number of bytes we have written
-                    // TODO: Do I care?
-                    Array.Clear(this.buffer, 0, (int)(this.innerStream?.Position ?? 0));
-
-                    // Return the buffer to ArrayPool
                     ArrayPool<byte>.Shared.Return(this.buffer); ;
                     this.buffer = null;
                 }
@@ -165,9 +162,13 @@ namespace Samurai.WebSockets
 
                 // Get new buffer from ArrayPool
                 var newBuffer = ArrayPool<byte>.Shared.Rent((int)newSize);
+                Array.Clear(newBuffer, 0, newBuffer.Length);
 
                 // Copy existing data
                 Buffer.BlockCopy(this.buffer, 0, newBuffer, 0, position);
+
+                // Only clear the unused portion beyond current data
+                Array.Clear(newBuffer, position, newBuffer.Length - position);
 
                 // Return old buffer to pool
                 ArrayPool<byte>.Shared.Return(this.buffer);
@@ -245,6 +246,7 @@ namespace Samurai.WebSockets
             {
                 this.EnlargeBuffer((int)(value - this.innerStream!.Position));
             }
+
             this.innerStream!.SetLength(value);
         }
 

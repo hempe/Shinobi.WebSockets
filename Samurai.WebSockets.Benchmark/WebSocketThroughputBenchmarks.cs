@@ -37,8 +37,7 @@ public class WebSocketThroughputBenchmarks
     [Params(100, 1000)]
     public int ClientCount { get; set; }
 
-    //    [Params("ninja", "samurai")]
-    [Params("ninja", "samurai")]
+    [Params("Ninja", "Samurai")]
     public string Implementation { get; set; }
 
     private byte[] data;
@@ -71,7 +70,7 @@ public class WebSocketThroughputBenchmarks
                     var stream = tcpClient.GetStream();
                     using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-                    if (this.Implementation == "ninja")
+                    if (this.Implementation == "Ninja")
                     {
                         var server = new Ninja.WebSockets.WebSocketServerFactory();
                         var context = await server.ReadHttpHeaderFromStreamAsync(stream, connectCts.Token).ConfigureAwait(false);
@@ -86,7 +85,7 @@ public class WebSocketThroughputBenchmarks
                             tcpClient.Dispose();
                         }
                     }
-                    else if (this.Implementation == "samurai")
+                    else if (this.Implementation == "Samurai")
                     {
                         var server = new Samurai.WebSockets.WebSocketServerFactory();
                         var context = await server.ReadHttpHeaderFromStreamAsync(stream, connectCts.Token).ConfigureAwait(false);
@@ -118,7 +117,7 @@ public class WebSocketThroughputBenchmarks
                 serverReady.TrySetException(new Exception($"Error in WebSocket setup server: {ex.Message}", ex));
             }
         });
-        if (this.Implementation == "ninja")
+        if (this.Implementation == "Ninja")
         {
             var client = new Ninja.WebSockets.WebSocketClientFactory();
             for (var i = 0; i < this.ClientCount; i++)
@@ -128,7 +127,7 @@ public class WebSocketThroughputBenchmarks
                     this.serverCts.Token).ConfigureAwait(false);
             }
         }
-        else if (this.Implementation == "samurai")
+        else if (this.Implementation == "Samurai")
         {
             var client = new Samurai.WebSockets.WebSocketClientFactory();
             for (var i = 0; i < this.ClientCount; i++)
