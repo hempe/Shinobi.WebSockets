@@ -21,6 +21,7 @@
 // ---------------------------------------------------------------------
 
 using System;
+using System.IO;
 
 namespace Samurai.WebSockets.Internal
 {
@@ -43,7 +44,7 @@ namespace Samurai.WebSockets.Internal
         public static void Write(
             WebSocketOpCode opCode,
             ArraySegment<byte> fromPayload,
-            ArrayPoolStream toStream,
+            Stream toStream,
             bool isLastFrame,
             bool isClient)
         {

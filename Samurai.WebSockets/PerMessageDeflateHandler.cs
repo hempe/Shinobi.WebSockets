@@ -34,6 +34,7 @@ namespace Samurai.WebSockets.Internal
         private readonly ArrayPoolStream compressedStream;
         private DeflateStream deflateStream;
         private bool isDisposed = false;
+        private bool firstFrame = true;
 
         private WebSocketMessageType? messageType;
         private WebSocketOpCode? opCode;
@@ -56,7 +57,7 @@ namespace Samurai.WebSockets.Internal
                 throw new ArgumentException($"Pending message has different opCode; {this.opCode}!={opCode}", nameof(opCode));
 
             this.messageType = messageType;
-            this.opCode = opCode;
+            this.opCode ??= opCode;
             this.deflateStream.Write(buffer.Array, buffer.Offset, buffer.Count);
         }
 
@@ -69,6 +70,7 @@ namespace Samurai.WebSockets.Internal
             int bytesRead;
             this.deflateStream.Flush();
             this.compressedStream.Position = 0;
+
             while ((bytesRead = this.compressedStream.Read(buffer, 0, buffer.Length)) > 0)
             {
                 // Peek ahead to see if this is the last chunk
@@ -80,7 +82,8 @@ namespace Samurai.WebSockets.Internal
                 using var mx = new ArrayPoolStream();
                 mx.Write(buffer, 0, bytesRead);
 
-                yield return new DeflateFrame(messageType, isLastChunk ? opCode : WebSocketOpCode.ContinuationFrame, isLastChunk, bytesRead);
+                yield return new DeflateFrame(messageType, this.firstFrame ? opCode : WebSocketOpCode.ContinuationFrame, isLastChunk, bytesRead);
+                this.firstFrame = false;
             }
 
             this.messageType = null;
@@ -93,6 +96,7 @@ namespace Samurai.WebSockets.Internal
             this.deflateStream.Dispose();
             this.deflateStream = new DeflateStream(this.compressedStream, CompressionMode.Compress, leaveOpen: true);
             this.compressedStream.SetLength(0);
+            this.firstFrame = false;
         }
 
         public void Dispose()

@@ -257,6 +257,7 @@ namespace Samurai.WebSockets.Internal
                             WebSocketFrameWriter.Write(frame.OpCode, new ArraySegment<byte>(cunkBuffer, 0, frame.Count), stream, frame.LastFrame && endOfMessage, this.isClient);
                             Events.Log.SendingFrame(this.guid, frame.OpCode, frame.LastFrame, frame.Count, true);
                             await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+                            this.isContinuationFrame = !frame.LastFrame;
                         }
                     }
                     finally
@@ -269,8 +270,9 @@ namespace Samurai.WebSockets.Internal
                 }
                 else
                 {
+                    Console.WriteLine("-----------------> Normal send? " + buffer.Count);
                     using var stream = new ArrayPoolStream();
-                    var messageOpCode = endOfMessage ? opCode : WebSocketOpCode.ContinuationFrame;
+                    var messageOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
 
                     WebSocketFrameWriter.Write(messageOpCode, buffer, stream, endOfMessage, this.isClient);
                     Events.Log.SendingFrame(this.guid, messageOpCode, endOfMessage, buffer.Count, false);
@@ -573,6 +575,9 @@ namespace Samurai.WebSockets.Internal
         /// </summary>
         private WebSocketOpCode GetOppCode(WebSocketMessageType messageType)
         {
+            if (this.isContinuationFrame)
+                return WebSocketOpCode.ContinuationFrame;
+
             switch (messageType)
             {
                 case WebSocketMessageType.Binary:
