@@ -179,7 +179,7 @@ namespace Samurai.WebSockets
                 {
                     Position = position
                 };
-
+                this.innerStream.SetLength(position);
                 this.buffer = newBuffer;
             }
         }

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -27,18 +28,21 @@ public class WebSocketThroughputBenchmarks
     private Task serverTask;
 
 
-    [Params(1_000, 10_000)]
-    public int MessageCount { get; set; }
+    //[Params(1_000, 10_000)]
+    public int MessageCount { get; set; } = 1;
 
     //[Params(16, 64)]
-    [Params(1, 16, 32)]
-    public int MessageSizeKb { get; set; }
+    //[Params(1, 16, 32)]
+    public int MessageSizeKb { get; set; } = 32;
 
-    [Params(100, 1000)]
-    public int ClientCount { get; set; }
+    // [Params(100, 1000)]
+    public int ClientCount { get; set; } = 1;
 
-    [Params("Ninja", "Samurai")]
-    public string Implementation { get; set; }
+    // [Params("Ninja", "Samurai")]
+    public string Implementation { get; set; } = "Samurai";
+
+    //[Params(true, false)]
+    public bool PermessageDeflate { get; set; } = true;
 
     private byte[] data;
 
@@ -77,7 +81,7 @@ public class WebSocketThroughputBenchmarks
                         if (context.IsWebSocketRequest)
                         {
                             var webSocket = await server.AcceptWebSocketAsync(context, connectCts.Token).ConfigureAwait(false);
-                            tasks.Add(EchoLoopAsync(webSocket, this.serverCts.Token, [tcpClient, stream]));
+                            tasks.Add(EchoLoopAsync(webSocket, this.PermessageDeflate, this.serverCts.Token, [tcpClient, stream]));
                         }
                         else
                         {
@@ -92,7 +96,7 @@ public class WebSocketThroughputBenchmarks
                         if (context.IsWebSocketRequest)
                         {
                             var webSocket = await server.AcceptWebSocketAsync(context, connectCts.Token).ConfigureAwait(false);
-                            tasks.Add(EchoLoopAsync(webSocket, this.serverCts.Token, [tcpClient, stream]));
+                            tasks.Add(EchoLoopAsync(webSocket, this.PermessageDeflate, this.serverCts.Token, [tcpClient, stream]));
                         }
                         else
                         {
@@ -124,6 +128,10 @@ public class WebSocketThroughputBenchmarks
             {
                 this.clients[i] = await client.ConnectAsync(
                     new Uri(this.serverUrl),
+                    new Ninja.WebSockets.WebSocketClientOptions
+                    {
+                        SecWebSocketExtensions = this.PermessageDeflate ? "permessage-deflate" : null
+                    },
                     this.serverCts.Token).ConfigureAwait(false);
             }
         }
@@ -134,6 +142,10 @@ public class WebSocketThroughputBenchmarks
             {
                 this.clients[i] = await client.ConnectAsync(
                     new Uri(this.serverUrl),
+                    new Samurai.WebSockets.WebSocketClientOptions
+                    {
+                        SecWebSocketExtensions = this.PermessageDeflate ? "permessage-deflate" : null
+                    },
                     this.serverCts.Token).ConfigureAwait(false);
             }
         }
@@ -205,56 +217,92 @@ public class WebSocketThroughputBenchmarks
 
     private async Task RunBenchmarkAsync(WebSocket client, int messageCount, CancellationToken cancellationToken)
     {
+        var countBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
         var receiveBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+
         try
         {
             for (var i = 0; i < messageCount; i++)
             {
-                await client.SendAsync(this.data, WebSocketMessageType.Binary, true, cancellationToken);
-                var received = 0;
 
+                await client.SendAsync(this.data, WebSocketMessageType.Binary, true, cancellationToken);
+                using var ms = new Samurai.WebSockets.ArrayPoolStream();
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var result = await client.ReceiveAsync(new ArraySegment<byte>(receiveBuffer), cancellationToken);
-                    received += result.Count;
+                    var result = await client.ReceiveAsync(receiveBuffer, cancellationToken);
+                    Console.WriteLine("Got: " + result.Count);
+                    if (this.PermessageDeflate)
+                    {
+                        using var temp = new Samurai.WebSockets.ArrayPoolStream();
+                        temp.Write(receiveBuffer, 0, result.Count);
+                        temp.Position = 0;
+                        using var deflateStream = new DeflateStream(temp, CompressionMode.Decompress, leaveOpen: true);
+                        deflateStream.CopyTo(ms);
+                    }
+                    else
+                    {
+                        ms.Write(receiveBuffer, 0, result.Count);
+                    }
+
                     if (result.EndOfMessage)
                         break;
                 }
 
-                if (received != this.data.Length)
-                    throw new Exception($"Expected {this.data.Length} got {received}");
+                if (ms.Position != this.data.Length)
+                    throw new Exception($"Expected {this.PermessageDeflate}: {this.data.Length} got {ms.Position}");
 
+                ms.SetLength(0);
                 cancellationToken.ThrowIfCancellationRequested();
             }
         }
         finally
         {
             ArrayPool<byte>.Shared.Return(receiveBuffer);
+            ArrayPool<byte>.Shared.Return(countBuffer);
         }
     }
 
-    private static async Task EchoLoopAsync(WebSocket webSocket, CancellationToken cancellationToken, IDisposable[] disposables)
+    private static async Task EchoLoopAsync(WebSocket webSocket, bool permessageDeflate, CancellationToken cancellationToken, IDisposable[] disposables)
     {
         using (webSocket)
         {
-            var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+            var receiveBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
             try
             {
+                using var ms = new Samurai.WebSockets.ArrayPoolStream();
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                    var result = await webSocket.ReceiveAsync(receiveBuffer, cancellationToken);
                     if (result.MessageType == WebSocketMessageType.Close)
                         break;
 
-                    var msg = new ArraySegment<byte>(buffer, 0, result.Count);
-                    await webSocket.SendAsync(msg, WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);
+                    Console.WriteLine("Got server: " + result.Count);
+                    if (permessageDeflate)
+                    {
+                        using var temp = new Samurai.WebSockets.ArrayPoolStream();
+                        temp.Write(receiveBuffer, 0, result.Count);
+                        temp.Position = 0;
+                        using var deflateStream = new DeflateStream(temp, CompressionMode.Decompress, leaveOpen: true);
+                        deflateStream.CopyTo(ms);
+                    }
+                    else
+                    {
+                        ms.Write(receiveBuffer, 0, result.Count);
+                    }
+
+                    if (result.EndOfMessage)
+                    {
+                        await webSocket.SendAsync(ms.GetArraySegmentBuffer(), WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);
+                        ms.SetLength(0);
+                    }
+
                 }
 
                 await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", cancellationToken);
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                ArrayPool<byte>.Shared.Return(receiveBuffer);
                 foreach (var disposable in disposables)
                 {
                     disposable.Dispose();

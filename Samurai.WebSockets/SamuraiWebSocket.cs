@@ -22,11 +22,13 @@
 
 using System;
 using System.Buffers;
+using System.Collections;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,8 +39,10 @@ using System.Threading.Tasks;
 [assembly: InternalsVisibleTo("Samurai.WebSockets.UnitTests")]
 #endif
 
+
 namespace Samurai.WebSockets.Internal
 {
+
     /// <summary>
     /// Main implementation of the WebSocket abstract class
     /// </summary>
@@ -58,7 +62,7 @@ namespace Samurai.WebSockets.Internal
         private bool isContinuationFrame;
         private WebSocketMessageType continuationFrameMessageType = WebSocketMessageType.Binary;
         private WebSocketReadCursor? readCursor;
-        private readonly bool usePerMessageDeflate = false;
+        private readonly PerMessageDeflateHandler? perMessageDeflateHandler;
         private WebSocketCloseStatus? closeStatus;
         private string? closeStatusDescription;
         private long pingSentTicks;
@@ -82,11 +86,12 @@ namespace Samurai.WebSockets.Internal
 
             if (secWebSocketExtensions?.IndexOf("permessage-deflate") >= 0)
             {
-                this.usePerMessageDeflate = true;
+                this.perMessageDeflateHandler = new PerMessageDeflateHandler();
                 Events.Log.UsePerMessageDeflate(guid);
             }
             else
             {
+                this.perMessageDeflateHandler = null;
                 Events.Log.NoMessageCompression(guid);
             }
 
@@ -234,33 +239,41 @@ namespace Samurai.WebSockets.Internal
         /// <param name="cancellationToken">the cancellation token</param>
         public async override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
         {
-            using var stream = new ArrayPoolStream();
 
             var opCode = this.GetOppCode(messageType);
 
-            if (this.usePerMessageDeflate)
+            if (this.perMessageDeflateHandler != null)
             {
-                // NOTE: Compression is c urrently work in progress and should NOT be used in this library.
-                // The code below is very inefficient for small messages. Ideally we would like to have some sort of moving window
-                // of data to get the best compression. And we don't want to create new buffers which is bad for GC.
-                using (var temp = new MemoryStream())
+                this.perMessageDeflateHandler.Write(buffer, messageType, opCode);
+                Events.Log.BufferDeflateFrame(this.guid, opCode, buffer.Count);
+                if (endOfMessage)
                 {
-                    using var deflateStream = new DeflateStream(temp, CompressionMode.Compress);
-                    deflateStream.Write(buffer.Array, buffer.Offset, buffer.Count);
-                    deflateStream.Flush();
-                    var compressedBuffer = new ArraySegment<byte>(temp.ToArray());
-                    WebSocketFrameWriter.Write(opCode, compressedBuffer, stream, endOfMessage, this.isClient);
-                    Events.Log.SendingFrame(this.guid, opCode, endOfMessage, compressedBuffer.Count, true);
+                    var cunkBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+                    try
+                    {
+                        foreach (var frame in this.perMessageDeflateHandler.GetFames(cunkBuffer))
+                        {
+                            using var stream = new ArrayPoolStream();
+                            WebSocketFrameWriter.Write(frame.OpCode, new ArraySegment<byte>(cunkBuffer, 0, frame.Count), stream, frame.EndOfMessage, this.isClient);
+                            Events.Log.SendingFrame(this.guid, frame.OpCode, frame.EndOfMessage, frame.Count, true);
+                            await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(cunkBuffer);
+                    }
                 }
             }
             else
             {
+                using var stream = new ArrayPoolStream();
                 WebSocketFrameWriter.Write(opCode, buffer, stream, endOfMessage, this.isClient);
                 Events.Log.SendingFrame(this.guid, opCode, endOfMessage, buffer.Count, false);
+                await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
             }
+            this.isContinuationFrame = !endOfMessage;
 
-            await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
-            this.isContinuationFrame = !endOfMessage; // TODO: is this correct??
         }
 
         /// <summary>
@@ -535,7 +548,7 @@ namespace Samurai.WebSockets.Internal
             await this.semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await this.stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+                await this.stream.WriteAsync(buffer.Array, 0, buffer.Count, cancellationToken).ConfigureAwait(false);
             }
             finally
             {

@@ -197,6 +197,16 @@ namespace Samurai.WebSockets.Internal
                     isPayloadCompressed);
         }
 
+        internal void BufferDeflateFrame(Guid guid, WebSocketOpCode opCode, int numBytes)
+        {
+            if (this.logger.IsEnabled(LogLevel.Trace))
+                this.logger.LogTrace(
+                    "Buffer deflate frame for {Guid}. OpCode: {OpCode}, Bytes: {Bytes}",
+                    guid,
+                    opCode,
+                    numBytes);
+        }
+
         internal void ReceivedFrame(Guid guid, WebSocketOpCode opCode, bool isFinBitSet, int numBytes)
         {
             if (this.logger.IsEnabled(LogLevel.Trace))
