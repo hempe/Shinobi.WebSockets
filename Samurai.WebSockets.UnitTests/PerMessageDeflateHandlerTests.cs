@@ -1,11 +1,8 @@
-using System.Collections.Generic;
+using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
-
-using Microsoft.VisualBasic;
 
 using Samurai.WebSockets.Internal;
 
@@ -36,22 +33,102 @@ namespace Samurai.WebSockets.UnitTests
         }
 
         [Fact]
-        public void DeflateHugeMessageTest()
+        public void DeflateHugeMessageReadAllTest()
         {
             var sut = new PerMessageDeflateHandler();
+            this.DeflateHugeMessageReadAll(sut);
+        }
+
+        [Fact]
+        public void DeflateMultipleHugeMessageReadAll()
+        {
+            var sut = new PerMessageDeflateHandler();
+            for (var i = 0; i < 10; i++)
+                this.DeflateHugeMessageReadAll(sut);
+        }
+
+        [Fact]
+        public void DeflateHugeMessageReadCunksTest()
+        {
+            var sut = new PerMessageDeflateHandler();
+            this.DeflateHugeMessageReadCunks(sut);
+        }
+
+
+        [Fact]
+        public void DeflateMultipleHugeMessageReadCunksTest()
+        {
+            var sut = new PerMessageDeflateHandler();
+            for (var i = 0; i < 10; i++)
+                this.DeflateHugeMessageReadCunks(sut);
+        }
+
+        private void DeflateHugeMessageReadAll(PerMessageDeflateHandler sut)
+        {
             var message = string.Join(string.Empty, Enumerable.Range(0, 32 * 1024).Select(_ => 'A'));
             var buffer = new byte[1024];
             var ms = new ArrayPoolStream();
-            sut.Write(Encoding.UTF8.GetBytes(message), System.Net.WebSockets.WebSocketMessageType.Text, WebSocketOpCode.TextFrame);
+            var bytes = Encoding.UTF8.GetBytes(message);
+            var chunkSize = (int)Math.Ceiling((double)bytes.Length / 4);
+            var chunks = bytes
+                .Select((b, i) => new { Byte = b, Index = i })
+                .GroupBy(x => x.Index / chunkSize)
+                .Select(g => g.Select(x => x.Byte).ToArray())
+                .ToArray();
+
+            var ct = 0;
+            foreach (var chunk in chunks)
+            {
+                ct++;
+                Console.WriteLine("Writing cunk " + ct);
+                sut.Write(chunk, System.Net.WebSockets.WebSocketMessageType.Text, WebSocketOpCode.TextFrame);
+            }
+
             foreach (var frame in sut.GetFames(buffer))
             {
                 ms.Write(buffer, 0, frame.Count);
             }
+            sut.Reset();
+            Console.WriteLine("ReadAll transfer size was: " + ms.Position);
             ms.Position = 0;
             using var df = new DeflateStream(ms, CompressionMode.Decompress);
             using var reader = new StreamReader(df, Encoding.UTF8);
             var result = reader.ReadToEnd();
             Assert.Equal(message, result);
         }
+
+        private void DeflateHugeMessageReadCunks(PerMessageDeflateHandler sut)
+        {
+            var message = string.Join(string.Empty, Enumerable.Range(0, 32 * 1024).Select(_ => 'A'));
+            var buffer = new byte[1024];
+            var ms = new ArrayPoolStream();
+            var bytes = Encoding.UTF8.GetBytes(message);
+            var chunkSize = (int)Math.Ceiling((double)bytes.Length / 4);
+            var chunks = bytes
+                .Select((b, i) => new { Byte = b, Index = i })
+                .GroupBy(x => x.Index / chunkSize)
+                .Select(g => g.Select(x => x.Byte).ToArray())
+                .ToArray();
+
+            var ct = 0;
+            foreach (var chunk in chunks)
+            {
+                ct++;
+                Console.WriteLine("Writing cunk " + ct);
+                sut.Write(chunk, System.Net.WebSockets.WebSocketMessageType.Text, WebSocketOpCode.TextFrame);
+                foreach (var frame in sut.GetFames(buffer))
+                {
+                    ms.Write(buffer, 0, frame.Count);
+                }
+            }
+            sut.Reset();
+            Console.WriteLine("ReadCunks transfer size was: " + ms.Position);
+            ms.Position = 0;
+            using var df = new DeflateStream(ms, CompressionMode.Decompress);
+            using var reader = new StreamReader(df, Encoding.UTF8);
+            var result = reader.ReadToEnd();
+            Assert.Equal(message, result);
+        }
+
     }
 }

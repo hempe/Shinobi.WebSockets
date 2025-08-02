@@ -239,23 +239,23 @@ namespace Samurai.WebSockets.Internal
         /// <param name="cancellationToken">the cancellation token</param>
         public async override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
         {
-
-            var opCode = this.GetOppCode(messageType);
-
-            if (this.perMessageDeflateHandler != null)
+            try
             {
-                this.perMessageDeflateHandler.Write(buffer, messageType, opCode);
-                Events.Log.BufferDeflateFrame(this.guid, opCode, buffer.Count);
-                if (endOfMessage)
+                var opCode = this.GetOppCode(messageType);
+
+                if (this.perMessageDeflateHandler != null)
                 {
+                    this.perMessageDeflateHandler.Write(buffer, messageType, opCode);
+                    Events.Log.BufferDeflateFrame(this.guid, opCode, buffer.Count);
+
                     var cunkBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
                     try
                     {
                         foreach (var frame in this.perMessageDeflateHandler.GetFames(cunkBuffer))
                         {
                             using var stream = new ArrayPoolStream();
-                            WebSocketFrameWriter.Write(frame.OpCode, new ArraySegment<byte>(cunkBuffer, 0, frame.Count), stream, frame.EndOfMessage, this.isClient);
-                            Events.Log.SendingFrame(this.guid, frame.OpCode, frame.EndOfMessage, frame.Count, true);
+                            WebSocketFrameWriter.Write(frame.OpCode, new ArraySegment<byte>(cunkBuffer, 0, frame.Count), stream, frame.LastFrame && endOfMessage, this.isClient);
+                            Events.Log.SendingFrame(this.guid, frame.OpCode, frame.LastFrame, frame.Count, true);
                             await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                         }
                     }
@@ -263,16 +263,26 @@ namespace Samurai.WebSockets.Internal
                     {
                         ArrayPool<byte>.Shared.Return(cunkBuffer);
                     }
+
+                    if (endOfMessage)
+                        this.perMessageDeflateHandler.Reset();
                 }
+                else
+                {
+                    using var stream = new ArrayPoolStream();
+                    var messageOpCode = endOfMessage ? opCode : WebSocketOpCode.ContinuationFrame;
+
+                    WebSocketFrameWriter.Write(messageOpCode, buffer, stream, endOfMessage, this.isClient);
+                    Events.Log.SendingFrame(this.guid, messageOpCode, endOfMessage, buffer.Count, false);
+                    await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+                }
+                this.isContinuationFrame = !endOfMessage;
             }
-            else
+            catch (Exception e)
             {
-                using var stream = new ArrayPoolStream();
-                WebSocketFrameWriter.Write(opCode, buffer, stream, endOfMessage, this.isClient);
-                Events.Log.SendingFrame(this.guid, opCode, endOfMessage, buffer.Count, false);
-                await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+                await this.CloseAsync(WebSocketCloseStatus.InternalServerError, e.Message, cancellationToken);
+                throw;
             }
-            this.isContinuationFrame = !endOfMessage;
 
         }
 
@@ -375,6 +385,7 @@ namespace Samurai.WebSockets.Internal
                 // cancel pending reads - usually does nothing
                 this.internalReadCts.Cancel();
                 this.stream.Close();
+                this.perMessageDeflateHandler?.Dispose();
             }
             catch (Exception ex)
             {
@@ -561,9 +572,6 @@ namespace Samurai.WebSockets.Internal
         /// </summary>
         private WebSocketOpCode GetOppCode(WebSocketMessageType messageType)
         {
-            if (this.isContinuationFrame)
-                return WebSocketOpCode.ContinuationFrame;
-
             switch (messageType)
             {
                 case WebSocketMessageType.Binary:

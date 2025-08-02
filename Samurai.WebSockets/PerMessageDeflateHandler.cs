@@ -22,15 +22,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.IO.Compression;
-using System.Net;
 using System.Net.WebSockets;
-using System.Text;
-
-#if RELEASESIGNED
-#else
-#endif
 
 
 namespace Samurai.WebSockets.Internal
@@ -45,6 +38,8 @@ namespace Samurai.WebSockets.Internal
         private WebSocketMessageType? messageType;
         private WebSocketOpCode? opCode;
 
+        private object lockObj = new object();
+
         public PerMessageDeflateHandler()
         {
             this.compressedStream = new ArrayPoolStream();
@@ -53,44 +48,57 @@ namespace Samurai.WebSockets.Internal
 
         public void Write(ArraySegment<byte> buffer, WebSocketMessageType messageType, WebSocketOpCode opCode)
         {
-            this.ThrowIfDisposed();
-            if (this.messageType.HasValue && this.messageType != messageType)
-                throw new ArgumentException($"Pending message has different messageType; {this.messageType}!={messageType}", nameof(messageType));
+            lock (this.lockObj)
+            {
+                this.ThrowIfDisposed();
 
-            if (this.opCode.HasValue && this.opCode != opCode)
-                throw new ArgumentException($"Pending message has different opCode; {this.opCode}!={opCode}", nameof(opCode));
+                if (this.messageType.HasValue && this.messageType != messageType)
+                    throw new ArgumentException($"Pending message has different messageType; {this.messageType}!={messageType}", nameof(messageType));
 
-            this.messageType = messageType;
-            this.opCode = opCode;
+                if (this.opCode.HasValue && this.opCode != opCode)
 
-            this.deflateStream.Write(buffer.Array, buffer.Offset, buffer.Count);
+                    throw new ArgumentException($"Pending message has different opCode; {this.opCode}!={opCode}", nameof(opCode));
+
+                this.messageType = messageType;
+                this.opCode = opCode;
+                this.deflateStream.Write(buffer.Array, buffer.Offset, buffer.Count);
+            }
         }
 
         public IEnumerable<DeflateFrame> GetFames(byte[] buffer)
         {
-            this.ThrowIfDisposed();
-            var messageType = this.messageType ?? throw new InvalidOperationException("No pending data.");
-            var opCode = this.opCode ?? throw new InvalidOperationException("No pending data.");
-
-            int bytesRead;
-            this.deflateStream.Flush();
-            this.compressedStream.Position = 0;
-            while ((bytesRead = this.compressedStream.Read(buffer, 0, buffer.Length)) > 0)
+            lock (this.lockObj)
             {
-                // Peek ahead to see if this is the last chunk
-                var nextByte = this.compressedStream.ReadByte();
-                bool isLastChunk = nextByte == -1;
+                Console.WriteLine("Get frames?" + buffer.Length);
+                this.ThrowIfDisposed();
+                var messageType = this.messageType ?? throw new InvalidOperationException("No pending data.");
+                var opCode = this.opCode ?? throw new InvalidOperationException("No pending data.");
 
-                if (nextByte != -1)
-                    this.compressedStream.Position--; // Put the byte back
-                using var mx = new ArrayPoolStream();
-                mx.Write(buffer, 0, bytesRead);
+                int bytesRead;
+                this.deflateStream.Flush();
+                this.compressedStream.Position = 0;
+                while ((bytesRead = this.compressedStream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    // Peek ahead to see if this is the last chunk
+                    var nextByte = this.compressedStream.ReadByte();
+                    bool isLastChunk = nextByte == -1;
 
-                yield return new DeflateFrame(messageType, isLastChunk ? opCode : WebSocketOpCode.ContinuationFrame, isLastChunk, bytesRead);
+                    if (nextByte != -1)
+                        this.compressedStream.Position--; // Put the byte back
+                    using var mx = new ArrayPoolStream();
+                    mx.Write(buffer, 0, bytesRead);
+
+                    yield return new DeflateFrame(messageType, isLastChunk ? opCode : WebSocketOpCode.ContinuationFrame, isLastChunk, bytesRead);
+                }
+
+                this.messageType = null;
+                this.opCode = null;
+                this.compressedStream.SetLength(0);
             }
+        }
 
-            this.messageType = null;
-            this.opCode = null;
+        public void Reset()
+        {
             this.deflateStream.Dispose();
             this.deflateStream = new DeflateStream(this.compressedStream, CompressionMode.Compress, leaveOpen: true);
             this.compressedStream.SetLength(0);

@@ -31,17 +31,17 @@ namespace Samurai.WebSockets.Internal
 {
     internal readonly struct DeflateFrame
     {
-        public DeflateFrame(WebSocketMessageType messageType, WebSocketOpCode opCode, bool endOfMessage, int count)
+        public DeflateFrame(WebSocketMessageType messageType, WebSocketOpCode opCode, bool lastFrame, int count)
         {
             this.MessageType = messageType;
             this.OpCode = opCode;
-            this.EndOfMessage = endOfMessage;
+            this.LastFrame = lastFrame;
             this.Count = count;
         }
 
         public readonly WebSocketMessageType MessageType;
         public readonly WebSocketOpCode OpCode;
-        public readonly bool EndOfMessage;
+        public readonly bool LastFrame;
         public readonly int Count;
     }
 }

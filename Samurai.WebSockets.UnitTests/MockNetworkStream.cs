@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace Samurai.WebSockets.UnitTests
@@ -10,63 +11,47 @@ namespace Samurai.WebSockets.UnitTests
     internal class MockNetworkStream : Stream
     {
         private readonly string streamName;
-        private readonly MemoryStream remoteStream;
-        private readonly MemoryStream localStream;
-        private readonly ManualResetEventSlim localReadSlim;
-        private readonly ManualResetEventSlim remoteReadSlim;
-        private readonly ManualResetEventSlim localWriteSlim;
-        private readonly ManualResetEventSlim remoteWriteSlim;
+        private readonly ChannelWriter<byte[]> writer;
+        private readonly ChannelReader<byte[]> reader;
+        private byte[]? currentBuffer;
+        private int currentPosition = 0;
 
-        public MockNetworkStream(
-            string streamName,
-            MemoryStream localStream,
-            MemoryStream remoteStream,
-            ManualResetEventSlim localReadSlim,
-            ManualResetEventSlim remoteReadSlim,
-            ManualResetEventSlim localWriteSlim,
-            ManualResetEventSlim remoteWriteSlim)
+        public MockNetworkStream(string streamName, ChannelWriter<byte[]> writer, ChannelReader<byte[]> reader)
         {
             this.streamName = streamName;
-            this.localStream = localStream;
-            this.remoteStream = remoteStream;
-            this.localReadSlim = localReadSlim;
-            this.remoteReadSlim = remoteReadSlim;
-            this.localWriteSlim = localWriteSlim;
-            this.remoteWriteSlim = remoteWriteSlim;
+            this.writer = writer;
+            this.reader = reader;
         }
 
         public async override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            this.remoteReadSlim.Wait(cancellationToken);
-            if (cancellationToken.IsCancellationRequested)
+            // If we don't have a current buffer or it's exhausted, get the next one
+            if (this.currentBuffer == null || this.currentPosition >= this.currentBuffer.Length)
             {
-                return 0;
+                if (await this.reader.WaitToReadAsync(cancellationToken))
+                {
+                    this.currentBuffer = await this.reader.ReadAsync(cancellationToken);
+                    this.currentPosition = 0;
+                }
+                else
+                {
+                    return 0; // Channel closed
+                }
             }
 
-            int numBytesRead = await this.remoteStream.ReadAsync(buffer, offset, count, cancellationToken);
+            // Copy from current buffer
+            int bytesToCopy = Math.Min(count, this.currentBuffer.Length - this.currentPosition);
+            Array.Copy(this.currentBuffer, this.currentPosition, buffer, offset, bytesToCopy);
+            this.currentPosition += bytesToCopy;
 
-            if (this.remoteStream.Position >= this.remoteStream.Length)
-            {
-                this.remoteReadSlim.Reset();
-                this.remoteWriteSlim.Set();
-            }
-
-            return numBytesRead;
+            return bytesToCopy;
         }
 
         public async override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            this.localWriteSlim.Wait(cancellationToken);
-            this.localWriteSlim.Reset();
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-
-            this.localStream.Position = 0;
-            await this.localStream.WriteAsync(buffer, offset, count, cancellationToken);
-            this.localStream.Position = 0;
-            this.localReadSlim.Set();
+            var data = new byte[count];
+            Array.Copy(buffer, offset, data, 0, count);
+            await this.writer.WriteAsync(data, cancellationToken);
         }
 
         public override bool CanRead => throw new NotImplementedException();

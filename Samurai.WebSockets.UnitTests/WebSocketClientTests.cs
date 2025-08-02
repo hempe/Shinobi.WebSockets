@@ -247,6 +247,9 @@ namespace Samurai.WebSockets.UnitTests
                     var result = await webSocket.ReceiveAsync(buffer, cancellationToken);
                     if (result.MessageType == WebSocketMessageType.Close)
                         break;
+
+                    Console.WriteLine("Received some " + result.Count);
+
                     count++;
                     size += result.Count;
                     ms.Write(buffer.Array!, 0, result.Count);
@@ -255,10 +258,18 @@ namespace Samurai.WebSockets.UnitTests
                     {
                         if (permessageDeflate)
                         {
-                            ms.Position = 0;
-                            using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
-                            using var reader = new StreamReader(deflateStream, Encoding.UTF8);
-                            values.Add(new ReadResult { Text = reader.ReadToEnd(), Count = count });
+                            try
+                            {
+                                ms.Position = 0;
+                                using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
+                                using var reader = new StreamReader(deflateStream, Encoding.UTF8);
+                                values.Add(new ReadResult { Text = reader.ReadToEnd(), Count = count });
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!! The client has no idea? " + ms.Length + " " + e.Message);
+                                throw;
+                            }
                         }
                         else
                         {
@@ -297,10 +308,18 @@ namespace Samurai.WebSockets.UnitTests
                         string value;
                         if (permessageDeflate)
                         {
-                            ms.Position = 0;
-                            using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
-                            using var reader = new StreamReader(deflateStream, Encoding.UTF8);
-                            value = reader.ReadToEnd();
+                            try
+                            {
+                                ms.Position = 0;
+                                using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
+                                using var reader = new StreamReader(deflateStream, Encoding.UTF8);
+                                value = reader.ReadToEnd();
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!! The server has no idea? " + ms.Length + " " + e.Message);
+                                throw;
+                            }
                         }
                         else
                         {
@@ -312,9 +331,22 @@ namespace Samurai.WebSockets.UnitTests
                         ms.SetLength(0);
 
                         var reply = $"Server [{count}]: {value}";
-                        var toSend = Encoding.UTF8.GetBytes(reply);
                         count = 0;
-                        await webSocket.SendAsync(new ArraySegment<byte>(toSend, 0, toSend.Length), WebSocketMessageType.Binary, true, cancellationToken);
+                        const int chunkSize = 4096;
+                        var bytes = Encoding.UTF8.GetBytes(reply);
+                        var chunks = bytes
+                            .Select((b, i) => new { Byte = b, Index = i })
+                            .GroupBy(x => x.Index / chunkSize)
+                            .Select(g => g.Select(x => x.Byte).ToArray())
+                            .ToArray();
+
+                        for (var i = 0; i < chunks.Length; i++)
+                        {
+                            Console.WriteLine($"Sending chunk {i + 1} of {chunks.Length}");
+                            await webSocket.SendAsync(chunks[i], WebSocketMessageType.Binary, i == chunks.Length - 1, cancellationToken);
+                            Console.WriteLine($"Sent chunk {i + 1} of {chunks.Length}");
+                        }
+
                     }
                 }
             });
