@@ -22,13 +22,10 @@
 
 using System;
 using System.Buffers;
-using System.Collections;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -71,7 +68,7 @@ namespace Samurai.WebSockets.Internal
             Guid guid,
             Stream stream,
             TimeSpan keepAliveInterval,
-            string? secWebSocketExtensions,
+            bool permessageDeflate,
             bool includeExceptionInCloseResponse,
             bool isClient,
             string? subProtocol)
@@ -84,7 +81,7 @@ namespace Samurai.WebSockets.Internal
             this.state = WebSocketState.Open;
             this.stopwatch = Stopwatch.StartNew();
 
-            if (secWebSocketExtensions?.IndexOf("permessage-deflate") >= 0)
+            if (permessageDeflate)
             {
                 this.perMessageDeflateHandler = new PerMessageDeflateHandler();
                 Events.Log.UsePerMessageDeflate(guid);
@@ -242,12 +239,10 @@ namespace Samurai.WebSockets.Internal
             try
             {
                 var opCode = this.GetOppCode(messageType);
-
                 if (this.perMessageDeflateHandler != null && (opCode == WebSocketOpCode.BinaryFrame || opCode == WebSocketOpCode.TextFrame))
                 {
                     this.perMessageDeflateHandler.Write(buffer, messageType, opCode);
                     Events.Log.BufferDeflateFrame(this.guid, opCode, buffer.Count);
-
                     var cunkBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
                     try
                     {
@@ -270,20 +265,17 @@ namespace Samurai.WebSockets.Internal
                 }
                 else
                 {
-                    Console.WriteLine("-----------------> Normal send? " + buffer.Count);
+                    var msOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
                     using var stream = new ArrayPoolStream();
-                    var messageOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
-
-                    WebSocketFrameWriter.Write(messageOpCode, buffer, stream, endOfMessage, this.isClient);
-                    Events.Log.SendingFrame(this.guid, messageOpCode, endOfMessage, buffer.Count, false);
+                    WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient);
+                    Events.Log.SendingFrame(this.guid, msOpCode, endOfMessage, buffer.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
                 this.isContinuationFrame = !endOfMessage;
             }
             catch (Exception e)
             {
-                Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! " + e.Message);
-                //await this.CloseAsync(WebSocketCloseStatus.InternalServerError, e.Message, cancellationToken);
+                await this.CloseAsync(WebSocketCloseStatus.InternalServerError, e.Message, cancellationToken);
                 throw;
             }
 
@@ -575,9 +567,6 @@ namespace Samurai.WebSockets.Internal
         /// </summary>
         private WebSocketOpCode GetOppCode(WebSocketMessageType messageType)
         {
-            if (this.isContinuationFrame)
-                return WebSocketOpCode.ContinuationFrame;
-
             switch (messageType)
             {
                 case WebSocketMessageType.Binary:

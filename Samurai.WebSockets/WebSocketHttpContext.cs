@@ -19,6 +19,11 @@ namespace Samurai.WebSockets
         public IList<string> WebSocketRequestedProtocols { get; }
 
         /// <summary>
+        /// Gets the Sec-WebSocket-Extensions requested by the WebSocket handshake.
+        /// </summary>
+        public IList<string> WebSocketExtensions { get; }
+
+        /// <summary>
         /// The raw http header extracted from the stream
         /// </summary>
         public string HttpHeader { get; }
@@ -42,6 +47,7 @@ namespace Samurai.WebSockets
         {
             this.IsWebSocketRequest = httpHeader.IsWebSocketUpgradeRequest();
             this.WebSocketRequestedProtocols = httpHeader.GetSubProtocols();
+            this.WebSocketExtensions = httpHeader.GetWebSocketExtensions();
             this.Path = httpHeader.GetPathFromHeader();
             this.HttpHeader = httpHeader;
             this.Stream = stream;

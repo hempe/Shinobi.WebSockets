@@ -44,6 +44,7 @@ namespace Samurai.WebSockets
 
         private static readonly Regex WebSocketUpgrade = new Regex("Upgrade: websocket", RegexOptions.IgnoreCase);
         private static readonly Regex SecWebSocketProtocol = new Regex(@"Sec-WebSocket-Protocol:(?<protocols>.+)", RegexOptions.IgnoreCase);
+        private static readonly Regex SecWebSocketExtensions = new Regex(@"Sec-WebSocket-Extensions:(?<extensions>.+)", RegexOptions.IgnoreCase);
 
         private const char @R = '\r';
         private const char @N = '\n';
@@ -207,6 +208,27 @@ namespace Samurai.WebSockets
 
                 // extract a csv list of sub protocols (in order of highest preference first)
                 string csv = match.Groups["protocols"].Value.Trim();
+                return csv.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim())
+                    .ToList();
+            }
+
+            return new List<string>();
+        }
+
+        public static IList<string> GetWebSocketExtensions(this string httpHeader)
+        {
+            var match = SecWebSocketExtensions.Match(httpHeader);
+            if (match.Success)
+            {
+                const int MAX_LEN = 2048;
+                if (match.Length > MAX_LEN)
+                {
+                    throw new HttpHeaderTooLargeException($"Sec-WebSocket-Extensions exceeded the maximum of length of {MAX_LEN}");
+                }
+
+                // extract a csv list of sub protocols (in order of highest preference first)
+                string csv = match.Groups["extensions"].Value.Trim();
                 return csv.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(x => x.Trim())
                     .ToList();

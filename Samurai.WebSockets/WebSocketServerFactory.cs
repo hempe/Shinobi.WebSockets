@@ -21,6 +21,8 @@
 // ---------------------------------------------------------------------
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text.RegularExpressions;
@@ -72,9 +74,9 @@ namespace Samurai.WebSockets
         {
             var guid = Guid.NewGuid();
             Events.Log.AcceptWebSocketStarted(guid);
-            await PerformHandshakeAsync(guid, context.HttpHeader, options.SubProtocol, context.Stream, cancellationToken).ConfigureAwait(false);
+            var handshake = await PerformHandshakeAsync(guid, context.HttpHeader, options.SubProtocol, context, cancellationToken).ConfigureAwait(false);
             Events.Log.ServerHandshakeSuccess(guid);
-            return new SamuraiWebSocket(guid, context.Stream, options.KeepAliveInterval, null, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
+            return new SamuraiWebSocket(guid, context.Stream, options.KeepAliveInterval, handshake.permessageDeflate, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
         }
 
         private static void CheckWebSocketVersion(string httpHeader)
@@ -91,7 +93,7 @@ namespace Samurai.WebSockets
             throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in http header");
         }
 
-        private static async ValueTask PerformHandshakeAsync(Guid guid, String httpHeader, string? subProtocol, Stream stream, CancellationToken cancellationToken)
+        private static async ValueTask<(bool permessageDeflate, string? subProtocol)> PerformHandshakeAsync(Guid guid, string httpHeader, string? subProtocol, WebSocketHttpContext context, CancellationToken cancellationToken)
         {
             try
             {
@@ -102,15 +104,17 @@ namespace Samurai.WebSockets
                 {
                     var secWebSocketKey = match.Groups[1].Value.Trim();
                     var setWebSocketAccept = secWebSocketKey.ComputeSocketAcceptString();
+                    var compress = context.WebSocketExtensions?.Contains("permessage-deflate") == true;
                     var response = "HTTP/1.1 101 Switching Protocols\r\n"
                                        + "Connection: Upgrade\r\n"
                                        + "Upgrade: websocket\r\n"
                                        + (subProtocol != null ? $"Sec-WebSocket-Protocol: {subProtocol}\r\n" : "")
+                                       + (compress ? $"Sec-WebSocket-Extensions: permessage-deflate\r\n" : "")
                                        + $"Sec-WebSocket-Accept: {setWebSocketAccept}";
 
                     Events.Log.SendingHandshakeResponse(guid, response);
-                    await stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
-                    return;
+                    await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
+                    return (permessageDeflate: compress, subProtocol: subProtocol);
                 }
 
                 throw new SecWebSocketKeyMissingException("Unable to read \"Sec-WebSocket-Key\" from http header");
@@ -118,13 +122,13 @@ namespace Samurai.WebSockets
             catch (WebSocketVersionNotSupportedException ex)
             {
                 Events.Log.WebSocketVersionNotSupported(guid, ex);
-                await stream.WriteHttpHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n{ex.Message}", cancellationToken).ConfigureAwait(false);
+                await context.Stream.WriteHttpHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n{ex.Message}", cancellationToken).ConfigureAwait(false);
                 throw;
             }
             catch (Exception ex)
             {
                 Events.Log.BadRequest(guid, ex);
-                await stream.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", cancellationToken).ConfigureAwait(false);
+                await context.Stream.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", cancellationToken).ConfigureAwait(false);
                 throw;
             }
         }

@@ -34,8 +34,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             Console.WriteLine("CanCancelReceive");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, null, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, null, false, false, null);
+            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var buffer = new ArraySegment<byte>(new byte[10]);
 
@@ -49,7 +49,7 @@ namespace Samurai.WebSockets.UnitTests
         {
             Console.WriteLine("CanCancelSend");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, null, false, true, null);
+            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var buffer = new ArraySegment<byte>(new byte[10]);
 
@@ -63,8 +63,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             Console.WriteLine("SimpleSend");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, null, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, null, false, false, null);
+            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
@@ -89,8 +89,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             Console.WriteLine("SimpleSendHugeMessage");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, null, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, null, false, false, null);
+            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
@@ -113,8 +113,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             Console.WriteLine("PermessageDeflateSendAsync");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, "permessage-deflate", false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, "permessage-deflate", false, false, null);
+            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, true, false, true, null);
+            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, true, tokenSource.Token);
@@ -137,8 +137,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             Console.WriteLine("PermessageDeflateGiantMessage");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, "permessage-deflate", false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, "permessage-deflate", false, false, null);
+            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, true, false, true, null);
+            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, true, tokenSource.Token);
@@ -168,8 +168,8 @@ namespace Samurai.WebSockets.UnitTests
             var serverConnectTask = serverPipe.WaitForConnectionAsync();
             await Task.WhenAll(clientConnectTask, serverConnectTask);
 
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), clientPipe, TimeSpan.Zero, null, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, null, false, false, null);
+            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), clientPipe, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
@@ -199,8 +199,8 @@ namespace Samurai.WebSockets.UnitTests
             var serverConnectTask = serverPipe.WaitForConnectionAsync();
             await Task.WhenAll(clientConnectTask, serverConnectTask);
 
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), clientPipe, TimeSpan.Zero, null, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, null, false, false, null);
+            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), clientPipe, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
@@ -257,18 +257,10 @@ namespace Samurai.WebSockets.UnitTests
                     {
                         if (permessageDeflate)
                         {
-                            try
-                            {
-                                ms.Position = 0;
-                                using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
-                                using var reader = new StreamReader(deflateStream, Encoding.UTF8);
-                                values.Add(new ReadResult { Text = reader.ReadToEnd(), Count = count });
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!! The client has no idea? " + ms.Length + " " + e.Message);
-                                throw;
-                            }
+                            ms.Position = 0;
+                            using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
+                            using var reader = new StreamReader(deflateStream, Encoding.UTF8);
+                            values.Add(new ReadResult { Text = reader.ReadToEnd(), Count = count });
                         }
                         else
                         {
@@ -305,24 +297,17 @@ namespace Samurai.WebSockets.UnitTests
                     if (result.EndOfMessage)
                     {
                         string value;
+                        ms.Position = 0;
                         if (permessageDeflate)
                         {
-                            try
-                            {
-                                ms.Position = 0;
-                                using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
-                                using var reader = new StreamReader(deflateStream, Encoding.UTF8);
-                                value = reader.ReadToEnd();
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!!!!!! The server has no idea? " + ms.Length + " " + e.Message);
-                                throw;
-                            }
+
+                            using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
+                            using var reader = new StreamReader(deflateStream, Encoding.UTF8);
+                            value = reader.ReadToEnd();
+
                         }
                         else
                         {
-                            ms.Position = 0;
                             using var reader = new StreamReader(ms, Encoding.UTF8, leaveOpen: true);
                             value = reader.ReadToEnd();
                         }

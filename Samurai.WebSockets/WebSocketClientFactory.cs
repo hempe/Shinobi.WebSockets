@@ -130,7 +130,7 @@ namespace Samurai.WebSockets
                 guid,
                 responseStream,
                 keepAliveInterval,
-                secWebSocketExtensions,
+                response.GetWebSocketExtensions()?.Contains("permessage-deflate") == true,
                 includeExceptionInCloseResponse,
                 true,
                 this.GetSubProtocolFromHeader(response));
