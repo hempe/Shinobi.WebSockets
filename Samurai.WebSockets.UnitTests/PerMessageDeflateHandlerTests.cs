@@ -19,7 +19,7 @@ namespace Samurai.WebSockets.UnitTests
             var sut = new PerMessageDeflateHandler();
             var message = "Hello World";
             var ms = new ArrayPoolStream();
-            var frame = sut.Write(Encoding.UTF8.GetBytes(message), System.Net.WebSockets.WebSocketMessageType.Text);
+            var frame = sut.Write(Encoding.UTF8.GetBytes(message), System.Net.WebSockets.WebSocketMessageType.Text, true);
             ms.Write(frame.Array!, frame.Offset, frame.Count);
             ms.Position = 0;
             using var df = new DeflateStream(ms, CompressionMode.Decompress);
@@ -59,12 +59,10 @@ namespace Samurai.WebSockets.UnitTests
             foreach (var chunk in chunks)
             {
                 ct++;
-                var frame = sut.Write(chunk, System.Net.WebSockets.WebSocketMessageType.Text);
+                var frame = sut.Write(chunk, System.Net.WebSockets.WebSocketMessageType.Text, ct == chunks.Length);
                 ms.Write(frame.Array!, frame.Offset, frame.Count);
             }
 
-            sut.Reset();
-            Console.WriteLine("ReadAll transfer size was: " + ms.Position);
             ms.Position = 0;
             using var df = new DeflateStream(ms, CompressionMode.Decompress);
             using var reader = new StreamReader(df, Encoding.UTF8);
