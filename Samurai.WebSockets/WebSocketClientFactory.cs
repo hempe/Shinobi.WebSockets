@@ -46,11 +46,7 @@ namespace Samurai.WebSockets
     /// </summary>
     public class WebSocketClientFactory : IWebSocketClientFactory
     {
-        private static readonly Regex SecWebSocketAccept = new Regex("Sec-WebSocket-Accept: (.*)", RegexOptions.IgnoreCase);
-        private static readonly Regex SecWebSocketProtocol = new Regex("Sec-WebSocket-Protocol: (.*)", RegexOptions.IgnoreCase);
-
         private const string NewLine = "\r\n";
-        private static readonly char[] NewLineChars = NewLine.ToCharArray();
 
         /// <summary>
         /// Connect with default options
@@ -111,11 +107,11 @@ namespace Samurai.WebSockets
         private async ValueTask<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string? secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
         {
             Events.Log.ReadingHttpResponse(guid);
-            string response;
+            HttpHeader response;
 
             try
             {
-                response = await responseStream.ReadHttpHeaderAsync(cancellationToken).ConfigureAwait(false);
+                response = await HttpHeader.ReadHttpHeaderAsync(responseStream, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -130,25 +126,16 @@ namespace Samurai.WebSockets
                 guid,
                 responseStream,
                 keepAliveInterval,
-                response.GetWebSocketExtensions()?.Contains("permessage-deflate") == true,
+                response.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true,
                 includeExceptionInCloseResponse,
                 true,
-                this.GetSubProtocolFromHeader(response));
+                response.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
         }
 
-        private string? GetSubProtocolFromHeader(string response)
+        private void ThrowIfInvalidAcceptString(Guid guid, HttpHeader response, string secWebSocketKey)
         {
             // make sure we escape the accept string which could contain special regex characters
-            var match = SecWebSocketProtocol.Match(response);
-            return match.Success
-                ? match.Groups[1].Value.Trim()
-                : null;
-        }
-
-        private void ThrowIfInvalidAcceptString(Guid guid, string response, string secWebSocketKey)
-        {
-            // make sure we escape the accept string which could contain special regex characters
-            var actualAcceptString = SecWebSocketAccept.Match(response).Groups[1].Value.Trim();
+            var actualAcceptString = response.GetHeaderValue("Sec-WebSocket-Accept")?.Trim();
 
             // check the accept string
             var expectedAcceptString = secWebSocketKey.ComputeSocketAcceptString();
@@ -162,16 +149,10 @@ namespace Samurai.WebSockets
             Events.Log.ClientHandshakeSuccess(guid);
         }
 
-        private void ThrowIfInvalidResponseCode(string responseHeader)
+        private void ThrowIfInvalidResponseCode(HttpHeader header)
         {
-            var responseCode = responseHeader.ReadHttpResponseCode() ?? throw new InvalidHttpResponseCodeException(null, null, responseHeader);
-            if (responseCode.StartsWith("101 ", StringComparison.InvariantCultureIgnoreCase))
-                return;
-
-            var lines = responseHeader.Split(NewLineChars, StringSplitOptions.None);
-            var emptyLineIndex = Array.FindIndex(lines, string.IsNullOrWhiteSpace);
-            if (emptyLineIndex >= 0)
-                throw new InvalidHttpResponseCodeException(responseCode, string.Join(Environment.NewLine, lines.Skip(emptyLineIndex + 1)), responseHeader);
+            if (header.StatusCode != 101)
+                throw new InvalidHttpResponseCodeException(header.StatusCode);
         }
 
         /// <summary>

@@ -21,11 +21,8 @@
 // ---------------------------------------------------------------------
 
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -40,8 +37,6 @@ namespace Samurai.WebSockets
     public class WebSocketServerFactory : IWebSocketServerFactory
     {
         private const int WebSocketVersion = 13;
-        private static readonly Regex WebSocketVersionRegex = new Regex("Sec-WebSocket-Version: (.*)", RegexOptions.IgnoreCase);
-        private static readonly Regex WebSocketKeyRegex = new Regex("Sec-WebSocket-Key: (.*)", RegexOptions.IgnoreCase);
 
         /// <summary>
         /// Reads a http header information from a stream and decodes the parts relating to the WebSocket protocot upgrade
@@ -50,7 +45,7 @@ namespace Samurai.WebSockets
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>Http data read from the stream</returns>
         public async ValueTask<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
-            => new WebSocketHttpContext(await stream.ReadHttpHeaderAsync(cancellationToken).ConfigureAwait(false), stream);
+            => new WebSocketHttpContext(await HttpHeader.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false), stream);
 
         /// <summary>
         /// Accept web socket with default options
@@ -79,12 +74,12 @@ namespace Samurai.WebSockets
             return new SamuraiWebSocket(guid, context.Stream, options.KeepAliveInterval, handshake.permessageDeflate, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
         }
 
-        private static void CheckWebSocketVersion(string httpHeader)
+        private static void CheckWebSocketVersion(HttpHeader httpHeader)
         {
-            var match = WebSocketVersionRegex.Match(httpHeader);
-            if (match.Success)
+            var version = httpHeader.GetHeaderValue("Sec-WebSocket-Version");
+            if (!string.IsNullOrEmpty(version))
             {
-                int secWebSocketVersion = Convert.ToInt32(match.Groups[1].Value.Trim());
+                int secWebSocketVersion = Convert.ToInt32(version!.Trim());
                 if (secWebSocketVersion < WebSocketVersion)
                     throw new WebSocketVersionNotSupportedException(string.Format("WebSocket Version {0} not suported. Must be {1} or above", secWebSocketVersion, WebSocketVersion));
                 return;
@@ -93,17 +88,17 @@ namespace Samurai.WebSockets
             throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in http header");
         }
 
-        private static async ValueTask<(bool permessageDeflate, string? subProtocol)> PerformHandshakeAsync(Guid guid, string httpHeader, string? subProtocol, WebSocketHttpContext context, CancellationToken cancellationToken)
+        private static async ValueTask<(bool permessageDeflate, string? subProtocol)> PerformHandshakeAsync(Guid guid, HttpHeader httpHeader, string? subProtocol, WebSocketHttpContext context, CancellationToken cancellationToken)
         {
             try
             {
                 CheckWebSocketVersion(httpHeader);
 
-                var match = WebSocketKeyRegex.Match(httpHeader);
-                if (match.Success)
+                var secWebSocketKey = httpHeader.GetHeaderValue("Sec-WebSocket-Key")?.Trim();
+
+                if (!string.IsNullOrEmpty(secWebSocketKey))
                 {
-                    var secWebSocketKey = match.Groups[1].Value.Trim();
-                    var setWebSocketAccept = secWebSocketKey.ComputeSocketAcceptString();
+                    var setWebSocketAccept = secWebSocketKey!.ComputeSocketAcceptString();
                     var compress = context.WebSocketExtensions?.Contains("permessage-deflate") == true;
                     var response = "HTTP/1.1 101 Switching Protocols\r\n"
                                        + "Connection: Upgrade\r\n"

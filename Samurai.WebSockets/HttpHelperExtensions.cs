@@ -39,15 +39,94 @@ namespace Samurai.WebSockets
     public static class HttpHelperExtensions
     {
         private const string WebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-        private static readonly Regex HttpGetHeader = new Regex(@"^GET(.*)HTTP\/1\.1", RegexOptions.IgnoreCase);
-        private static readonly Regex Http = new Regex(@"HTTP\/1\.1 (.*)", RegexOptions.IgnoreCase);
 
-        private static readonly Regex WebSocketUpgrade = new Regex("Upgrade: websocket", RegexOptions.IgnoreCase);
-        private static readonly Regex SecWebSocketProtocol = new Regex(@"Sec-WebSocket-Protocol:(?<protocols>.+)", RegexOptions.IgnoreCase);
-        private static readonly Regex SecWebSocketExtensions = new Regex(@"Sec-WebSocket-Extensions:(?<extensions>.+)", RegexOptions.IgnoreCase);
+        /// <summary>
+        /// Parse comma-separated header values (like Sec-WebSocket-Protocol)
+        /// </summary>
+        /// <param name="headerValue">Header value to parse</param>
+        /// <returns>Array of trimmed values</returns>
+        public static string[] ParseCommaSeparated(this string? headerValue)
+        {
+            if (string.IsNullOrEmpty(headerValue))
+                return new string[0];
 
-        private const char @R = '\r';
-        private const char @N = '\n';
+            var values = new List<string>();
+            var start = 0;
+            var inQuotes = false;
+
+            for (var i = 0; i < headerValue!.Length; i++)
+            {
+                var ch = headerValue[i];
+
+                if (ch == '"' && (i == 0 || headerValue[i - 1] != '\\'))
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (ch == ',' && !inQuotes)
+                {
+                    var value = headerValue.Substring(start, i - start).Trim();
+                    if (!string.IsNullOrEmpty(value))
+                        values.Add(value);
+                    start = i + 1;
+                }
+            }
+
+            // Add the last value
+            var lastValue = headerValue.Substring(start).Trim();
+            if (!string.IsNullOrEmpty(lastValue))
+                values.Add(lastValue);
+
+            return values.ToArray();
+        }
+
+        /// <summary>
+        /// Parse Sec-WebSocket-Extensions header
+        /// </summary>
+        /// <param name="extensionsHeader">Extensions header value</param>
+        /// <returns>Array of extension objects with name and parameters</returns>
+        public static WebSocketExtension[] ParseExtensions(this string? extensionsHeader)
+        {
+            if (string.IsNullOrEmpty(extensionsHeader))
+                return new WebSocketExtension[0];
+
+            var extensions = new List<WebSocketExtension>();
+            var extensionList = ParseCommaSeparated(extensionsHeader);
+
+            foreach (var ext in extensionList)
+            {
+                var parts = ext.Split(';');
+                var extension = new WebSocketExtension
+                {
+                    Name = parts[0].Trim()
+                };
+
+                for (var i = 1; i < parts.Length; i++)
+                {
+                    var param = parts[i].Trim();
+                    var eqPos = param.IndexOf('=');
+
+                    if (eqPos != -1)
+                    {
+                        var key = param.Substring(0, eqPos).Trim();
+                        var value = param.Substring(eqPos + 1).Trim();
+
+                        // Remove quotes if present
+                        if (value.StartsWith("\"") && value.EndsWith("\""))
+                            value = value.Substring(1, value.Length - 2);
+
+                        extension.Parameters[key] = value;
+                    }
+                    else
+                    {
+                        extension.Parameters[param] = true;
+                    }
+                }
+
+                extensions.Add(extension);
+            }
+
+            return extensions.ToArray();
+        }
 
         /// <summary>
         /// Computes a WebSocket accept string from a given key
@@ -65,192 +144,6 @@ namespace Samurai.WebSockets
             return Convert.ToBase64String(sha1Hash);
         }
 
-        /// <summary>
-        /// Reads an http header as per the HTTP spec
-        /// </summary>
-        /// <param name="stream">The stream to read UTF8 text from</param>
-        /// <returns>The HTTP header</returns>
-        public static async ValueTask<string> ReadHttpHeaderAsync(this Stream stream, CancellationToken cancellationToken)
-        {
-            const int MaxHeaderSize = 16 * 1024;
-            const int InitialChunkSize = 128;
-
-            var headerBytes = ArrayPool<byte>.Shared.Rent(MaxHeaderSize);
-            var buffer = ArrayPool<byte>.Shared.Rent(InitialChunkSize);
-
-            int totalHeaderBytes = 0;
-            int sequenceIndex = 0;
-
-            try
-            {
-                // Phase 1: Chunked reads (until close to limit)
-                while (MaxHeaderSize - totalHeaderBytes >= InitialChunkSize)
-                {
-                    int bytesRead = await stream.ReadAsync(buffer, 0, InitialChunkSize, cancellationToken).ConfigureAwait(false);
-                    if (bytesRead == 0)
-                        return string.Empty;
-
-                    for (int i = 0; i < bytesRead; i++)
-                    {
-                        byte currentByte = buffer[i];
-                        headerBytes[totalHeaderBytes++] = currentByte;
-
-                        switch ((char)currentByte)
-                        {
-                            case '\r':
-                                sequenceIndex = sequenceIndex == 0 || sequenceIndex == 2 ? sequenceIndex + 1 : 1;
-                                break;
-
-                            case '\n':
-                                if (sequenceIndex == 1)
-                                    sequenceIndex = 2;
-                                else if (sequenceIndex == 3)
-                                    return Encoding.UTF8.GetString(headerBytes, 0, totalHeaderBytes);
-                                else
-                                    sequenceIndex = 0;
-                                break;
-
-                            default:
-                                sequenceIndex = 0;
-                                break;
-                        }
-                    }
-                }
-
-                // Phase 2: 1-byte reads (avoids overread near 16KB limit)
-                var singleByteBuffer = ArrayPool<byte>.Shared.Rent(1);
-                try
-                {
-                    while (true)
-                    {
-                        int bytesRead = await stream.ReadAsync(singleByteBuffer, 0, 1, cancellationToken).ConfigureAwait(false);
-                        if (bytesRead == 0)
-                            return string.Empty;
-
-                        byte currentByte = singleByteBuffer[0];
-                        if (totalHeaderBytes >= MaxHeaderSize)
-                            throw new HttpHeaderTooLargeException("Http header too large (16KB)");
-
-                        headerBytes[totalHeaderBytes++] = currentByte;
-
-                        switch ((char)currentByte)
-                        {
-                            case '\r':
-                                sequenceIndex = sequenceIndex == 0 || sequenceIndex == 2 ? sequenceIndex + 1 : 1;
-                                break;
-
-                            case '\n':
-                                if (sequenceIndex == 1)
-                                    sequenceIndex = 2;
-                                else if (sequenceIndex == 3)
-                                    return Encoding.UTF8.GetString(headerBytes, 0, totalHeaderBytes);
-                                else
-                                    sequenceIndex = 0;
-                                break;
-
-                            default:
-                                sequenceIndex = 0;
-                                break;
-                        }
-                    }
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(singleByteBuffer);
-                }
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-                ArrayPool<byte>.Shared.Return(headerBytes);
-            }
-        }
-
-
-        /// <summary>
-        /// Decodes the header to detect is this is a web socket upgrade response
-        /// </summary>
-        /// <param name="header">The HTTP header</param>
-        /// <returns>True if this is an http WebSocket upgrade response</returns>
-        public static bool IsWebSocketUpgradeRequest(this string header)
-        {
-            // check if this is a web socket upgrade request
-            if (HttpGetHeader.Match(header).Success)
-                return WebSocketUpgrade.Match(header).Success;
-
-            return false;
-        }
-
-        /// <summary>
-        /// Gets the path from the HTTP header
-        /// </summary>
-        /// <param name="httpHeader">The HTTP header to read</param>
-        /// <returns>The path</returns>
-        public static string? GetPathFromHeader(this string httpHeader)
-        {
-            var getRegexMatch = HttpGetHeader.Match(httpHeader);
-            // extract the path attribute from the first line of the header
-            return getRegexMatch.Success
-                ? getRegexMatch.Groups[1].Value.Trim()
-                : null;
-        }
-
-        public static IList<string> GetSubProtocols(this string httpHeader)
-        {
-            var match = SecWebSocketProtocol.Match(httpHeader);
-            if (match.Success)
-            {
-                const int MAX_LEN = 2048;
-                if (match.Length > MAX_LEN)
-                {
-                    throw new HttpHeaderTooLargeException($"Sec-WebSocket-Protocol exceeded the maximum of length of {MAX_LEN}");
-                }
-
-                // extract a csv list of sub protocols (in order of highest preference first)
-                string csv = match.Groups["protocols"].Value.Trim();
-                return csv.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => x.Trim())
-                    .ToList();
-            }
-
-            return new List<string>();
-        }
-
-        public static IList<string> GetWebSocketExtensions(this string httpHeader)
-        {
-            var match = SecWebSocketExtensions.Match(httpHeader);
-            if (match.Success)
-            {
-                const int MAX_LEN = 2048;
-                if (match.Length > MAX_LEN)
-                {
-                    throw new HttpHeaderTooLargeException($"Sec-WebSocket-Extensions exceeded the maximum of length of {MAX_LEN}");
-                }
-
-                // extract a csv list of sub protocols (in order of highest preference first)
-                string csv = match.Groups["extensions"].Value.Trim();
-                return csv.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => x.Trim())
-                    .ToList();
-            }
-
-            return new List<string>();
-        }
-
-        /// <summary>
-        /// Reads the HTTP response code from the http response string
-        /// </summary>
-        /// <param name="response">The response string</param>
-        /// <returns>the response code</returns>
-        public static string? ReadHttpResponseCode(this string response)
-        {
-            var getRegexMatch = Http.Match(response);
-
-            // extract the path attribute from the first line of the header
-            return getRegexMatch.Success
-                ? getRegexMatch.Groups[1].Value.Trim()
-                : null;
-        }
 
         /// <summary>
         /// Writes an HTTP response string to the stream

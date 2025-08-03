@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Samurai.WebSockets
 {
@@ -26,7 +27,7 @@ namespace Samurai.WebSockets
         /// <summary>
         /// The raw http header extracted from the stream
         /// </summary>
-        public string HttpHeader { get; }
+        public HttpHeader HttpHeader { get; }
 
         /// <summary>
         /// The Path extracted from the http header
@@ -43,12 +44,12 @@ namespace Samurai.WebSockets
         /// </summary>
         /// <param name="httpHeader">The raw http header extracted from the stream</param>
         /// <param name="stream">The stream AFTER the header has already been read</param>
-        public WebSocketHttpContext(string httpHeader, Stream stream)
+        public WebSocketHttpContext(HttpHeader httpHeader, Stream stream)
         {
-            this.IsWebSocketRequest = httpHeader.IsWebSocketUpgradeRequest();
-            this.WebSocketRequestedProtocols = httpHeader.GetSubProtocols();
-            this.WebSocketExtensions = httpHeader.GetWebSocketExtensions();
-            this.Path = httpHeader.GetPathFromHeader();
+            this.IsWebSocketRequest = httpHeader.Upgrade == "websocket";
+            this.WebSocketRequestedProtocols = httpHeader.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
+            this.WebSocketExtensions = httpHeader.GetHeaderValues("Sec-WebSocket-Extensions").ToList();
+            this.Path = httpHeader.Path;
             this.HttpHeader = httpHeader;
             this.Stream = stream;
         }
