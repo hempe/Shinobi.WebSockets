@@ -239,9 +239,20 @@ namespace Samurai.WebSockets
                                           $"Connection: Upgrade{NewLine}" +
                                           $"Sec-WebSocket-Key: {secWebSocketKey}{NewLine}" +
                                           $"Origin: http://{uri.Host}:{uri.Port}{NewLine}" +
-                                          $"Sec-WebSocket-Protocol: {options.SecWebSocketProtocol}{NewLine}" +
+                                          (
+                                            string.IsNullOrEmpty(options.SecWebSocketProtocol)
+                                                ? string.Empty
+                                                : $"Sec-WebSocket-Protocol: {options.SecWebSocketProtocol}{NewLine}"
+                                          ) +
+                                          (
+                                            string.IsNullOrEmpty(options.SecWebSocketExtensions)
+                                                ? string.Empty
+                                                : $"Sec-WebSocket-Extensions: {options.SecWebSocketExtensions}{NewLine}"
+                                          ) +
                                           additionalHeaders +
                                           $"Sec-WebSocket-Version: 13{NewLine}{NewLine}";
+
+
 
             var httpRequest = Encoding.UTF8.GetBytes(handshakeHttpRequest);
             stream.Write(httpRequest, 0, httpRequest.Length);

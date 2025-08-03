@@ -88,6 +88,7 @@ namespace Samurai.WebSockets.Internal
             }
             else
             {
+                throw new Exception("It should be on");
                 this.perMessageDeflateHandler = null;
                 Events.Log.NoMessageCompression(guid);
             }
