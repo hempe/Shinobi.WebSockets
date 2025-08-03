@@ -10,7 +10,7 @@ namespace Samurai.WebSockets.Extensions
 {
     public static class WebSocketExtensions
     {
-        public static async Task<WebSocketReceiveResult> Receive2Async(
+        public static async Task<WebSocketReceiveResult> ReceiveAsync(
             this WebSocket webSocket,
             ArrayPoolStream ms,
             CancellationToken cancellationToken)
@@ -23,7 +23,7 @@ namespace Samurai.WebSockets.Extensions
             return result;
         }
 
-        public static async Task<WebSocketReceiveResult> ReceiveAsync(
+        public static async Task<WebSocketReceiveResult> Receive2Async(
             this WebSocket webSocket,
             ArrayPoolStream ms,
             CancellationToken cancellationToken)

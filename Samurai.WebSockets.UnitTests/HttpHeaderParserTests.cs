@@ -1,15 +1,13 @@
 using System;
 using System.Linq;
-
 using Xunit;
+using Samurai.WebSockets.Extensions;
 
 namespace Samurai.WebSockets.UnitTests
 {
 
     public class HttpHeaderParserTests
     {
-        private readonly HttpHeader parser = new HttpHeader();
-
         [Fact]
         public void ParseWebSocketHandshakeRequest_ShouldParseCorrectly()
         {
@@ -211,12 +209,12 @@ namespace Samurai.WebSockets.UnitTests
             // Test empty input
             var emptyResult = HttpHeader.Parse("");
             Assert.Null(emptyResult.StatusCode);
-            Assert.Empty(emptyResult.Headers);
+            Assert.Empty(emptyResult.AsKeyValuePairs());
 
             // Test status-only response
             var statusOnlyResult = HttpHeader.Parse("HTTP/1.1 404 Not Found\r\n\r\n");
             Assert.Equal(404, statusOnlyResult.StatusCode);
-            Assert.Empty(statusOnlyResult.Headers);
+            Assert.Empty(statusOnlyResult.AsKeyValuePairs());
 
             // Test malformed header (missing colon)
             var malformedResult = HttpHeader.Parse("HTTP/1.1 200 OK\r\nHost example.com\r\nContent-Type: text/plain\r\n\r\n");

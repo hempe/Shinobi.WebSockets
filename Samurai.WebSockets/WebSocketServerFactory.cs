@@ -27,6 +27,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Samurai.WebSockets.Exceptions;
+using Samurai.WebSockets.Extensions;
 using Samurai.WebSockets.Internal;
 
 namespace Samurai.WebSockets
@@ -69,9 +70,9 @@ namespace Samurai.WebSockets
         {
             var guid = Guid.NewGuid();
             Events.Log.AcceptWebSocketStarted(guid);
-            var handshake = await PerformHandshakeAsync(guid, context.HttpHeader, options.SubProtocol, context, cancellationToken).ConfigureAwait(false);
+            var usePermessageDeflate = await PerformHandshakeAsync(guid, options, context, cancellationToken).ConfigureAwait(false);
             Events.Log.ServerHandshakeSuccess(guid);
-            return new SamuraiWebSocket(guid, context.Stream, options.KeepAliveInterval, handshake.permessageDeflate, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
+            return new SamuraiWebSocket(guid, context.Stream, options.KeepAliveInterval, usePermessageDeflate, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
         }
 
         private static void CheckWebSocketVersion(HttpHeader httpHeader)
@@ -79,7 +80,7 @@ namespace Samurai.WebSockets
             var version = httpHeader.GetHeaderValue("Sec-WebSocket-Version");
             if (!string.IsNullOrEmpty(version))
             {
-                int secWebSocketVersion = Convert.ToInt32(version!.Trim());
+                int secWebSocketVersion = Convert.ToInt32(version);
                 if (secWebSocketVersion < WebSocketVersion)
                     throw new WebSocketVersionNotSupportedException(string.Format("WebSocket Version {0} not suported. Must be {1} or above", secWebSocketVersion, WebSocketVersion));
                 return;
@@ -88,31 +89,29 @@ namespace Samurai.WebSockets
             throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in http header");
         }
 
-        private static async ValueTask<(bool permessageDeflate, string? subProtocol)> PerformHandshakeAsync(Guid guid, HttpHeader httpHeader, string? subProtocol, WebSocketHttpContext context, CancellationToken cancellationToken)
+        private static async ValueTask<bool> PerformHandshakeAsync(Guid guid, WebSocketServerOptions options, WebSocketHttpContext context, CancellationToken cancellationToken)
         {
             try
             {
-                CheckWebSocketVersion(httpHeader);
+                CheckWebSocketVersion(context.HttpHeader);
 
-                var secWebSocketKey = httpHeader.GetHeaderValue("Sec-WebSocket-Key")?.Trim();
+                var secWebSocketKey = context.HttpHeader.GetHeaderValue("Sec-WebSocket-Key");
 
-                if (!string.IsNullOrEmpty(secWebSocketKey))
-                {
-                    var setWebSocketAccept = secWebSocketKey!.ComputeSocketAcceptString();
-                    var compress = context.WebSocketExtensions?.Contains("permessage-deflate") == true;
-                    var response = "HTTP/1.1 101 Switching Protocols\r\n"
-                                       + "Connection: Upgrade\r\n"
-                                       + "Upgrade: websocket\r\n"
-                                       + (subProtocol != null ? $"Sec-WebSocket-Protocol: {subProtocol}\r\n" : "")
-                                       + (compress ? "Sec-WebSocket-Extensions: permessage-deflate\r\n" : "")
-                                       + $"Sec-WebSocket-Accept: {setWebSocketAccept}";
+                if (string.IsNullOrEmpty(secWebSocketKey))
+                    throw new SecWebSocketKeyMissingException("Unable to read \"Sec-WebSocket-Key\" from http header");
 
-                    Events.Log.SendingHandshakeResponse(guid, response);
-                    await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
-                    return (permessageDeflate: compress, subProtocol: subProtocol);
-                }
+                var setWebSocketAccept = secWebSocketKey!.ComputeSocketAcceptString();
+                var compress = options.AllowPerMessageDeflate && context.WebSocketExtensions?.Contains("permessage-deflate") == true;
+                var response = "HTTP/1.1 101 Switching Protocols\r\n"
+                                   + "Connection: Upgrade\r\n"
+                                   + "Upgrade: websocket\r\n"
+                                   + (options.SubProtocol != null ? $"Sec-WebSocket-Protocol: {options.SubProtocol}\r\n" : "")
+                                   + (compress ? "Sec-WebSocket-Extensions: permessage-deflate\r\n" : "")
+                                   + $"Sec-WebSocket-Accept: {setWebSocketAccept}";
 
-                throw new SecWebSocketKeyMissingException("Unable to read \"Sec-WebSocket-Key\" from http header");
+                Events.Log.SendingHandshakeResponse(guid, response);
+                await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
+                return compress;
             }
             catch (WebSocketVersionNotSupportedException ex)
             {

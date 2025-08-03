@@ -33,6 +33,17 @@ namespace Samurai.WebSockets
         public string? SubProtocol { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether per-message deflate compression is allowed.
+        /// When enabled, this option allows the WebSocket server to negotiate and use per-message
+        /// deflate compression for WebSocket messages, which can reduce bandwidth usage.
+        /// </summary>
+        /// <remark>
+        /// This is an experimental feature, and in general per message deflate comes with a hight cpu and memory usage cost.
+        /// Apply only after verifying its usefull for your usecase.
+        /// </remark>
+        public bool AllowPerMessageDeflate { get; set; }
+
+        /// <summary>
         /// Initialises a new instance of the WebSocketServerOptions class
         /// </summary>
         public WebSocketServerOptions()

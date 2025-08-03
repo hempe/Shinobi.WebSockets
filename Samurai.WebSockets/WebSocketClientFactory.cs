@@ -37,6 +37,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Samurai.WebSockets.Exceptions;
+using Samurai.WebSockets.Extensions;
 using Samurai.WebSockets.Internal;
 
 namespace Samurai.WebSockets
@@ -135,7 +136,7 @@ namespace Samurai.WebSockets
         private void ThrowIfInvalidAcceptString(Guid guid, HttpHeader response, string secWebSocketKey)
         {
             // make sure we escape the accept string which could contain special regex characters
-            var actualAcceptString = response.GetHeaderValue("Sec-WebSocket-Accept")?.Trim();
+            var actualAcceptString = response.GetHeaderValue("Sec-WebSocket-Accept");
 
             // check the accept string
             var expectedAcceptString = secWebSocketKey.ComputeSocketAcceptString();

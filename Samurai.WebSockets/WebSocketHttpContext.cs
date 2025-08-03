@@ -2,6 +2,9 @@
 using System.IO;
 using System.Linq;
 
+using Samurai.WebSockets.Exceptions;
+using Samurai.WebSockets.Extensions;
+
 namespace Samurai.WebSockets
 {
     /// <summary>

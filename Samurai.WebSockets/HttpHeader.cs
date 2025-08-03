@@ -13,42 +13,43 @@ using Samurai.WebSockets.Internal;
 namespace Samurai.WebSockets
 {
 
-    public class HttpHeader
+    public readonly struct HttpHeader
     {
         private const string NewLine = "\r\n";
+        public readonly int? StatusCode;
+        public readonly string? Method;
+        public readonly string? Path;
+        private readonly IReadOnlyDictionary<string, HashSet<string>> headers;
 
-        public int? StatusCode { get; set; }
-        public string? Method { get; set; }
-        public string? Path { get; set; }
-        public string? Upgrade { get; set; }
-
-        public Dictionary<string, List<string>> Headers { get; set; } = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        public HttpHeader(int? statusCode, string? method, string? path, IReadOnlyDictionary<string, HashSet<string>> headers)
+        {
+            this.StatusCode = statusCode;
+            this.Method = method;
+            this.Path = path;
+            this.headers = headers;
+        }
 
         /// <summary>
         /// Get all values for a header as IEnumerable
         /// </summary>
         public IEnumerable<string> GetHeaderValues(string headerName)
-        {
-            List<string> values;
-            return this.Headers.TryGetValue(headerName, out values) ? values : Enumerable.Empty<string>();
-        }
+            => this.headers?.TryGetValue(headerName, out var values) == true ? values : Enumerable.Empty<string>();
 
         /// <summary>
         /// Get first value for a header (convenience method)
         /// </summary>
         public string? GetHeaderValue(string headerName)
-        {
-            List<string> values;
-            return this.Headers.TryGetValue(headerName, out values) && values.Count > 0 ? values[0] : null;
-        }
+            => this.headers?.TryGetValue(headerName, out var values) == true ? values.FirstOrDefault() : null;
 
         /// <summary>
         /// Get all header values as comma-separated string (HTTP standard format)
         /// </summary>
         public string? GetHeaderValuesCombined(string headerName)
         {
-            List<string> values;
-            if (!this.Headers.TryGetValue(headerName, out values) || values.Count == 0)
+            if (this.headers is null)
+                return null;
+
+            if (!this.headers.TryGetValue(headerName, out var values) || !values.Any())
                 return null;
 
             return string.Join(", ", values.ToArray());
@@ -58,18 +59,13 @@ namespace Samurai.WebSockets
         /// Check if header exists
         /// </summary>
         public bool HasHeader(string headerName)
-        {
-            return this.Headers.ContainsKey(headerName);
-        }
+            => this.headers?.ContainsKey(headerName) ?? false;
 
         /// <summary>
         /// Get headers as IEnumerable<KeyValuePair<string, IEnumerable<string>>> for compatibility
         /// </summary>
         public IEnumerable<KeyValuePair<string, IEnumerable<string>>> AsKeyValuePairs()
-        {
-            return this.Headers.Select(kvp => new KeyValuePair<string, IEnumerable<string>>(kvp.Key, kvp.Value));
-        }
-
+            => this.headers?.Select(kvp => new KeyValuePair<string, IEnumerable<string>>(kvp.Key, kvp.Value)) ?? Enumerable.Empty<KeyValuePair<string, IEnumerable<string>>>();
 
         /// <summary>
         /// Reads an http header as per the HTTP spec
@@ -179,32 +175,36 @@ namespace Samurai.WebSockets
         /// <returns>ParseResult with status code and all headers</returns>
         public static HttpHeader Parse(string httpHeader)
         {
-            var result = new HttpHeader();
 
             if (string.IsNullOrEmpty(httpHeader))
-                return result;
+                return new HttpHeader();
 
             var headerStart = httpHeader.IndexOf(NewLine);
 
             if (headerStart == -1)
-                return result;
+                return new HttpHeader();
 
             // Parse the first line to extract status code for responses
             var firstLine = httpHeader.Substring(0, headerStart);
+            int? statusCode;
+            string? method = null;
+            string? path = null;
+            var headers = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
             if (firstLine.StartsWith("HTTP/"))
             {
                 // Response
-                result.StatusCode = ExtractStatusCode(firstLine);
+                statusCode = ExtractStatusCode(firstLine);
             }
             else
             {
+                statusCode = null;
                 // Request line: METHOD path HTTP/version
                 var parts = firstLine.Split(' ');
                 if (parts.Length >= 2)
                 {
-                    result.Method = parts[0];
-                    result.Path = parts[1];
+                    method = parts[0];
+                    path = parts[1];
                 }
             }
 
@@ -229,7 +229,7 @@ namespace Samurai.WebSockets
 
                 // Extract header name and value
                 var headerName = httpHeader.Substring(pos, colonPos - pos).Trim();
-                var headerValue = httpHeader.Substring(colonPos + 1, lineEnd - colonPos - 1).Trim();
+                var headerValue = new StringBuilder(httpHeader.Substring(colonPos + 1, lineEnd - colonPos - 1).Trim());
 
                 // Handle multi-line headers (folded headers)
                 var nextPos = lineEnd + 2;
@@ -238,24 +238,24 @@ namespace Samurai.WebSockets
                     var nextLineEnd = httpHeader.IndexOf(NewLine, nextPos);
                     if (nextLineEnd == -1) break;
 
-                    headerValue += " " + httpHeader.Substring(nextPos, nextLineEnd - nextPos).Trim();
+                    headerValue.Append(" " + httpHeader.Substring(nextPos, nextLineEnd - nextPos).Trim());
                     nextPos = nextLineEnd + 2;
-                    pos = nextPos - 2; // Adjust pos for the outer loop
                 }
 
                 // Add to headers list (supporting multiple values)
-                List<string> valuesList;
-                if (!result.Headers.TryGetValue(headerName, out valuesList))
+                HashSet<string> valuesList;
+                if (!headers.TryGetValue(headerName, out valuesList))
                 {
-                    valuesList = new List<string>();
-                    result.Headers[headerName] = valuesList;
+                    valuesList = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    headers[headerName] = valuesList;
                 }
-                valuesList.Add(headerValue);
+
+                valuesList.Add(headerValue.ToString());
 
                 pos = lineEnd + 2;
             }
 
-            return result;
+            return new HttpHeader(statusCode, method, path, headers);
         }
 
 

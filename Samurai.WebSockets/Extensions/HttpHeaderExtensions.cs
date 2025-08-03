@@ -22,21 +22,17 @@
 // ---------------------------------------------------------------------
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Samurai.WebSockets.Exceptions;
 
-namespace Samurai.WebSockets
+namespace Samurai.WebSockets.Extensions
 {
-    public static class HttpHelperExtensions
+    public static class HttpHeaderExtensions
     {
         private const string WebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -90,9 +86,7 @@ namespace Samurai.WebSockets
                 return new WebSocketExtension[0];
 
             var extensions = new List<WebSocketExtension>();
-            var extensionList = ParseCommaSeparated(extensionsHeader);
-
-            foreach (var ext in extensionList)
+            foreach (var ext in ParseCommaSeparated(extensionsHeader))
             {
                 var parts = ext.Split(';');
                 var extension = new WebSocketExtension

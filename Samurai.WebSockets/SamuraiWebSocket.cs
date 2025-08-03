@@ -242,29 +242,6 @@ namespace Samurai.WebSockets.Internal
                 var msOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
                 if (this.perMessageDeflateHandler != null && (messageType == WebSocketMessageType.Binary || messageType == WebSocketMessageType.Text))
                 {
-                    /*
-                    this.perMessageDeflateHandler.Write(buffer);
-
-                    var cunkBuffer = Shared.RentArraySegment(32 * 1024);
-                    try
-                    {
-                        foreach (var frame in this.perMessageDeflateHandler.GetFames(cunkBuffer, opCode))
-                        {
-                            using var stream = new ArrayPoolStream();
-                            WebSocketFrameWriter.Write(frame.OpCode, new ArraySegment<byte>(cunkBuffer.Array, cunkBuffer.Offset, frame.Count), stream, frame.LastFrame && endOfMessage, this.isClient);
-                            Events.Log.SendingFrame(this.guid, frame.OpCode, frame.LastFrame && endOfMessage, frame.Count, true);
-                            await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
-                        }
-                        this.perMessageDeflateHandler.Reset();
-                    }
-                    finally
-                    {
-                        Shared.Return(cunkBuffer);
-                    }
-                    if (endOfMessage)
-                        this.perMessageDeflateHandler.Reset();
-                        */
-
                     var frame = this.perMessageDeflateHandler.Write(buffer, messageType, endOfMessage);
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient);
@@ -273,7 +250,6 @@ namespace Samurai.WebSockets.Internal
                 }
                 else
                 {
-                    Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!! NOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient);
                     Events.Log.SendingFrame(this.guid, msOpCode, endOfMessage, buffer.Count, false);
