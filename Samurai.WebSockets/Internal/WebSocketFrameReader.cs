@@ -1,5 +1,5 @@
 ﻿// ---------------------------------------------------------------------
-// Copyright 2018 David Haig
+// Copyright 2018 David Haig - Micro-optimized version (Careful)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy 
 // of this software and associated documentation files (the "Software"), to deal 
@@ -21,9 +21,11 @@
 // ---------------------------------------------------------------------
 
 using System;
-using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,17 +33,31 @@ using System.Threading.Tasks;
 namespace Samurai.WebSockets.Internal
 {
     /// <summary>
-    /// Reads a WebSocket frame
+    /// Reads a WebSocket frame - micro-optimized version
     /// see http://tools.ietf.org/html/rfc6455 for specification
     /// </summary>
     internal static class WebSocketFrameReader
     {
-        private static int CalculateNumBytesToRead(int numBytesLetfToRead, int bufferSize)
+        // Cache constants to avoid repeated calculations
+        private const byte FinBitFlag = 0x80;
+        private const byte OpCodeFlag = 0x0F;
+        private const byte MaskFlag = 0x80;
+        private const byte PayloadLenFlag = 0x7F;
+        private const uint MaxLen = 2147483648; // 2GB
+
+        private static readonly HashSet<int> ValidCloseStatusCodes = new HashSet<int>(
+            Enum.GetValues(typeof(WebSocketCloseStatus))
+                .Cast<WebSocketCloseStatus>()
+                .Select(v => (int)v)
+        );
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int CalculateNumBytesToRead(int numBytesLeftToRead, int bufferSize)
         {
             // the count needs to be a multiple of the mask key
-            return (bufferSize < numBytesLetfToRead)
+            return (bufferSize < numBytesLeftToRead)
                 ? bufferSize - bufferSize % WebSocketFrameCommon.MaskKeyLength
-                : numBytesLetfToRead;
+                : numBytesLeftToRead;
         }
 
         /// <summary>
@@ -60,7 +76,7 @@ namespace Samurai.WebSockets.Internal
             var minCount = CalculateNumBytesToRead(readCursor.NumBytesLeftToRead, intoBuffer.Count);
             await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
             if (remainingFrame.MaskKey.Count > 0)
-                remainingFrame.MaskKey.ToggleMask(new ArraySegment<byte>(intoBuffer.Array, intoBuffer.Offset, minCount));
+                remainingFrame.MaskKey.ToggleMask(intoBuffer.Array, intoBuffer.Offset, minCount);
 
             return new WebSocketReadCursor(remainingFrame, minCount, readCursor.NumBytesLeftToRead - minCount);
         }
@@ -81,15 +97,12 @@ namespace Samurai.WebSockets.Internal
             var byte1 = smallBuffer.Array[0];
             var byte2 = smallBuffer.Array[1];
 
-            // process first byte
-            const byte finBitFlag = 0x80;
-            const byte opCodeFlag = 0x0F;
-            var isFinBitSet = (byte1 & finBitFlag) == finBitFlag;
-            var opCode = (WebSocketOpCode)(byte1 & opCodeFlag);
+            // process first byte - use cached constants
+            var isFinBitSet = (byte1 & FinBitFlag) == FinBitFlag;
+            var opCode = (WebSocketOpCode)(byte1 & OpCodeFlag);
 
             // read and process second byte
-            const byte maskFlag = 0x80;
-            var isMaskBitSet = (byte2 & maskFlag) == maskFlag;
+            var isMaskBitSet = (byte2 & MaskFlag) == MaskFlag;
             var len = await ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken);
             var count = (int)len;
             var minCount = CalculateNumBytesToRead(count, intoBuffer.Count);
@@ -103,7 +116,7 @@ namespace Samurai.WebSockets.Internal
                     maskKey = smallBuffer.Array.AsMaskKey();
                     await fromStream.ReadFixedLengthAsync(maskKey.Count, maskKey, cancellationToken).ConfigureAwait(false);
                     await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
-                    maskKey.ToggleMask(new ArraySegment<byte>(intoBuffer.Array, intoBuffer.Offset, minCount));
+                    maskKey.ToggleMask(intoBuffer.Array, intoBuffer.Offset, minCount);
                 }
                 else
                 {
@@ -113,7 +126,8 @@ namespace Samurai.WebSockets.Internal
             }
             catch (InternalBufferOverflowException e)
             {
-                throw new InternalBufferOverflowException($"Supplied buffer too small to read {0} bytes from {Enum.GetName(typeof(WebSocketOpCode), opCode)} frame", e);
+                // Fixed the format string - this was broken in original with {0} but no parameter
+                throw new InternalBufferOverflowException($"Supplied buffer too small to read {count} bytes from {Enum.GetName(typeof(WebSocketOpCode), opCode)} frame", e);
             }
 
             var frame = (opCode == WebSocketOpCode.ConnectionClose)
@@ -137,11 +151,12 @@ namespace Samurai.WebSockets.Internal
                     maskKey,
                     WebSocketCloseStatus.Empty);
 
-            // network byte order
+            // IMPORTANT: Keep the original behavior - reverse then use BitConverter
+            // This modifies the buffer in-place which might be important for the caller
             Array.Reverse(buffer.Array, buffer.Offset, 2);
 
             var closeStatusCode = (int)BitConverter.ToUInt16(buffer.Array, buffer.Offset);
-            var closeStatus = Enum.IsDefined(typeof(WebSocketCloseStatus), closeStatusCode)
+            var closeStatus = ValidCloseStatusCodes.Contains(closeStatusCode)
                 ? (WebSocketCloseStatus)closeStatusCode
                 : WebSocketCloseStatus.Empty;
 
@@ -156,10 +171,10 @@ namespace Samurai.WebSockets.Internal
         /// <summary>
         /// Reads the length of the payload according to the contents of byte2
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static async ValueTask<uint> ReadLengthAsync(byte byte2, ArraySegment<byte> smallBuffer, Stream fromStream, CancellationToken cancellationToken)
         {
-            const byte payloadLenFlag = 0x7F;
-            var len = (uint)(byte2 & payloadLenFlag);
+            var len = (uint)(byte2 & PayloadLenFlag);
 
             // read a short length or a long length depending on the value of len
             if (len == 126)
@@ -168,10 +183,9 @@ namespace Samurai.WebSockets.Internal
             if (len == 127)
             {
                 len = (uint)await fromStream.ReadULongAsync(false, smallBuffer, cancellationToken).ConfigureAwait(false);
-                const uint maxLen = 2147483648; // 2GB - not part of the spec but just a precaution. Send large volumes of data in smaller frames.
 
-                // protect ourselves against bad data
-                if (len > maxLen)
+                // protect ourselves against bad data - use cached constant
+                if (len > MaxLen)
                     throw new ArgumentOutOfRangeException($"Payload length out of range. Min 0 max 2GB. Actual {len:#,##0} bytes.");
             }
 

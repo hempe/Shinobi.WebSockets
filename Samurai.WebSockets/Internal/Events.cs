@@ -10,7 +10,7 @@ namespace Samurai.WebSockets.Internal
     public sealed class Events
     {
         private readonly ILogger<Events> logger;
-        public static Events Log { get; set; } = new Events(NullLogger<Events>.Instance);
+        public static Events? Log { get; set; } = null;
 
 
         public Events(ILogger<Events> logger)
@@ -267,7 +267,7 @@ namespace Samurai.WebSockets.Internal
                 this.logger.LogWarning("WebSocket dispose due to close timeout for {Guid}. State: {State}", guid, state);
         }
 
-        internal void WebSocketDisposeError(Guid guid, WebSocketState state, string exception)
+        internal void WebSocketDisposeError(Guid guid, WebSocketState state, Exception exception)
         {
             if (this.logger.IsEnabled(LogLevel.Error))
                 this.logger.LogError("WebSocket dispose error for {Guid}. State: {State}, Exception: {Ex}", guid, state, exception);

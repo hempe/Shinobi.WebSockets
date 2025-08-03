@@ -1,6 +1,6 @@
 ﻿namespace Samurai.WebSockets.Internal
 {
-    internal enum WebSocketOpCode
+    internal enum WebSocketOpCode : ushort
     {
         ContinuationFrame = 0,
         TextFrame = 1,

@@ -35,21 +35,23 @@ public class WebSocketThroughputBenchmarks
 
 
     //[Params(1_000, 10_000)]
-    public int MessageCount { get; set; } = 100;
+    public int MessageCount { get; set; } = 10_000;
 
     //[Params(16, 64)]
-    //[Params(1, 17)]
+    [Params(1, 17)]
     public int MessageSizeKb { get; set; } = 16;
 
     //[Params(1000)]
-    public int ClientCount { get; set; } = 10;
+    public int ClientCount { get; set; } = 1_00;
 
     //[Params("Ninja", "Samurai", "Samurai.PermessageDeflate")]
-    [Params("Ninja", "Samurai", "Native")]
-    public string Server { get; set; } = "Native";
+    //[Params("Ninja", "Samurai", "Native")]
+    [Params("Ninja", "Samurai")]
+    public string Server { get; set; } = "Samurai";
 
-    [Params("Ninja", "Samurai", "Native")]
-    public string Client { get; set; } = "Native";
+    //[Params("Ninja", "Samurai", "Native")]
+    [Params("Ninja", "Samurai")]
+    public string Client { get; set; } = "Samurai";
 
     private ArraySegment<byte> data;
 
@@ -163,7 +165,7 @@ public class WebSocketThroughputBenchmarks
             catch (Exception ex)
             {
 
-                Console.WriteLine($"Error in WebSocket server setup: {serverReady.Task.IsCompleted} {this.serverCts.IsCancellationRequested} {ex.ToString()}");
+                Console.WriteLine($"[{this.Server}] Error in WebSocket server setup: {serverReady.Task.IsCompleted} {this.serverCts.IsCancellationRequested} {ex.ToString()}");
                 if (serverReady.Task.IsCompleted && this.serverCts.IsCancellationRequested)
                     return cleanup;
 
@@ -226,19 +228,20 @@ public class WebSocketThroughputBenchmarks
         {
             this.serverCts?.Cancel();
 
-            foreach (var client in this.clients)
+            using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+            await Task.WhenAll(this.clients.Select(async client =>
             {
                 if (client?.State == WebSocketState.Open)
                 {
                     try
                     {
-                        using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                         await client.CloseAsync(WebSocketCloseStatus.NormalClosure, "", closeCts.Token).ConfigureAwait(false);
                     }
                     catch { }
                 }
                 client?.Dispose();
-            }
+            }));
 
             try
             {

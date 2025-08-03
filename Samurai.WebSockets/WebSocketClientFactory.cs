@@ -107,7 +107,7 @@ namespace Samurai.WebSockets
 
         private async ValueTask<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string? secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
         {
-            Events.Log.ReadingHttpResponse(guid);
+            Events.Log?.ReadingHttpResponse(guid);
             HttpHeader response;
 
             try
@@ -116,7 +116,7 @@ namespace Samurai.WebSockets
             }
             catch (Exception ex)
             {
-                Events.Log.ReadHttpResponseError(guid, ex);
+                Events.Log?.ReadHttpResponseError(guid, ex);
                 throw new WebSocketHandshakeFailedException("Handshake unexpected failure", ex);
             }
 
@@ -143,11 +143,11 @@ namespace Samurai.WebSockets
             if (expectedAcceptString != actualAcceptString)
             {
                 var warning = $"Handshake failed because the accept string from the server '{expectedAcceptString}' was not the expected string '{actualAcceptString}'";
-                Events.Log.HandshakeFailure(guid, warning);
+                Events.Log?.HandshakeFailure(guid, warning);
                 throw new WebSocketHandshakeFailedException(warning);
             }
 
-            Events.Log.ClientHandshakeSuccess(guid);
+            Events.Log?.ClientHandshakeSuccess(guid);
         }
 
         private void ThrowIfInvalidResponseCode(HttpHeader header)
@@ -177,12 +177,12 @@ namespace Samurai.WebSockets
             var tcpClient = new TcpClient { NoDelay = noDelay };
             if (IPAddress.TryParse(host, out var ipAddress))
             {
-                Events.Log.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
+                Events.Log?.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
                 await tcpClient.ConnectAsync(ipAddress, port).ConfigureAwait(false);
             }
             else
             {
-                Events.Log.ClientConnectingToHost(loggingGuid, host, port);
+                Events.Log?.ClientConnectingToHost(loggingGuid, host, port);
                 await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
             }
 
@@ -192,15 +192,15 @@ namespace Samurai.WebSockets
             if (isSecure)
             {
                 var sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
-                Events.Log.AttemtingToSecureSslConnection(loggingGuid);
+                Events.Log?.AttemtingToSecureSslConnection(loggingGuid);
 
                 // This will throw an AuthenticationException if the certificate is not valid
                 this.TlsAuthenticateAsClient(sslStream, host);
-                Events.Log.ConnectionSecured(loggingGuid);
+                Events.Log?.ConnectionSecured(loggingGuid);
                 return sslStream;
             }
 
-            Events.Log.ConnectionNotSecure(loggingGuid);
+            Events.Log?.ConnectionNotSecure(loggingGuid);
             return stream;
         }
 
@@ -213,7 +213,7 @@ namespace Samurai.WebSockets
             if (sslPolicyErrors == SslPolicyErrors.None)
                 return true;
 
-            Events.Log.SslCertificateError(sslPolicyErrors);
+            Events.Log?.SslCertificateError(sslPolicyErrors);
             // Do not allow this client to communicate with unauthenticated servers.
             return false;
         }
@@ -258,7 +258,7 @@ namespace Samurai.WebSockets
 
             var httpRequest = Encoding.UTF8.GetBytes(handshakeHttpRequest);
             stream.Write(httpRequest, 0, httpRequest.Length);
-            Events.Log.HandshakeSent(guid, handshakeHttpRequest);
+            Events.Log?.HandshakeSent(guid, handshakeHttpRequest);
             return this.ConnectAsync(stream, secWebSocketKey, options, cancellationToken);
         }
     }

@@ -5,17 +5,17 @@ namespace Samurai.WebSockets.Internal
 {
     internal readonly struct WebSocketFrame
     {
-        public bool IsFinBitSet { get; }
+        public readonly bool IsFinBitSet;
 
-        public WebSocketOpCode OpCode { get; }
+        public readonly WebSocketOpCode OpCode;
 
-        public int Count { get; }
+        public readonly int Count;
 
-        public WebSocketCloseStatus? CloseStatus { get; }
+        public readonly WebSocketCloseStatus? CloseStatus;
 
-        public string? CloseStatusDescription { get; }
+        public readonly string? CloseStatusDescription;
 
-        public ArraySegment<byte> MaskKey { get; }
+        public readonly ArraySegment<byte> MaskKey;
 
         public WebSocketFrame(
             bool isFinBitSet,

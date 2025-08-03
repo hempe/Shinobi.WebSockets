@@ -17,7 +17,7 @@ namespace Samurai.WebSockets.UnitTests
 {
     // Thanks Esbjörn for adding this unit test!!
 
-    public enum Implementation
+    public enum Implementation : ushort
     {
         Native,
         Ninja,

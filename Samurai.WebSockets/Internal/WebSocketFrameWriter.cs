@@ -79,7 +79,7 @@ namespace Samurai.WebSockets.Internal
                 {
                     toStream.Write(maskKey.Array, maskKey.Offset, maskKey.Count);
                     // mask the payload
-                    maskKey.ToggleMask(fromPayload);
+                    maskKey.ToggleMask(fromPayload.Array, fromPayload.Offset, fromPayload.Count);
                 }
                 finally
                 {

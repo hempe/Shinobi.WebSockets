@@ -69,9 +69,9 @@ namespace Samurai.WebSockets
         public async ValueTask<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken))
         {
             var guid = Guid.NewGuid();
-            Events.Log.AcceptWebSocketStarted(guid);
+            Events.Log?.AcceptWebSocketStarted(guid);
             var usePermessageDeflate = await PerformHandshakeAsync(guid, options, context, cancellationToken).ConfigureAwait(false);
-            Events.Log.ServerHandshakeSuccess(guid);
+            Events.Log?.ServerHandshakeSuccess(guid);
             return new SamuraiWebSocket(guid, context.Stream, options.KeepAliveInterval, usePermessageDeflate, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
         }
 
@@ -109,19 +109,19 @@ namespace Samurai.WebSockets
                                    + (compress ? "Sec-WebSocket-Extensions: permessage-deflate\r\n" : "")
                                    + $"Sec-WebSocket-Accept: {setWebSocketAccept}";
 
-                Events.Log.SendingHandshakeResponse(guid, response);
+                Events.Log?.SendingHandshakeResponse(guid, response);
                 await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
                 return compress;
             }
             catch (WebSocketVersionNotSupportedException ex)
             {
-                Events.Log.WebSocketVersionNotSupported(guid, ex);
+                Events.Log?.WebSocketVersionNotSupported(guid, ex);
                 await context.Stream.WriteHttpHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n{ex.Message}", cancellationToken).ConfigureAwait(false);
                 throw;
             }
             catch (Exception ex)
             {
-                Events.Log.BadRequest(guid, ex);
+                Events.Log?.BadRequest(guid, ex);
                 await context.Stream.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", cancellationToken).ConfigureAwait(false);
                 throw;
             }
