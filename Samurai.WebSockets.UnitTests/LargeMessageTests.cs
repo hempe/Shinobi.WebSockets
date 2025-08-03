@@ -425,7 +425,7 @@ namespace Samurai.WebSockets.UnitTests
 
                 Console.WriteLine("[Client] SendLargeBinaryMessage:Random");
                 var rand = new Random();
-                var message = new byte[10000];
+                var message = new byte[32 * 1023];
                 Random.Shared.NextBytes(message);
                 // Send large message
                 await this.SendBinaryMessageAsync(webSocket, message, 1024, cts.Token);

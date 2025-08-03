@@ -104,7 +104,7 @@ namespace Samurai.WebSockets
                                        + "Connection: Upgrade\r\n"
                                        + "Upgrade: websocket\r\n"
                                        + (subProtocol != null ? $"Sec-WebSocket-Protocol: {subProtocol}\r\n" : "")
-                                       + (compress ? $"Sec-WebSocket-Extensions: permessage-deflate\r\n" : "")
+                                       + (compress ? "Sec-WebSocket-Extensions: permessage-deflate\r\n" : "")
                                        + $"Sec-WebSocket-Accept: {setWebSocketAccept}";
 
                     Events.Log.SendingHandshakeResponse(guid, response);

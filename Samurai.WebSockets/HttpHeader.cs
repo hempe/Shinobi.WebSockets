@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Samurai.WebSockets.Exceptions;
+using Samurai.WebSockets.Internal;
 
 namespace Samurai.WebSockets
 {
@@ -80,8 +81,8 @@ namespace Samurai.WebSockets
             const int MaxHeaderSize = 16 * 1024;
             const int InitialChunkSize = 128;
 
-            var headerBytes = ArrayPool<byte>.Shared.Rent(MaxHeaderSize);
-            var buffer = ArrayPool<byte>.Shared.Rent(InitialChunkSize);
+            var headerBytes = Shared.Rent(MaxHeaderSize);
+            var buffer = Shared.Rent(InitialChunkSize);
 
             int totalHeaderBytes = 0;
             int sequenceIndex = 0;
@@ -123,7 +124,7 @@ namespace Samurai.WebSockets
                 }
 
                 // Phase 2: 1-byte reads (avoids overread near 16KB limit)
-                var singleByteBuffer = ArrayPool<byte>.Shared.Rent(1);
+                var singleByteBuffer = Shared.Rent(1);
                 try
                 {
                     while (true)
@@ -161,13 +162,13 @@ namespace Samurai.WebSockets
                 }
                 finally
                 {
-                    ArrayPool<byte>.Shared.Return(singleByteBuffer);
+                    Shared.Return(singleByteBuffer);
                 }
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(buffer);
-                ArrayPool<byte>.Shared.Return(headerBytes);
+                Shared.Return(buffer);
+                Shared.Return(headerBytes);
             }
         }
 
@@ -229,10 +230,6 @@ namespace Samurai.WebSockets
                 // Extract header name and value
                 var headerName = httpHeader.Substring(pos, colonPos - pos).Trim();
                 var headerValue = httpHeader.Substring(colonPos + 1, lineEnd - colonPos - 1).Trim();
-                if (string.Equals(headerName, "Upgrade", StringComparison.OrdinalIgnoreCase))
-                {
-                    result.Upgrade = headerValue;
-                }
 
                 // Handle multi-line headers (folded headers)
                 var nextPos = lineEnd + 2;

@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Samurai.WebSockets.Internal;
+
 namespace Samurai.WebSockets
 {
     public sealed class ArrayPoolStream : Stream
@@ -12,10 +14,12 @@ namespace Samurai.WebSockets
         private byte[]? buffer;
         private MemoryStream? innerStream;
         private bool isDisposed;
+        public readonly int InitialSize;
 
         public ArrayPoolStream(int size = 16384)
         {
-            this.buffer = ArrayPool<byte>.Shared.Rent(size);
+            this.InitialSize = size;
+            this.buffer = Shared.Rent(size);
             this.innerStream = new MemoryStream(this.buffer, 0, this.buffer.Length, true, true);
             this.innerStream.SetLength(0);
         }
@@ -60,7 +64,7 @@ namespace Samurai.WebSockets
             {
                 if (this.buffer != null)
                 {
-                    ArrayPool<byte>.Shared.Return(this.buffer); ;
+                    Shared.Return(this.buffer);
                     this.buffer = null;
                 }
 
@@ -161,17 +165,13 @@ namespace Samurai.WebSockets
                 }
 
                 // Get new buffer from ArrayPool
-                var newBuffer = ArrayPool<byte>.Shared.Rent((int)newSize);
-                Array.Clear(newBuffer, 0, newBuffer.Length);
+                var newBuffer = Shared.Rent((int)newSize);
 
                 // Copy existing data
                 Buffer.BlockCopy(this.buffer, 0, newBuffer, 0, position);
 
-                // Only clear the unused portion beyond current data
-                Array.Clear(newBuffer, position, newBuffer.Length - position);
-
                 // Return old buffer to pool
-                ArrayPool<byte>.Shared.Return(this.buffer);
+                Shared.Return(this.buffer);
 
                 // Create new MemoryStream with the new buffer
                 this.innerStream.Dispose();
@@ -260,10 +260,25 @@ namespace Samurai.WebSockets
             }
         }
 
-        public ArraySegment<byte> GetArraySegmentBuffer()
+        public ArraySegment<byte> GetDataArraySegment()
         {
             this.ThrowIfDisposed();
             return new ArraySegment<byte>(this.buffer, 0, (int)this.innerStream!.Position);
+        }
+
+        public ArraySegment<byte> GetFreeArraySegment(int minSize)
+        {
+            this.ThrowIfDisposed();
+            if (minSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(minSize));
+
+            var currentPosition = (int)this.innerStream!.Position;
+            var free = this.buffer!.Length - currentPosition;
+
+            if (free < minSize)
+                this.EnlargeBuffer(minSize - free);
+
+            return new ArraySegment<byte>(this.buffer, currentPosition, this.buffer.Length - currentPosition);
         }
 
         public void WriteTo(Stream stream)

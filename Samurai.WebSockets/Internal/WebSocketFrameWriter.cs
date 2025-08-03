@@ -74,7 +74,7 @@ namespace Samurai.WebSockets.Internal
             // if we are creating a client frame then we MUST mack the payload as per the spec
             if (isClient)
             {
-                var maskKey = SharedRandom.GetArraySegment(WebSocketFrameCommon.MaskKeyLength);
+                var maskKey = Shared.NextRandomArraySegment(WebSocketFrameCommon.MaskKeyLength);
                 try
                 {
                     toStream.Write(maskKey.Array, maskKey.Offset, maskKey.Count);
@@ -83,7 +83,7 @@ namespace Samurai.WebSockets.Internal
                 }
                 finally
                 {
-                    SharedRandom.ReturnArraySegment(maskKey);
+                    Shared.Return(maskKey);
                 }
             }
 

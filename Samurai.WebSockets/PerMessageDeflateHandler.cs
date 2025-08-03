@@ -22,81 +22,51 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net.WebSockets;
+using System.Threading.Tasks;
 
 
 namespace Samurai.WebSockets.Internal
 {
-    internal sealed class PerMessageDeflateHandler : IDisposable
+    public sealed class PerMessageDeflateHandler : IDisposable
     {
+        private readonly ArrayPoolStream compressedStream = new ArrayPoolStream();
+        private List<byte[]> cachedData = new List<byte[]>();
 
-        private readonly ArrayPoolStream compressedStream;
         private DeflateStream deflateStream;
         private bool isDisposed = false;
-        private bool firstFrame = true;
 
         private WebSocketMessageType? messageType;
-        private WebSocketOpCode? opCode;
 
         public PerMessageDeflateHandler()
         {
-            this.compressedStream = new ArrayPoolStream();
             this.deflateStream = new DeflateStream(this.compressedStream, CompressionMode.Compress, leaveOpen: true);
         }
 
-        public void Write(ArraySegment<byte> buffer, WebSocketMessageType messageType, WebSocketOpCode opCode)
+        internal ArraySegment<byte> Write(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage)
         {
             this.ThrowIfDisposed();
 
             if (this.messageType.HasValue && this.messageType != messageType)
                 throw new ArgumentException($"Pending message has different messageType; {this.messageType}!={messageType}", nameof(messageType));
 
-            if (this.opCode.HasValue && this.opCode != opCode)
-
-                throw new ArgumentException($"Pending message has different opCode; {this.opCode}!={opCode}", nameof(opCode));
-
             this.messageType = messageType;
-            this.opCode ??= opCode;
+
             this.deflateStream.Write(buffer.Array, buffer.Offset, buffer.Count);
-        }
-
-        public IEnumerable<DeflateFrame> GetFames(byte[] buffer)
-        {
-            this.ThrowIfDisposed();
-            var messageType = this.messageType ?? throw new InvalidOperationException("No pending data.");
-            var opCode = this.opCode ?? throw new InvalidOperationException("No pending data.");
-
-            int bytesRead;
             this.deflateStream.Flush();
-            this.compressedStream.Position = 0;
-
-            while ((bytesRead = this.compressedStream.Read(buffer, 0, buffer.Length)) > 0)
+            if (endOfMessage)
             {
-                // Peek ahead to see if this is the last chunk
-                var nextByte = this.compressedStream.ReadByte();
-                bool isLastChunk = nextByte == -1;
-
-                if (nextByte != -1)
-                    this.compressedStream.Position--; // Put the byte back
-                using var mx = new ArrayPoolStream();
-                mx.Write(buffer, 0, bytesRead);
-
-                yield return new DeflateFrame(messageType, this.firstFrame ? opCode : WebSocketOpCode.ContinuationFrame, isLastChunk, bytesRead);
-                this.firstFrame = false;
+                this.deflateStream.Dispose();
+                this.deflateStream = new DeflateStream(this.compressedStream, CompressionMode.Compress, leaveOpen: true);
+                this.messageType = null;
             }
 
-            this.messageType = null;
-            this.opCode = null;
+            var segment = this.compressedStream.GetDataArraySegment();
             this.compressedStream.SetLength(0);
-        }
-
-        public void Reset()
-        {
-            this.deflateStream.Dispose();
-            this.deflateStream = new DeflateStream(this.compressedStream, CompressionMode.Compress, leaveOpen: true);
-            this.compressedStream.SetLength(0);
-            this.firstFrame = false;
+            return segment;
         }
 
         public void Dispose()

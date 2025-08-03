@@ -75,61 +75,53 @@ namespace Samurai.WebSockets.Internal
         public static async ValueTask<WebSocketReadCursor> ReadAsync(Stream fromStream, ArraySegment<byte> intoBuffer, CancellationToken cancellationToken)
         {
             // allocate a small buffer to read small chunks of data from the stream
-            var smallArray = ArrayPool<byte>.Shared.Rent(8);
-            var smallBuffer = new ArraySegment<byte>(smallArray);
+            var smallBuffer = new ArraySegment<byte>(new byte[8]);
+
+            await fromStream.ReadFixedLengthAsync(2, smallBuffer, cancellationToken).ConfigureAwait(false);
+            var byte1 = smallBuffer.Array[0];
+            var byte2 = smallBuffer.Array[1];
+
+            // process first byte
+            const byte finBitFlag = 0x80;
+            const byte opCodeFlag = 0x0F;
+            var isFinBitSet = (byte1 & finBitFlag) == finBitFlag;
+            var opCode = (WebSocketOpCode)(byte1 & opCodeFlag);
+
+            // read and process second byte
+            const byte maskFlag = 0x80;
+            var isMaskBitSet = (byte2 & maskFlag) == maskFlag;
+            var len = await ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken);
+            var count = (int)len;
+            var minCount = CalculateNumBytesToRead(count, intoBuffer.Count);
+            ArraySegment<byte> maskKey;
+
             try
             {
-
-                await fromStream.ReadFixedLengthAsync(2, smallBuffer, cancellationToken).ConfigureAwait(false);
-                var byte1 = smallBuffer.Array[0];
-                var byte2 = smallBuffer.Array[1];
-
-                // process first byte
-                const byte finBitFlag = 0x80;
-                const byte opCodeFlag = 0x0F;
-                var isFinBitSet = (byte1 & finBitFlag) == finBitFlag;
-                var opCode = (WebSocketOpCode)(byte1 & opCodeFlag);
-
-                // read and process second byte
-                const byte maskFlag = 0x80;
-                var isMaskBitSet = (byte2 & maskFlag) == maskFlag;
-                var len = await ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken);
-                var count = (int)len;
-                var minCount = CalculateNumBytesToRead(count, intoBuffer.Count);
-                ArraySegment<byte> maskKey;
-
-                try
+                // use the masking key to decode the data if needed
+                if (isMaskBitSet)
                 {
-                    // use the masking key to decode the data if needed
-                    if (isMaskBitSet)
-                    {
-                        maskKey = smallBuffer.Array.AsMaskKey();
-                        await fromStream.ReadFixedLengthAsync(maskKey.Count, maskKey, cancellationToken).ConfigureAwait(false);
-                        await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
-                        maskKey.ToggleMask(new ArraySegment<byte>(intoBuffer.Array, intoBuffer.Offset, minCount));
-                    }
-                    else
-                    {
-                        maskKey = new ArraySegment<byte>();
-                        await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
-                    }
+                    maskKey = smallBuffer.Array.AsMaskKey();
+                    await fromStream.ReadFixedLengthAsync(maskKey.Count, maskKey, cancellationToken).ConfigureAwait(false);
+                    await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
+                    maskKey.ToggleMask(new ArraySegment<byte>(intoBuffer.Array, intoBuffer.Offset, minCount));
                 }
-                catch (InternalBufferOverflowException e)
+                else
                 {
-                    throw new InternalBufferOverflowException($"Supplied buffer too small to read {0} bytes from {Enum.GetName(typeof(WebSocketOpCode), opCode)} frame", e);
+                    maskKey = new ArraySegment<byte>();
+                    await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
                 }
-
-                var frame = (opCode == WebSocketOpCode.ConnectionClose)
-                    ? DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer, maskKey)
-                    // note that by this point the payload will be populated
-                    : new WebSocketFrame(isFinBitSet, opCode, count, maskKey);
-
-                return new WebSocketReadCursor(frame, minCount, count - minCount);
             }
-            finally
+            catch (InternalBufferOverflowException e)
             {
-                ArrayPool<byte>.Shared.Return(smallArray);
+                throw new InternalBufferOverflowException($"Supplied buffer too small to read {0} bytes from {Enum.GetName(typeof(WebSocketOpCode), opCode)} frame", e);
             }
+
+            var frame = (opCode == WebSocketOpCode.ConnectionClose)
+                ? DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer, maskKey)
+                // note that by this point the payload will be populated
+                : new WebSocketFrame(isFinBitSet, opCode, count, maskKey);
+
+            return new WebSocketReadCursor(frame, minCount, count - minCount);
         }
 
         /// <summary>

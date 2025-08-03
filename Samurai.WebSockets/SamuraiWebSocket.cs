@@ -88,7 +88,6 @@ namespace Samurai.WebSockets.Internal
             }
             else
             {
-                throw new Exception("It should be on");
                 this.perMessageDeflateHandler = null;
                 Events.Log.NoMessageCompression(guid);
             }
@@ -240,33 +239,41 @@ namespace Samurai.WebSockets.Internal
             try
             {
                 var opCode = this.GetOppCode(messageType);
-                if (this.perMessageDeflateHandler != null && (opCode == WebSocketOpCode.BinaryFrame || opCode == WebSocketOpCode.TextFrame))
+                var msOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
+                if (this.perMessageDeflateHandler != null && (messageType == WebSocketMessageType.Binary || messageType == WebSocketMessageType.Text))
                 {
-                    this.perMessageDeflateHandler.Write(buffer, messageType, opCode);
-                    Events.Log.BufferDeflateFrame(this.guid, opCode, buffer.Count);
-                    var cunkBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+                    /*
+                    this.perMessageDeflateHandler.Write(buffer);
+
+                    var cunkBuffer = Shared.RentArraySegment(32 * 1024);
                     try
                     {
-                        foreach (var frame in this.perMessageDeflateHandler.GetFames(cunkBuffer))
+                        foreach (var frame in this.perMessageDeflateHandler.GetFames(cunkBuffer, opCode))
                         {
                             using var stream = new ArrayPoolStream();
-                            WebSocketFrameWriter.Write(frame.OpCode, new ArraySegment<byte>(cunkBuffer, 0, frame.Count), stream, frame.LastFrame && endOfMessage, this.isClient);
-                            Events.Log.SendingFrame(this.guid, frame.OpCode, frame.LastFrame, frame.Count, true);
+                            WebSocketFrameWriter.Write(frame.OpCode, new ArraySegment<byte>(cunkBuffer.Array, cunkBuffer.Offset, frame.Count), stream, frame.LastFrame && endOfMessage, this.isClient);
+                            Events.Log.SendingFrame(this.guid, frame.OpCode, frame.LastFrame && endOfMessage, frame.Count, true);
                             await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
-                            this.isContinuationFrame = !frame.LastFrame;
                         }
+                        this.perMessageDeflateHandler.Reset();
                     }
                     finally
                     {
-                        ArrayPool<byte>.Shared.Return(cunkBuffer);
+                        Shared.Return(cunkBuffer);
                     }
-
                     if (endOfMessage)
                         this.perMessageDeflateHandler.Reset();
+                        */
+
+                    var frame = this.perMessageDeflateHandler.Write(buffer, messageType, endOfMessage);
+                    using var stream = new ArrayPoolStream();
+                    WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient);
+                    Events.Log.SendingFrame(this.guid, opCode, endOfMessage, frame.Count, true);
+                    await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    var msOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
+                    Console.WriteLine("!!!!!!!!!!!!!!!!!!!!!!!! NOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient);
                     Events.Log.SendingFrame(this.guid, msOpCode, endOfMessage, buffer.Count, false);
@@ -276,6 +283,7 @@ namespace Samurai.WebSockets.Internal
             }
             catch (Exception e)
             {
+                Console.WriteLine("I don't think this is correct then? " + e.Message);
                 await this.CloseAsync(WebSocketCloseStatus.InternalServerError, e.Message, cancellationToken);
                 throw;
             }
@@ -313,7 +321,7 @@ namespace Samurai.WebSockets.Internal
             finally
             {
                 if (doReturn)
-                    ArrayPool<byte>.Shared.Return(buffer.Array);
+                    Shared.Return(buffer);
             }
             await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
             this.state = WebSocketState.CloseSent;
@@ -339,7 +347,7 @@ namespace Samurai.WebSockets.Internal
                 finally
                 {
                     if (doReturn)
-                        ArrayPool<byte>.Shared.Return(buffer.Array);
+                        Shared.Return(buffer);
                 }
 
                 await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
@@ -465,7 +473,7 @@ namespace Samurai.WebSockets.Internal
 
             var descBuffer = Encoding.UTF8.GetBytes(statusDescription);
             var size = statusBuffer.Length + descBuffer.Length;
-            var payload = ArrayPool<byte>.Shared.Rent(size);
+            var payload = Shared.Rent(size);
             Buffer.BlockCopy(statusBuffer, 0, payload, 0, statusBuffer.Length);
             Buffer.BlockCopy(descBuffer, 0, payload, statusBuffer.Length, descBuffer.Length);
             return (new ArraySegment<byte>(payload, 0, size), true);
@@ -551,11 +559,11 @@ namespace Samurai.WebSockets.Internal
         /// <param name="stream">The stream to read data from</param>
         private async ValueTask WriteStreamToNetworkAsync(ArrayPoolStream stream, CancellationToken cancellationToken)
         {
-            var buffer = stream.GetArraySegmentBuffer();
+            var buffer = stream.GetDataArraySegment();
             await this.semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await this.stream.WriteAsync(buffer.Array, 0, buffer.Count, cancellationToken).ConfigureAwait(false);
+                await this.stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -568,6 +576,9 @@ namespace Samurai.WebSockets.Internal
         /// </summary>
         private WebSocketOpCode GetOppCode(WebSocketMessageType messageType)
         {
+            if (this.isContinuationFrame)
+                return WebSocketOpCode.ContinuationFrame;
+
             switch (messageType)
             {
                 case WebSocketMessageType.Binary:

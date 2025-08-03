@@ -7,12 +7,15 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
+
+using Samurai.WebSockets.Extensions;
 
 using Microsoft.Extensions.Logging;
 
@@ -32,29 +35,31 @@ public class WebSocketThroughputBenchmarks
 
 
     //[Params(1_000, 10_000)]
-    public int MessageCount { get; set; } = 1;
+    public int MessageCount { get; set; } = 4;
 
     //[Params(16, 64)]
-    //[Params(1, 16, 32)]
-    public int MessageSizeKb { get; set; } = 1;
+    //[Params(1, 16)]
+    public int MessageSizeKb { get; set; } = 16;
 
-    // [Params(100, 1000)]
-    public int ClientCount { get; set; } = 1;
+    //[Params(1000)]
+    public int ClientCount { get; set; } = 2;
 
-    // [Params("Ninja", "Samurai")]
-    public string Implementation { get; set; } = "Samurai";
+    // [Params("Ninja", "Samurai", "Samurai.PermessageDeflate")]
+    public string Implementation { get; set; } = "Samurai.PermessageDeflate";
 
-    //[Params(true, false)]
-    public bool PermessageDeflate { get; set; } = true;
+    private ArraySegment<byte> data;
 
-    private byte[] data;
+    private bool permessageDeflate;
 
     [GlobalSetup]
     public async Task SetupAsync()
     {
+        this.permessageDeflate = this.Implementation.EndsWith("PermessageDeflate");
+
         var random = new Random(42069);
-        this.data = ArrayPool<byte>.Shared.Rent(this.MessageSizeKb * 1024);
-        random.NextBytes(this.data);
+        var bytes = ArrayPool<byte>.Shared.Rent(this.MessageSizeKb * 1024);
+        random.NextBytes(bytes);
+        this.data = new ArraySegment<byte>(bytes, 0, this.MessageSizeKb * 1024);
 
         this.port = GetAvailablePort();
         this.serverUrl = $"ws://localhost:{this.port}/";
@@ -92,7 +97,7 @@ public class WebSocketThroughputBenchmarks
                             tcpClient.Dispose();
                         }
                     }
-                    else if (this.Implementation == "Samurai")
+                    else if (this.Implementation.StartsWith("Samurai"))
                     {
                         var server = new Samurai.WebSockets.WebSocketServerFactory();
                         var context = await server.ReadHttpHeaderFromStreamAsync(stream, connectCts.Token).ConfigureAwait(false);
@@ -133,12 +138,12 @@ public class WebSocketThroughputBenchmarks
                     new Uri(this.serverUrl),
                     new Ninja.WebSockets.WebSocketClientOptions
                     {
-                        SecWebSocketExtensions = this.PermessageDeflate ? "permessage-deflate" : null
+                        SecWebSocketExtensions = this.permessageDeflate ? "permessage-deflate" : null
                     },
                     this.serverCts.Token).ConfigureAwait(false);
             }
         }
-        else if (this.Implementation == "Samurai")
+        else if (this.Implementation.StartsWith("Samurai"))
         {
             var client = new Samurai.WebSockets.WebSocketClientFactory();
             for (var i = 0; i < this.ClientCount; i++)
@@ -147,7 +152,7 @@ public class WebSocketThroughputBenchmarks
                     new Uri(this.serverUrl),
                     new Samurai.WebSockets.WebSocketClientOptions
                     {
-                        SecWebSocketExtensions = this.PermessageDeflate ? "permessage-deflate" : null
+                        SecWebSocketExtensions = this.permessageDeflate ? "permessage-deflate" : null
                     },
                     this.serverCts.Token).ConfigureAwait(false);
             }
@@ -207,7 +212,7 @@ public class WebSocketThroughputBenchmarks
             this.serverCts?.Dispose();
             this.clients = null;
             this.serverTask = null;
-            ArrayPool<byte>.Shared.Return(this.data);
+            ArrayPool<byte>.Shared.Return(this.data.Array);
         }
     }
 
@@ -215,58 +220,65 @@ public class WebSocketThroughputBenchmarks
     [Benchmark]
     public async Task RunThrouputBenchmarkAsync()
     {
+        // Console.WriteLine("===== RunThrouputBenchmarkAsync start");
         await Task.WhenAll(this.clients.Select(client => this.RunBenchmarkAsync(client, this.MessageCount / this.clients.Length, CancellationToken.None)));
+        // Console.WriteLine("===== RunThrouputBenchmarkAsync end");
     }
 
     private async Task RunBenchmarkAsync(WebSocket client, int messageCount, CancellationToken cancellationToken)
     {
-        var countBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
-        var receiveBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
-
-        try
+        using var temp = new Samurai.WebSockets.ArrayPoolStream();
+        for (var i = 0; i < messageCount; i++)
         {
-            for (var i = 0; i < messageCount; i++)
+            // Console.WriteLine("Client sending ");
+            await client.SendAsync(this.data, WebSocketMessageType.Binary, true, cancellationToken);
+            // Console.WriteLine("Client sent ");
+            using var ms = new Samurai.WebSockets.ArrayPoolStream();
+            using var bufferStream = new MemoryStream();
+            var buffer = new byte[16 * 1024];
+            while (!cancellationToken.IsCancellationRequested)
             {
+                var result = await client.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                if (result.MessageType == WebSocketMessageType.Close)
+                    return;
 
-                Console.WriteLine($"[Client] Send {this.data.Length} with {this.PermessageDeflate}");
-                await client.SendAsync(this.data, WebSocketMessageType.Binary, true, cancellationToken);
-                using var ms = new Samurai.WebSockets.ArrayPoolStream();
-                while (!cancellationToken.IsCancellationRequested)
+                var message = HandleWebSocketMessage(bufferStream, buffer, result, this.permessageDeflate);
+                if (message != null)
                 {
-                    var result = await client.ReceiveAsync(receiveBuffer, cancellationToken);
-                    Console.WriteLine("[Client] Got: " + result.Count);
-
-                    ms.Write(receiveBuffer, 0, result.Count);
-
-                    if (result.EndOfMessage)
-                        break;
+                    if (message.Length != this.data.Count)
+                        throw new Exception($"[Server] Expected {this.permessageDeflate}: {this.data.Count} got {ms.Position}");
+                    break;
                 }
-
-                using var temp = new Samurai.WebSockets.ArrayPoolStream();
-                ms.Position = 0;
-                if (this.PermessageDeflate)
-                {
-                    using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
-                    deflateStream.CopyTo(temp);
-                }
-                else
-                {
-                    ms.CopyTo(temp);
-                }
-
-
-                ms.SetLength(0);
-                if (temp.Position != this.data.Length)
-                    throw new Exception($"Expected {this.PermessageDeflate}: {this.data.Length} got {ms.Position}");
-
-                ms.SetLength(0);
-                cancellationToken.ThrowIfCancellationRequested();
             }
         }
-        finally
+    }
+
+    private static byte[] HandleWebSocketMessage(MemoryStream messageBuffer, byte[] buffer, WebSocketReceiveResult result, bool permessageDeflate)
+    {
+        try
         {
-            ArrayPool<byte>.Shared.Return(receiveBuffer);
-            ArrayPool<byte>.Shared.Return(countBuffer);
+            // Append this chunk to our buffer
+            messageBuffer.Write(buffer, 0, result.Count);
+
+            // If this completes the message, process it
+            if (result.EndOfMessage)
+            {
+                messageBuffer.Position = 0;
+                using (var deflateStream = new DeflateStream(messageBuffer, CompressionMode.Decompress, leaveOpen: true))
+                using (var decompressedStream = new MemoryStream())
+                {
+                    deflateStream.CopyTo(decompressedStream);
+                    var arr = decompressedStream.ToArray();
+                    messageBuffer.SetLength(0);
+                    return arr;
+                }
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"WHY ARE YOU LIKE THIS?????????????: {ex.Message}");
+            throw;
         }
     }
 
@@ -274,38 +286,37 @@ public class WebSocketThroughputBenchmarks
     {
         using (webSocket)
         {
-            var receiveBuffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+
+            var buffer = new byte[16 * 1024];
             try
             {
                 using var ms = new Samurai.WebSockets.ArrayPoolStream();
+                var bufferStream = new MemoryStream();
+
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    var result = await webSocket.ReceiveAsync(receiveBuffer, cancellationToken);
+                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+
                     if (result.MessageType == WebSocketMessageType.Close)
-                        break;
+                        return;
 
-                    Console.WriteLine("[Server] Got: " + result.Count);
-                    ms.Write(receiveBuffer, 0, result.Count);
-
-                    if (result.EndOfMessage)
+                    if (result.MessageType != WebSocketMessageType.Binary)
                     {
+                        Console.WriteLine("What the hell" + result.MessageType);
+                        throw new Exception("What the fuck");
+                    }
 
-                        if (this.PermessageDeflate)
+                    var message = HandleWebSocketMessage(bufferStream, buffer, result, this.permessageDeflate);
+                    if (message != null)
+                    {
+                        if (message.Length != this.data.Count)
                         {
-                            ms.Position = 0;
-                            using var temp = new Samurai.WebSockets.ArrayPoolStream();
-                            using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
-                            deflateStream.CopyTo(temp);
-                            Console.WriteLine($"[Server] Send {temp.GetArraySegmentBuffer().Count} with {this.PermessageDeflate}");
-                            await webSocket.SendAsync(temp.GetArraySegmentBuffer(), WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);
-                        }
-                        else
-                        {
-                            Console.WriteLine($"[Server] Send {ms.GetArraySegmentBuffer().Count} with {this.PermessageDeflate}");
-                            await webSocket.SendAsync(ms.GetArraySegmentBuffer(), WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);
+                            Console.WriteLine("What the hell is it still wrong?");
+
+                            throw new Exception($"[Server] Expected {this.permessageDeflate}: {this.data.Count} got {ms.Position}");
                         }
 
-                        ms.SetLength(0);
+                        await webSocket.SendAsync(message, WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);
                     }
                 }
 
@@ -313,7 +324,6 @@ public class WebSocketThroughputBenchmarks
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(receiveBuffer);
                 foreach (var disposable in disposables)
                 {
                     disposable.Dispose();
@@ -322,6 +332,23 @@ public class WebSocketThroughputBenchmarks
         }
     }
 
+    private static byte[] GenerateRandomJsonMessage(Random rand, int targetSizeKb)
+    {
+        var sb = new StringBuilder();
+
+        sb.Append("{");
+        while (Encoding.UTF8.GetByteCount(sb.ToString()) < targetSizeKb * 1024)
+        {
+            string key = $"key_{rand.Next(0, 100)}";
+            string value = $"value_{rand.Next(0, 1000)}";
+            sb.AppendFormat("\"{0}\":\"{1}\",", key, value);
+        }
+
+        sb.Length--; // Remove last comma
+        sb.Append("}");
+
+        return Encoding.UTF8.GetBytes(sb.ToString());
+    }
     private static int GetAvailablePort()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);

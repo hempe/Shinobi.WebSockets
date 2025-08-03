@@ -46,7 +46,7 @@ namespace Samurai.WebSockets
         /// <param name="stream">The stream AFTER the header has already been read</param>
         public WebSocketHttpContext(HttpHeader httpHeader, Stream stream)
         {
-            this.IsWebSocketRequest = httpHeader.Upgrade == "websocket";
+            this.IsWebSocketRequest = httpHeader.GetHeaderValue("Upgrade") == "websocket";
             this.WebSocketRequestedProtocols = httpHeader.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
             this.WebSocketExtensions = httpHeader.GetHeaderValues("Sec-WebSocket-Extensions").ToList();
             this.Path = httpHeader.Path;

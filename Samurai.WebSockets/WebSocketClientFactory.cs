@@ -231,26 +231,27 @@ namespace Samurai.WebSockets
 
         private ValueTask<WebSocket> PerformHandshakeAsync(Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
         {
-            var secWebSocketKey = SharedRandom.SecWebSocketKey();
+            var secWebSocketKey = Shared.SecWebSocketKey();
             var additionalHeaders = GetAdditionalHeaders(options.AdditionalHttpHeaders);
-            var handshakeHttpRequest = $"GET {uri.PathAndQuery} HTTP/1.1{NewLine}" +
-                                          $"Host: {uri.Host}:{uri.Port}{NewLine}" +
-                                          $"Upgrade: websocket{NewLine}" +
-                                          $"Connection: Upgrade{NewLine}" +
-                                          $"Sec-WebSocket-Key: {secWebSocketKey}{NewLine}" +
-                                          $"Origin: http://{uri.Host}:{uri.Port}{NewLine}" +
-                                          (
-                                            string.IsNullOrEmpty(options.SecWebSocketProtocol)
-                                                ? string.Empty
-                                                : $"Sec-WebSocket-Protocol: {options.SecWebSocketProtocol}{NewLine}"
-                                          ) +
-                                          (
-                                            string.IsNullOrEmpty(options.SecWebSocketExtensions)
-                                                ? string.Empty
-                                                : $"Sec-WebSocket-Extensions: {options.SecWebSocketExtensions}{NewLine}"
-                                          ) +
-                                          additionalHeaders +
-                                          $"Sec-WebSocket-Version: 13{NewLine}{NewLine}";
+            var handshakeHttpRequest =
+                $"GET {uri.PathAndQuery} HTTP/1.1{NewLine}" +
+                $"Host: {uri.Host}:{uri.Port}{NewLine}" +
+                $"Upgrade: websocket{NewLine}" +
+                $"Connection: Upgrade{NewLine}" +
+                $"Sec-WebSocket-Key: {secWebSocketKey}{NewLine}" +
+                $"Origin: http://{uri.Host}:{uri.Port}{NewLine}" +
+                (
+                    string.IsNullOrEmpty(options.SecWebSocketProtocol)
+                    ? string.Empty
+                    : $"Sec-WebSocket-Protocol: {options.SecWebSocketProtocol}{NewLine}"
+                ) +
+                (
+                    string.IsNullOrEmpty(options.SecWebSocketExtensions)
+                    ? string.Empty
+                    : $"Sec-WebSocket-Extensions: {options.SecWebSocketExtensions}{NewLine}"
+                ) +
+                additionalHeaders +
+                $"Sec-WebSocket-Version: 13{NewLine}{NewLine}";
 
 
 
