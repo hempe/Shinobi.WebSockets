@@ -21,7 +21,10 @@
 // ---------------------------------------------------------------------
 
 using System;
+using System.Buffers.Binary;
 using System.IO;
+
+using Samurai.WebSockets.Extensions;
 
 namespace Samurai.WebSockets.Internal
 {
@@ -41,6 +44,71 @@ namespace Samurai.WebSockets.Internal
         /// <param name="toStream">Stream to write to</param>
         /// <param name="isLastFrame">True is this is the last frame in this message (usually true)</param>
         /// <param name="isClient">Indicate if this is called from a client or server</param>
+#if NET6_0_OR_GREATER
+        public static void Write(
+            WebSocketOpCode opCode,
+            ArraySegment<byte> fromPayload,
+            Stream toStream,
+            bool isLastFrame,
+            bool isClient)
+        {
+            Span<byte> header = stackalloc byte[14]; // max header size: 1 + 1 + 8 (payload length) + 4 (mask key)
+            int headerLength = 0;
+
+            // 1st byte: FIN + opcode
+            header[headerLength++] = (byte)((isLastFrame ? 0x80 : 0x00) | (byte)opCode);
+
+            // Mask bit if client
+            byte maskBit = isClient ? (byte)0x80 : (byte)0x00;
+
+            int payloadLength = fromPayload.Count;
+
+            if (payloadLength < 126)
+            {
+                header[headerLength++] = (byte)(maskBit | (byte)payloadLength);
+            }
+            else if (payloadLength <= ushort.MaxValue)
+            {
+                header[headerLength++] = (byte)(maskBit | 126);
+                BinaryPrimitives.WriteUInt16BigEndian(header.Slice(headerLength, 2), (ushort)payloadLength);
+                headerLength += 2;
+            }
+            else
+            {
+                header[headerLength++] = (byte)(maskBit | 127);
+                BinaryPrimitives.WriteUInt64BigEndian(header.Slice(headerLength, 8), (ulong)payloadLength);
+                headerLength += 8;
+            }
+
+            if (isClient)
+            {
+                // Generate mask key directly with Random.Shared
+                Span<byte> maskKey = header.Slice(headerLength, 4).ToArray();
+
+
+                Shared.NextBytes(maskKey);
+                headerLength += 4;
+
+                toStream.Write(header.Slice(0, headerLength));
+
+                // Mask payload in-place or in a buffer
+                // To avoid modifying original payload, copy masked bytes to buffer then write
+
+                Span<byte> maskedPayload = stackalloc byte[payloadLength];
+                for (int i = 0; i < payloadLength; i++)
+                {
+                    maskedPayload[i] = (byte)(fromPayload.Array![fromPayload.Offset + i] ^ maskKey[i % 4]);
+                }
+
+                toStream.Write(maskedPayload);
+            }
+            else
+            {
+                toStream.Write(header.Slice(0, headerLength));
+                toStream.Write(fromPayload.Array!, fromPayload.Offset, payloadLength);
+            }
+        }
+#else
         public static void Write(
             WebSocketOpCode opCode,
             ArraySegment<byte> fromPayload,
@@ -77,9 +145,9 @@ namespace Samurai.WebSockets.Internal
                 var maskKey = Shared.NextRandomArraySegment(WebSocketFrameCommon.MaskKeyLength);
                 try
                 {
-                    toStream.Write(maskKey.Array, maskKey.Offset, maskKey.Count);
+                    toStream.Write(maskKey.Array!, maskKey.Offset, maskKey.Count);
                     // mask the payload
-                    maskKey.ToggleMask(fromPayload.Array, fromPayload.Offset, fromPayload.Count);
+                    maskKey.ToggleMask(fromPayload.Array!, fromPayload.Offset, fromPayload.Count);
                 }
                 finally
                 {
@@ -87,7 +155,9 @@ namespace Samurai.WebSockets.Internal
                 }
             }
 
-            toStream.Write(fromPayload.Array, fromPayload.Offset, fromPayload.Count);
-        }
+            toStream.Write(fromPayload.Array!, fromPayload.Offset, fromPayload.Count);
+        }  
+#endif
     }
+
 }

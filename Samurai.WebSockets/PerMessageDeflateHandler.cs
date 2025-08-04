@@ -55,7 +55,7 @@ namespace Samurai.WebSockets.Internal
 
             this.messageType = messageType;
 
-            this.deflateStream.Write(buffer.Array, buffer.Offset, buffer.Count);
+            this.deflateStream.Write(buffer.Array!, buffer.Offset, buffer.Count);
             this.deflateStream.Flush();
             if (endOfMessage)
             {

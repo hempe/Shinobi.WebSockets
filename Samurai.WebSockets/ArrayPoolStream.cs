@@ -26,13 +26,13 @@ namespace Samurai.WebSockets
 
         public override long Length => this.innerStream?.Length ?? 0;
 
-        public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
+        public override IAsyncResult BeginRead(byte[] buffer, int offset, int count, AsyncCallback? callback, object? state)
         {
             this.ThrowIfDisposed();
             return this.innerStream!.BeginRead(buffer, offset, count, callback, state);
         }
 
-        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback callback, object state)
+        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback? callback, object? state)
         {
             this.ThrowIfDisposed();
             return this.innerStream!.BeginWrite(buffer, offset, count, callback, state);
@@ -201,7 +201,9 @@ namespace Samurai.WebSockets
             this.EnlargeBuffer(count);
             return this.innerStream!.WriteAsync(buffer, offset, count, cancellationToken);
         }
-
+#if NET6_0_OR_GREATER
+        [Obsolete("This Remoting API is not supported and throws PlatformNotSupportedException.")]
+#endif
         public override object InitializeLifetimeService()
         {
             this.ThrowIfDisposed();
@@ -263,7 +265,7 @@ namespace Samurai.WebSockets
         public ArraySegment<byte> GetDataArraySegment()
         {
             this.ThrowIfDisposed();
-            return new ArraySegment<byte>(this.buffer, 0, (int)this.innerStream!.Position);
+            return new ArraySegment<byte>(this.buffer!, 0, (int)this.innerStream!.Position);
         }
 
         public ArraySegment<byte> GetFreeArraySegment(int minSize)
@@ -285,7 +287,7 @@ namespace Samurai.WebSockets
         {
             this.ThrowIfDisposed();
             // Write only the used portion of the buffer
-            stream.Write(this.buffer, 0, (int)this.innerStream!.Position);
+            stream.Write(this.buffer!, 0, (int)this.innerStream!.Position);
         }
 
         private void ThrowIfDisposed()

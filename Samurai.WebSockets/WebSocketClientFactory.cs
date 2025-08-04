@@ -208,12 +208,14 @@ namespace Samurai.WebSockets
         /// Invoked by the RemoteCertificateValidationDelegate
         /// If you want to ignore certificate errors (for debugging) then return true
         /// </summary>
-        private static bool ValidateServerCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        private static bool ValidateServerCertificate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
             if (sslPolicyErrors == SslPolicyErrors.None)
                 return true;
 
             Events.Log?.SslCertificateError(sslPolicyErrors);
+            // TODO: Add option on new server to "ignore certificate errors"
+
             // Do not allow this client to communicate with unauthenticated servers.
             return false;
         }

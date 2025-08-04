@@ -30,6 +30,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Samurai.WebSockets.Extensions;
+
 namespace Samurai.WebSockets.Internal
 {
     /// <summary>
@@ -76,7 +78,7 @@ namespace Samurai.WebSockets.Internal
             var minCount = CalculateNumBytesToRead(readCursor.NumBytesLeftToRead, intoBuffer.Count);
             await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
             if (remainingFrame.MaskKey.Count > 0)
-                remainingFrame.MaskKey.ToggleMask(intoBuffer.Array, intoBuffer.Offset, minCount);
+                remainingFrame.MaskKey.ToggleMask(intoBuffer.Array!, intoBuffer.Offset, minCount);
 
             return new WebSocketReadCursor(remainingFrame, minCount, readCursor.NumBytesLeftToRead - minCount);
         }
@@ -94,7 +96,7 @@ namespace Samurai.WebSockets.Internal
             var smallBuffer = new ArraySegment<byte>(new byte[8]);
 
             await fromStream.ReadFixedLengthAsync(2, smallBuffer, cancellationToken).ConfigureAwait(false);
-            var byte1 = smallBuffer.Array[0];
+            var byte1 = smallBuffer.Array![0];
             var byte2 = smallBuffer.Array[1];
 
             // process first byte - use cached constants
@@ -116,7 +118,7 @@ namespace Samurai.WebSockets.Internal
                     maskKey = smallBuffer.Array.AsMaskKey();
                     await fromStream.ReadFixedLengthAsync(maskKey.Count, maskKey, cancellationToken).ConfigureAwait(false);
                     await fromStream.ReadFixedLengthAsync(minCount, intoBuffer, cancellationToken).ConfigureAwait(false);
-                    maskKey.ToggleMask(intoBuffer.Array, intoBuffer.Offset, minCount);
+                    maskKey.ToggleMask(intoBuffer.Array!, intoBuffer.Offset, minCount);
                 }
                 else
                 {
@@ -153,16 +155,16 @@ namespace Samurai.WebSockets.Internal
 
             // IMPORTANT: Keep the original behavior - reverse then use BitConverter
             // This modifies the buffer in-place which might be important for the caller
-            Array.Reverse(buffer.Array, buffer.Offset, 2);
+            Array.Reverse(buffer.Array!, buffer.Offset, 2);
 
-            var closeStatusCode = (int)BitConverter.ToUInt16(buffer.Array, buffer.Offset);
+            var closeStatusCode = (int)BitConverter.ToUInt16(buffer.Array!, buffer.Offset);
             var closeStatus = ValidCloseStatusCodes.Contains(closeStatusCode)
                 ? (WebSocketCloseStatus)closeStatusCode
                 : WebSocketCloseStatus.Empty;
 
             var descCount = count - 2;
             var closeStatusDescription = (descCount > 0)
-                ? Encoding.UTF8.GetString(buffer.Array, buffer.Offset + 2, descCount) :
+                ? Encoding.UTF8.GetString(buffer.Array!, buffer.Offset + 2, descCount) :
                 null;
 
             return new WebSocketFrame(isFinBitSet, opCode, count, maskKey, closeStatus, closeStatusDescription);
@@ -178,11 +180,11 @@ namespace Samurai.WebSockets.Internal
 
             // read a short length or a long length depending on the value of len
             if (len == 126)
-                return await fromStream.ReadUShortAsync(false, smallBuffer, cancellationToken).ConfigureAwait(false);
+                return await fromStream.ReadUShortAsync(smallBuffer, false, cancellationToken).ConfigureAwait(false);
 
             if (len == 127)
             {
-                len = (uint)await fromStream.ReadULongAsync(false, smallBuffer, cancellationToken).ConfigureAwait(false);
+                len = (uint)await fromStream.ReadULongAsync(smallBuffer, false, cancellationToken).ConfigureAwait(false);
 
                 // protect ourselves against bad data - use cached constant
                 if (len > MaxLen)

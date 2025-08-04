@@ -20,6 +20,8 @@ namespace Samurai.WebSockets.Internal
         public static byte[] Rent(int size) => Pool.Rent(size);
         public static ArraySegment<byte> RentArraySegment(int size) => new ArraySegment<byte>(Pool.Rent(size), 0, size);
 
+        private static Random Random => rand ??= new Random((int)DateTime.Now.Ticks);
+
         [ThreadStatic]
         private static Random? rand;
         public static byte[] NextRandomBytes(int size)
@@ -30,6 +32,25 @@ namespace Samurai.WebSockets.Internal
             var bytes = Pool.Rent(size);
             rand.NextBytes(bytes);
             return bytes;
+        }
+
+        public static void NextBytes(byte[] bytes)
+        {
+            Random.NextBytes(bytes);
+        }
+
+        public static void NextBytes(Span<byte> bytes)
+        {
+
+#if NET6_0_OR_GREATER
+            Random.NextBytes(bytes);
+#else
+        var rand = Random;
+        for (int i = 0; i < bytes.Length; i++)
+        {
+            bytes[i] = (byte)rand.Next(0, 256);
+        }
+#endif
         }
 
         public static ArraySegment<byte> NextRandomArraySegment(int size)
@@ -52,6 +73,6 @@ namespace Samurai.WebSockets.Internal
             => Pool.Return(bytes, clearArray: true);
 
         public static void Return(ArraySegment<byte> segment)
-            => Pool.Return(segment.Array, clearArray: true);
+            => Pool.Return(segment.Array!, clearArray: true);
     }
 }

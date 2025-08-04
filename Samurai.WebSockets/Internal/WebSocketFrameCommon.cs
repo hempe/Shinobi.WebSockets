@@ -17,7 +17,7 @@ namespace Samurai.WebSockets.Internal
                 throw new Exception($"MaskKey key must be {MaskKeyLength} bytes");
 
             var buffer = payloadArray;
-            var maskKeyArray = maskKey.Array;
+            var maskKeyArray = maskKey.Array!;
             var maskKeyOffset = maskKey.Offset;
 
             if (payloadCount == 0) return;

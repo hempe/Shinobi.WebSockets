@@ -243,7 +243,7 @@ namespace Samurai.WebSockets
                 }
 
                 // Add to headers list (supporting multiple values)
-                HashSet<string> valuesList;
+                HashSet<string>? valuesList;
                 if (!headers.TryGetValue(headerName, out valuesList))
                 {
                     valuesList = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

@@ -186,7 +186,7 @@ namespace Samurai.WebSockets.Internal
                         case WebSocketOpCode.ConnectionClose:
                             return await this.RespondToCloseFrameAsync(frame, linkedCts.Token).ConfigureAwait(false);
                         case WebSocketOpCode.Ping:
-                            ArraySegment<byte> pingPayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, this.readCursor.Value.NumBytesRead);
+                            ArraySegment<byte> pingPayload = new ArraySegment<byte>(buffer.Array!, buffer.Offset, this.readCursor.Value.NumBytesRead);
                             await this.SendPongAsync(pingPayload, linkedCts.Token).ConfigureAwait(false);
                             break;
                         case WebSocketOpCode.Pong:
@@ -306,7 +306,7 @@ namespace Samurai.WebSockets.Internal
         /// <summary>
         /// Fire and forget close
         /// </summary>
-        public async override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+        public async override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
         {
             if (this.state == WebSocketState.Open)
             {
@@ -539,7 +539,7 @@ namespace Samurai.WebSockets.Internal
             await this.semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await this.stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+                await this.stream.WriteAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
