@@ -38,6 +38,17 @@ namespace Samurai.WebSockets
             return this;
         }
 
+        public HttpHeaderBuilder AddHeaders(Dictionary<string, string>? headers)
+        {
+            if (headers is null)
+                return this;
+
+            foreach (var header in headers)
+                this.AddHeader(header.Key, header.Value);
+
+            return this;
+        }
+
         /// <summary>
         /// Add a header with multiple values
         /// </summary>
@@ -122,8 +133,8 @@ namespace Samurai.WebSockets
         /// <summary>
         /// Build and convert to HTTP response string
         /// </summary>
-        public string ToHttpResponse(string reasonPhrase = "OK")
-            => this.Build().ToHttpResponse(reasonPhrase);
+        public string ToHttpResponse(string reasonPhrase = "OK", string? body = null)
+            => this.Build().ToHttpResponse(reasonPhrase, body);
 
         /// <summary>
         /// Build and convert to HTTP request string

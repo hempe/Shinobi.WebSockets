@@ -419,7 +419,7 @@ namespace Samurai.WebSockets
         /// </summary>
         /// <param name="reasonPhrase">HTTP reason phrase (e.g., "Switching Protocols")</param>
         /// <returns>Complete HTTP response string</returns>
-        public string ToHttpResponse(string reasonPhrase = "OK")
+        public string ToHttpResponse(string reasonPhrase = "OK", string? body = null)
         {
             if (!this.StatusCode.HasValue)
                 throw new InvalidOperationException("Cannot build HTTP response without status code");
@@ -439,7 +439,7 @@ namespace Samurai.WebSockets
                 }
             }
 
-            builder.Append("\r\n");
+            builder.Append("\r\n").Append(body);
             return builder.ToString();
 #else
             var builder = new StringBuilder();

@@ -102,12 +102,13 @@ namespace Samurai.WebSockets
 
                 var setWebSocketAccept = secWebSocketKey!.ComputeSocketAcceptString();
                 var compress = options.AllowPerMessageDeflate && context.WebSocketExtensions?.Contains("permessage-deflate") == true;
-                var response = "HTTP/1.1 101 Switching Protocols\r\n"
-                                   + "Connection: Upgrade\r\n"
-                                   + "Upgrade: websocket\r\n"
-                                   + (options.SubProtocol != null ? $"Sec-WebSocket-Protocol: {options.SubProtocol}\r\n" : "")
-                                   + (compress ? "Sec-WebSocket-Extensions: permessage-deflate\r\n" : "")
-                                   + $"Sec-WebSocket-Accept: {setWebSocketAccept}";
+                var response = HttpHeader.CreateResponse(101)
+                        .AddHeader("Connection", "Upgrade")
+                        .AddHeader("Upgrade", "websocket")
+                        .AddHeaderIf(options.SubProtocol != null, "Sec-WebSocket-Protocol", options.SubProtocol!)
+                        .AddHeaderIf(compress, "Sec-WebSocket-Extensions", "permessage-deflate")
+                        .AddHeader("Sec-WebSocket-Accept", setWebSocketAccept)
+                        .ToHttpResponse("Switching Protocols");
 
                 Events.Log?.SendingHandshakeResponse(guid, response);
                 await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);

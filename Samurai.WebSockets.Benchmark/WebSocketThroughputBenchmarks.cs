@@ -44,12 +44,12 @@ public class WebSocketThroughputBenchmarks
     public int ClientCount { get; set; } = 1_000;
 
     //[Params("Ninja", "Samurai", "Samurai.PermessageDeflate")]
-    //[Params("Ninja", "Samurai", "Native")]
-    [Params("Ninja", "Samurai")]
+    [Params("Ninja", "Samurai", "Native")]
+    //[Params("Ninja", "Samurai")]
     public string Server { get; set; } = "Samurai";
 
-    //[Params("Ninja", "Samurai", "Native")]
-    [Params("Ninja", "Samurai")]
+    [Params("Ninja", "Samurai", "Native")]
+    //[Params("Ninja", "Samurai")]
     public string Client { get; set; } = "Samurai";
 
     private ArraySegment<byte> data;

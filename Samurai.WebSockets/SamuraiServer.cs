@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
+using Samurai.WebSockets.Extensions;
+
 namespace Samurai.WebSockets
 {
     public class SamuraiServer : IDisposable
@@ -108,20 +110,17 @@ namespace Samurai.WebSockets
         }
 
 
-
-        private async Task<Stream> GetStreamAsync(TcpClient tcpClient)
+        private async Task<Stream> GetStreamAsync(Stream stream, X509Certificate2 certificate)
         {
-            var stream = tcpClient.GetStream();
             try
             {
                 var sslStream = new SslStream(stream, true);
                 this.logger.LogInformation("Attempting to secure connection...");
-                var cert = this.Certificate ?? throw new InvalidOperationException("No valid certificate available.");
 
 #if NET8_0_OR_GREATER
-                await sslStream.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+                await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
 #else
-                await sslStream.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
+                await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
 #endif
                 this.logger.LogInformation("Connection successfully secured");
                 return sslStream;
@@ -157,15 +156,24 @@ namespace Samurai.WebSockets
                     // An unhandled exception is thrown OR
                     // The server is disposed
                     this.logger.LogInformation("Server: Connection opened.");
-                    var stream = await this.GetStreamAsync(tcpClient);
+                    var stream = this.Certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), this.Certificate);
                     var context = new WebSocketHttpContext(await HttpHeader.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false), stream);
 
                     if (context.IsWebSocketRequest)
                     {
+
                     }
                     else
                     {
-                        this.logger.LogInformation("Http header contains no web socket upgrade request. Ignoring");
+                        var response = HttpHeader.CreateResponse(426)
+                            .AddHeader("Upgrade", "websocket")
+                            .AddHeader("Connection", "close")
+                            .AddHeader("Content-Type", "text/plain")
+                            .ToHttpResponse("Upgrade Required", "WebSocket connection required. Use a WebSocket client.");
+
+                        this.logger.LogInformation("Http header contains no web socket upgrade request. Close");
+                        await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
+                        context.Stream.Close();
                     }
 
                     this.logger.LogInformation("Server: Connection closed");

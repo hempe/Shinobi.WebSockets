@@ -235,26 +235,19 @@ namespace Samurai.WebSockets
         private ValueTask<WebSocket> PerformHandshakeAsync(Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
         {
             var secWebSocketKey = Shared.SecWebSocketKey();
-            var additionalHeaders = GetAdditionalHeaders(options.AdditionalHttpHeaders);
-            var handshakeHttpRequest =
-                $"GET {uri.PathAndQuery} HTTP/1.1{NewLine}" +
-                $"Host: {uri.Host}:{uri.Port}{NewLine}" +
-                $"Upgrade: websocket{NewLine}" +
-                $"Connection: Upgrade{NewLine}" +
-                $"Sec-WebSocket-Key: {secWebSocketKey}{NewLine}" +
-                $"Origin: http://{uri.Host}:{uri.Port}{NewLine}" +
-                (
-                    string.IsNullOrEmpty(options.SecWebSocketProtocol)
-                    ? string.Empty
-                    : $"Sec-WebSocket-Protocol: {options.SecWebSocketProtocol}{NewLine}"
-                ) +
-                (
-                    string.IsNullOrEmpty(options.SecWebSocketExtensions)
-                    ? string.Empty
-                    : $"Sec-WebSocket-Extensions: {options.SecWebSocketExtensions}{NewLine}"
-                ) +
-                additionalHeaders +
-                $"Sec-WebSocket-Version: 13{NewLine}{NewLine}";
+            var handshakeHttpRequest = HttpHeader.CreateRequest("GET", uri.PathAndQuery)
+                .AddHeader("Host", $"{uri.Host}:{uri.Port}")
+                .AddHeader("Upgrade", "websocket")
+                .AddHeader("Connection", "Upgrade")
+                .AddHeader("Sec-WebSocket-Key", secWebSocketKey)
+                .AddHeader("Origin", $"http://{uri.Host}:{uri.Port}")
+                .AddHeaderIf(!string.IsNullOrEmpty(options.SecWebSocketProtocol),
+                            "Sec-WebSocket-Protocol", options.SecWebSocketProtocol!)
+                .AddHeaderIf(!string.IsNullOrEmpty(options.SecWebSocketExtensions),
+                            "Sec-WebSocket-Extensions", options.SecWebSocketExtensions!)
+                .AddHeaders(options.AdditionalHttpHeaders)
+                .AddHeader("Sec-WebSocket-Version", "13")
+                .ToHttpRequest();
 
 
 

@@ -22,20 +22,24 @@ namespace WebSockets.DemoServer
             Samurai.WebSockets.Internal.Events.Log
                 = new Samurai.WebSockets.Internal.Events(loggerFactory.CreateLogger<Samurai.WebSockets.Internal.Events>());
 
-            var webSocketServerFactory = new WebSocketServerFactory();
-            await StartWebServerAsync(logger, loggerFactory, webSocketServerFactory).ConfigureAwait(false);
-            logger.LogInformation("Server stopped. Press any key to exit.");
-            Console.ReadKey();
+            ushort port = 27416;
+            var server = new SamuraiServer(loggerFactory.CreateLogger<SamuraiServer>(), port);
+            await server.StartAsync();
+            // var webSocketServerFactory = new WebSocketServerFactory();
+            //await StartWebServerAsync(port, logger, loggerFactory, webSocketServerFactory).ConfigureAwait(false);
+            logger.LogInformation("Server stopped. Press ENTER to exit.");
+            Console.ReadLine();
+            await server.StopAsync();
         }
 
         private static async Task StartWebServerAsync(
+            ushort port,
             ILogger logger,
             ILoggerFactory loggerFactory,
             IWebSocketServerFactory webSocketServerFactory)
         {
             try
             {
-                var port = 27416;
                 IList<string> supportedSubProtocols = ["chatV1", "chatV2", "chatV3"];
                 using (WebServer server = new WebServer(webSocketServerFactory, loggerFactory, supportedSubProtocols))
                 {
