@@ -34,8 +34,6 @@ namespace Samurai.WebSockets.Internal
     public sealed class PerMessageDeflateHandler : IDisposable
     {
         private readonly ArrayPoolStream compressedStream = new ArrayPoolStream();
-        private List<byte[]> cachedData = new List<byte[]>();
-
         private DeflateStream deflateStream;
         private bool isDisposed = false;
 
@@ -45,6 +43,9 @@ namespace Samurai.WebSockets.Internal
         {
             this.deflateStream = new DeflateStream(this.compressedStream, CompressionMode.Compress, leaveOpen: true);
         }
+
+        internal ArraySegment<byte> Write(byte[] buffer, WebSocketMessageType messageType, bool endOfMessage)
+            => this.Write(new ArraySegment<byte>(buffer, 0, buffer.Length), messageType, endOfMessage);
 
         internal ArraySegment<byte> Write(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage)
         {

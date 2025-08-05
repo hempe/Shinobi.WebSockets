@@ -18,6 +18,7 @@ using BenchmarkDotNet.Order;
 using Ninja.WebSockets;
 
 [SimpleJob(RuntimeMoniker.Net90)]
+// [SimpleJob(RuntimeMoniker.Net472)]
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [RankColumn]
@@ -33,7 +34,7 @@ public class WebSocketServerClientBenchmarks
 
     // Track server readiness and client connections
     private TaskCompletionSource<bool> serverReadyTcs;
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> clientDisconnectTasks = new();
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> clientDisconnectTasks = new ConcurrentDictionary<string, TaskCompletionSource<bool>>();
 
     [Params(1, 5, 10)]
     public int ClientCount { get; set; }
@@ -446,7 +447,7 @@ public class WebSocketServerClientBenchmarks
         var data = ArrayPool<byte>.Shared.Rent(16 * 1024);
         try
         {
-            Random.Shared.NextBytes(data);
+            Samurai.WebSockets.Internal.Shared.NextBytes(data);
             var tasks = new List<Task>();
 
             foreach (var client in this.clients.Where(c => c.State == WebSocketState.Open))
@@ -471,7 +472,7 @@ public class WebSocketServerClientBenchmarks
         var data = ArrayPool<byte>.Shared.Rent(64 * 1024);
         try
         {
-            Random.Shared.NextBytes(data);
+            Samurai.WebSockets.Internal.Shared.NextBytes(data);
             var tasks = new List<Task>();
 
             foreach (var client in this.clients.Where(c => c.State == WebSocketState.Open))
@@ -553,3 +554,60 @@ public class WebSocketServerClientBenchmarks
         return port;
     }
 }
+
+#if NETFRAMEWORK
+public static class TaskExtensions
+{
+    public static async Task WaitAsync(this Task task, CancellationToken cancellationToken)
+    {
+        using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
+            var delayTask = Task.Delay(Timeout.Infinite, cts.Token);
+            var completedTask = await Task.WhenAny(task, delayTask).ConfigureAwait(false);
+
+            if (completedTask == delayTask)
+                cancellationToken.ThrowIfCancellationRequested();
+
+            cts.Cancel(); // cancel the delay to avoid leaks
+            await task.ConfigureAwait(false);
+        }
+    }
+
+    public static async Task<T> WaitAsync<T>(this Task<T> task, CancellationToken cancellationToken)
+    {
+        using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
+            var delayTask = Task.Delay(Timeout.Infinite, cts.Token);
+            var completedTask = await Task.WhenAny(task, delayTask).ConfigureAwait(false);
+
+            if (completedTask == delayTask)
+                cancellationToken.ThrowIfCancellationRequested();
+
+            cts.Cancel();
+            return await task.ConfigureAwait(false);
+        }
+    }
+
+    public static async Task WaitAsync(this Task task, TimeSpan timeout)
+    {
+        var timeoutTask = Task.Delay(timeout);
+        var completedTask = await Task.WhenAny(task, timeoutTask).ConfigureAwait(false);
+
+        if (completedTask == timeoutTask)
+            throw new TimeoutException("The operation has timed out.");
+
+        await task.ConfigureAwait(false);
+    }
+
+    public static async Task<T> WaitAsync<T>(this Task<T> task, TimeSpan timeout)
+    {
+        var timeoutTask = Task.Delay(timeout);
+        var completedTask = await Task.WhenAny(task, timeoutTask).ConfigureAwait(false);
+
+        if (completedTask == timeoutTask)
+            throw new TimeoutException("The operation has timed out.");
+
+        return await task.ConfigureAwait(false);
+    }
+}
+#endif

@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Samurai.WebSockets.DemoServ
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Samurai.WebSockets.UnitTests", "Samurai.WebSockets.UnitTests\Samurai.WebSockets.UnitTests.csproj", "{E292CCA7-0C73-4520-8B86-A614637648A9}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Samurai.WebSockets.UnitTests.RunnerLinux", "Samurai.WebSockets.UnitTests.RunnerLinux\Samurai.WebSockets.UnitTests.RunnerLinux.csproj", "{E2BF907A-0C73-4520-8B86-A614637648A9}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Samurai.WebSockets.Benchmark", "Samurai.WebSockets.Benchmark\Samurai.WebSockets.Benchmark.csproj", "{649e0ecc-0bf3-417d-8f6b-5a7ba8c7ad38}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{2FE82E17-7C02-4B44-B0B2-4ED31970D0DE}"
@@ -52,6 +54,12 @@ Global
 		{E292CCA7-0C73-4520-8B86-A614637648A9}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E292CCA7-0C73-4520-8B86-A614637648A9}.ReleaseSigned|Any CPU.ActiveCfg = ReleaseSigned|Any CPU
 		{E292CCA7-0C73-4520-8B86-A614637648A9}.ReleaseSigned|Any CPU.Build.0 = ReleaseSigned|Any CPU
+		{E2BF907A-0C73-4520-8B86-A614637648A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2BF907A-0C73-4520-8B86-A614637648A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2BF907A-0C73-4520-8B86-A614637648A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2BF907A-0C73-4520-8B86-A614637648A9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2BF907A-0C73-4520-8B86-A614637648A9}.ReleaseSigned|Any CPU.ActiveCfg = ReleaseSigned|Any CPU
+		{E2BF907A-0C73-4520-8B86-A614637648A9}.ReleaseSigned|Any CPU.Build.0 = ReleaseSigned|Any CPU
 		{649e0ecc-0bf3-417d-8f6b-5a7ba8c7ad38}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{649e0ecc-0bf3-417d-8f6b-5a7ba8c7ad38}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{649e0ecc-0bf3-417d-8f6b-5a7ba8c7ad38}.Release|Any CPU.ActiveCfg = Release|Any CPU

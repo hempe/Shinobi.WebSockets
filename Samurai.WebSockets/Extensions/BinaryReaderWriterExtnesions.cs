@@ -66,28 +66,19 @@ namespace Samurai.WebSockets.Extensions
 
         public static void WriteUShort(this Stream stream, ushort value, bool isLittleEndian)
         {
-#if NET6_0_OR_GREATER
+
             Span<byte> buffer = stackalloc byte[2];
             if (isLittleEndian)
                 BinaryPrimitives.WriteUInt16LittleEndian(buffer, value);
             else
                 BinaryPrimitives.WriteUInt16BigEndian(buffer, value);
+
+#if NET6_0_OR_GREATER
             stream.Write(buffer);
 #else
-            // .NET Standard 2.0 fallback
-            var buffer = new byte[2];
-            if (isLittleEndian)
-            {
-                buffer[0] = (byte)value;
-                buffer[1] = (byte)(value >> 8);
-            }
-            else
-            {
-                buffer[0] = (byte)(value >> 8);
-                buffer[1] = (byte)value;
-            }
-            stream.Write(buffer, 0, 2);
+            stream.Write(buffer.ToArray(), 0, 2);
 #endif
+
         }
 
         public static void WriteULong(this Stream stream, ulong value, bool isLittleEndian)

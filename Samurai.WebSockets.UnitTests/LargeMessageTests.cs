@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
+using Samurai.WebSockets.Internal;
+
 using Xunit;
 
 namespace Samurai.WebSockets.UnitTests
@@ -26,6 +28,8 @@ namespace Samurai.WebSockets.UnitTests
 
     public class LargeMessageTests
     {
+        private ILogger<WebSocketClientTests> logger;
+
         private interface IServer : IDisposable
         {
             public Uri? Address { get; }
@@ -46,10 +50,13 @@ namespace Samurai.WebSockets.UnitTests
             public Uri? Address { get; private set; }
             public List<byte[]> ReceivedMessages { get; } = new List<byte[]>();
             private WebSocket? webSocket;
+            private ILogger logger;
+
             public WebSocketState State => this.webSocket?.State ?? WebSocketState.None;
 
-            public EsbjörnServer()
+            public EsbjörnServer(ILogger logger)
             {
+                this.logger = logger;
                 var os = Environment.OSVersion.Version;
                 if (os.Major < 6 || os.Major == 6 && os.Minor < 2)
                 {
@@ -75,10 +82,17 @@ namespace Samurai.WebSockets.UnitTests
             {
                 try
                 {
+                    this.logger.LogDebug("[Server] Waiting for connection...");
                     var context = await listener.GetContextAsync();
+                    this.logger.LogDebug("[Server] Connection established.");
+
                     if (context.Request.IsWebSocketRequest)
                     {
+
+                        this.logger.LogDebug("[Server] WebSocket request received.");
+
                         HttpListenerWebSocketContext webSocketContext = await context.AcceptWebSocketAsync(null);
+                        this.logger.LogDebug("[Server] WebSocket accepted.");
                         var webSocket = webSocketContext.WebSocket;
                         this.webSocket = webSocket;
                         var receiveBuffer = new byte[4096];
@@ -87,7 +101,11 @@ namespace Samurai.WebSockets.UnitTests
                         while (webSocket.State == WebSocketState.Open)
                         {
                             var arraySegment = new ArraySegment<byte>(receiveBuffer);
+                            this.logger.LogDebug("[Server] Waiting for message...");
+
                             var received = await webSocket.ReceiveAsync(arraySegment, CancellationToken.None);
+                            this.logger.LogDebug($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
+
                             switch (received.MessageType)
                             {
                                 case WebSocketMessageType.Close:
@@ -140,13 +158,16 @@ namespace Samurai.WebSockets.UnitTests
             private TcpListener? listener;
             private Task? connectionPointTask;
             private WebSocket? webSocket;
+            private ILogger logger;
+
             public Uri? Address { get; private set; }
             public List<byte[]> ReceivedMessages { get; } = new List<byte[]>();
             public WebSocketState State => this.webSocket?.State ?? WebSocketState.None;
             private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
-            public SamuraiServer()
+            public SamuraiServer(ILogger logger)
             {
+                this.logger = logger;
                 var os = Environment.OSVersion.Version;
                 if (os.Major < 6 || os.Major == 6 && os.Minor < 2)
                 {
@@ -174,27 +195,27 @@ namespace Samurai.WebSockets.UnitTests
             {
                 try
                 {
-                    Console.WriteLine("[Server] Waiting for connection...");
+                    this.logger.LogDebug("[Server] Waiting for connection...");
                     var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
 
                     var server = new WebSocketServerFactory();
                     var context = await server.ReadHttpHeaderFromStreamAsync(tcpClient.GetStream());
 
-                    Console.WriteLine("[Server] Connection established.");
+                    this.logger.LogDebug("[Server] Connection established.");
                     if (context.IsWebSocketRequest)
                     {
-                        Console.WriteLine("[Server] WebSocket request received.");
+                        this.logger.LogDebug("[Server] WebSocket request received.");
                         this.webSocket = await server.AcceptWebSocketAsync(context, cancellationToken);
-                        Console.WriteLine("[Server] WebSocket accepted.");
+                        this.logger.LogDebug("[Server] WebSocket accepted.");
                         var receiveBuffer = new byte[4096];
                         var stream = new MemoryStream();
 
                         while (this.webSocket.State == WebSocketState.Open)
                         {
                             var arraySegment = new ArraySegment<byte>(receiveBuffer);
-                            Console.WriteLine("[Server] Waiting for message...");
+                            this.logger.LogDebug("[Server] Waiting for message...");
                             var received = await this.webSocket.ReceiveAsync(arraySegment, cancellationToken);
-                            Console.WriteLine($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
+                            this.logger.LogDebug($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
                             switch (received.MessageType)
                             {
                                 case WebSocketMessageType.Close:
@@ -244,13 +265,16 @@ namespace Samurai.WebSockets.UnitTests
             private TcpListener? listener;
             private Task? connectionPointTask;
             private WebSocket? webSocket;
+            private ILogger logger;
+
             public Uri? Address { get; private set; }
             public List<byte[]> ReceivedMessages { get; } = new List<byte[]>();
             public WebSocketState State => this.webSocket?.State ?? WebSocketState.None;
             private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
-            public NinjaServer()
+            public NinjaServer(ILogger logger)
             {
+                this.logger = logger;
                 var os = Environment.OSVersion.Version;
                 if (os.Major < 6 || os.Major == 6 && os.Minor < 2)
                 {
@@ -278,27 +302,27 @@ namespace Samurai.WebSockets.UnitTests
             {
                 try
                 {
-                    Console.WriteLine("[Server] Waiting for connection...");
+                    this.logger.LogDebug("[Server] Waiting for connection...");
                     var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
 
                     var server = new Ninja.WebSockets.WebSocketServerFactory();
                     var context = await server.ReadHttpHeaderFromStreamAsync(tcpClient.GetStream());
 
-                    Console.WriteLine("[Server] Connection established.");
+                    this.logger.LogDebug("[Server] Connection established.");
                     if (context.IsWebSocketRequest)
                     {
-                        Console.WriteLine("[Server] WebSocket request received.");
+                        this.logger.LogDebug("[Server] WebSocket request received.");
                         this.webSocket = await server.AcceptWebSocketAsync(context, cancellationToken);
-                        Console.WriteLine("[Server] WebSocket accepted.");
+                        this.logger.LogDebug("[Server] WebSocket accepted.");
                         var receiveBuffer = new byte[4096];
                         var stream = new MemoryStream();
 
                         while (this.webSocket.State == WebSocketState.Open)
                         {
                             var arraySegment = new ArraySegment<byte>(receiveBuffer);
-                            Console.WriteLine("[Server] Waiting for message...");
+                            this.logger.LogDebug("[Server] Waiting for message...");
                             var received = await this.webSocket.ReceiveAsync(arraySegment, cancellationToken);
-                            Console.WriteLine($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
+                            this.logger.LogDebug($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
                             switch (received.MessageType)
                             {
                                 case WebSocketMessageType.Close:
@@ -355,9 +379,10 @@ namespace Samurai.WebSockets.UnitTests
         public LargeMessageTests()
         {
             using var loggerFactory = LoggerFactory.Create(builder => builder
-                    .SetMinimumLevel(LogLevel.Trace)
+                    .SetMinimumLevel(LogLevel.Error)
                     .AddConsole());
-            Internal.Events.Log = new Internal.Events(loggerFactory.CreateLogger<Internal.Events>());
+            Events.Log = new Events(loggerFactory.CreateLogger<Events>());
+            this.logger = loggerFactory.CreateLogger<WebSocketClientTests>();
         }
 
         private async Task SendBinaryMessageAsync(WebSocket client, byte[] message, int sendBufferLength, CancellationToken cancellationToken)
@@ -379,24 +404,26 @@ namespace Samurai.WebSockets.UnitTests
         }
 
         [Theory]
+#if !NETFRAMEWORK
         [InlineData(Implementation.Native, Implementation.Native)]
         [InlineData(Implementation.Native, Implementation.Ninja)]
         [InlineData(Implementation.Native, Implementation.Samurai)]
+#endif
         [InlineData(Implementation.Ninja, Implementation.Native)]
         [InlineData(Implementation.Ninja, Implementation.Ninja)]
         [InlineData(Implementation.Ninja, Implementation.Samurai)]
         [InlineData(Implementation.Samurai, Implementation.Native)]
         [InlineData(Implementation.Samurai, Implementation.Ninja)]
         [InlineData(Implementation.Samurai, Implementation.Samurai)]
-        public async Task SendLargeBinaryMessageAsync(Implementation clientImpl, Implementation serverImp)
+        public async Task SendLargeBinaryMessageAsync(Implementation serverImp, Implementation clientImpl)
         {
-            Console.WriteLine("[Client] SendLargeBinaryMessage");
+            this.logger.LogDebug("[Client] SendLargeBinaryMessage");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             using (IServer server = serverImp switch
             {
-                Implementation.Ninja => new NinjaServer(),
-                Implementation.Samurai => new SamuraiServer(),
-                _ => new EsbjörnServer()
+                Implementation.Ninja => new NinjaServer(this.logger),
+                Implementation.Samurai => new SamuraiServer(this.logger),
+                _ => new EsbjörnServer(this.logger)
             })
             {
                 server.StartListener();
@@ -406,27 +433,27 @@ namespace Samurai.WebSockets.UnitTests
                 if (clientImpl == Implementation.Samurai)
                 {
                     var factory = new WebSocketClientFactory();
-                    Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync:Samurai");
+                    this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:Samurai");
                     webSocket = await factory.ConnectAsync(server.Address!, new WebSocketClientOptions(), cts.Token);
                 }
                 else if (clientImpl == Implementation.Ninja)
                 {
                     var factory = new Ninja.WebSockets.WebSocketClientFactory();
-                    Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync:Ninja");
+                    this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:Ninja");
                     webSocket = await factory.ConnectAsync(server.Address!, new Ninja.WebSockets.WebSocketClientOptions(), cts.Token);
                 }
                 else
                 {
                     var client = new ClientWebSocket();
-                    Console.WriteLine("[Client] SendLargeBinaryMessage:ConnectAsync:");
+                    this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:");
                     await client.ConnectAsync(server.Address!, cts.Token);
                     webSocket = client;
                 }
 
-                Console.WriteLine("[Client] SendLargeBinaryMessage:Random");
+                this.logger.LogDebug("[Client] SendLargeBinaryMessage:Random");
                 var rand = new Random();
                 var message = new byte[32 * 1023];
-                Random.Shared.NextBytes(message);
+                Shared.NextBytes(message);
                 // Send large message
                 await this.SendBinaryMessageAsync(webSocket, message, 1024, cts.Token);
 

@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Samurai.WebSockets.Internal;
+using Samurai.WebSockets.Extensions;
 
 using Xunit;
 
@@ -20,19 +21,21 @@ namespace Samurai.WebSockets.UnitTests
 {
     public class WebSocketClientTests
     {
+        private readonly ILogger logger;
         public WebSocketClientTests()
         {
             using var loggerFactory = LoggerFactory.Create(builder => builder
-                    .SetMinimumLevel(LogLevel.Trace)
+                    .SetMinimumLevel(LogLevel.Warning)
                     .AddConsole());
             Events.Log = new Events(loggerFactory.CreateLogger<Events>());
+            this.logger = loggerFactory.CreateLogger<WebSocketClientTests>();
         }
 
 
         [Fact]
         public async Task CanCancelReceiveAsync()
         {
-            Console.WriteLine("CanCancelReceive");
+            this.logger.LogDebug("CanCancelReceive");
             using var theInternet = new TheInternet();
             var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
             var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
@@ -47,7 +50,7 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public async Task CanCancelSendAsync()
         {
-            Console.WriteLine("CanCancelSend");
+            this.logger.LogDebug("CanCancelSend");
             using var theInternet = new TheInternet();
             var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -61,7 +64,7 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public async Task SimpleSendAsync()
         {
-            Console.WriteLine("SimpleSend");
+            this.logger.LogDebug("SimpleSend");
             using var theInternet = new TheInternet();
             var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
             var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
@@ -87,7 +90,7 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public async Task SimpleSendHugeMessageAsync()
         {
-            Console.WriteLine("SimpleSendHugeMessage");
+            this.logger.LogDebug("SimpleSendHugeMessage");
             using var theInternet = new TheInternet();
             var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
             var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
@@ -111,7 +114,7 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public async Task PermessageDeflateAsync()
         {
-            Console.WriteLine("PermessageDeflateSendAsync");
+            this.logger.LogDebug("PermessageDeflateSendAsync");
             using var theInternet = new TheInternet();
             var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, true, false, true, null);
             var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
@@ -135,7 +138,7 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public async Task PermessageDeflateGiantMessageAsync()
         {
-            Console.WriteLine("PermessageDeflateGiantMessage");
+            this.logger.LogDebug("PermessageDeflateGiantMessage");
             using var theInternet = new TheInternet();
             var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, true, false, true, null);
             var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
@@ -159,7 +162,7 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public async Task ReceiveBufferTooSmallToFitWebsocketFrameTestAsync()
         {
-            Console.WriteLine("ReceiveBufferTooSmallToFitWebsocketFrameTest");
+            this.logger.LogDebug("ReceiveBufferTooSmallToFitWebsocketFrameTest");
             string pipeName = Guid.NewGuid().ToString();
             using var clientPipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             using var serverPipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
@@ -190,7 +193,7 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public async Task SimpleNamedPipesAsync()
         {
-            Console.WriteLine("SimpleNamedPipes");
+            this.logger.LogDebug("SimpleNamedPipes");
             string pipeName = Guid.NewGuid().ToString();
             using var clientPipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             using var serverPipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
@@ -265,7 +268,7 @@ namespace Samurai.WebSockets.UnitTests
                         else
                         {
                             ms.Position = 0;
-                            using var reader = new StreamReader(ms, Encoding.UTF8, leaveOpen: true);
+                            using var reader = new StreamReader(ms, Encoding.UTF8, bufferSize: 1024, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
                             values.Add(new ReadResult { Text = reader.ReadToEnd(), Count = count });
                         }
                         count = 0;
@@ -308,7 +311,7 @@ namespace Samurai.WebSockets.UnitTests
                         }
                         else
                         {
-                            using var reader = new StreamReader(ms, Encoding.UTF8, leaveOpen: true);
+                            using var reader = new StreamReader(ms, Encoding.UTF8, bufferSize: 1024, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
                             value = reader.ReadToEnd();
                         }
 
@@ -321,7 +324,7 @@ namespace Samurai.WebSockets.UnitTests
                         var chunks = bytes
                             .Select((b, i) => new { Byte = b, Index = i })
                             .GroupBy(x => x.Index / chunkSize)
-                            .Select(g => g.Select(x => x.Byte).ToArray())
+                            .Select(g => new ArraySegment<byte>(g.Select(x => x.Byte).ToArray()))
                             .ToArray();
 
                         for (var i = 0; i < chunks.Length; i++)

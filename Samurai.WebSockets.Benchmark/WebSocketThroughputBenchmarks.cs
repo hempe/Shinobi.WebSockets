@@ -17,10 +17,9 @@ using BenchmarkDotNet.Order;
 
 using Samurai.WebSockets.Extensions;
 
-using Microsoft.Extensions.Logging;
-
 
 [SimpleJob(RuntimeMoniker.Net90)]
+// [SimpleJob(RuntimeMoniker.Net472)]
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [MinIterationCount(5)]
@@ -84,7 +83,7 @@ public class WebSocketThroughputBenchmarks
 
                 if (this.Server == "Ninja")
                 {
-                    using var listener = new TcpListener(IPAddress.Loopback, this.port);
+                    var listener = new TcpListener(IPAddress.Loopback, this.port);
                     listener.Start();
                     for (var i = 0; i < this.ClientCount; i++)
                     {
@@ -97,7 +96,7 @@ public class WebSocketThroughputBenchmarks
                         if (context.IsWebSocketRequest)
                         {
                             var webSocket = await server.AcceptWebSocketAsync(context, connectCts.Token).ConfigureAwait(false);
-                            tasks.Add(this.EchoLoopAsync(webSocket, this.serverCts.Token, [tcpClient, stream]));
+                            tasks.Add(this.EchoLoopAsync(webSocket, this.serverCts.Token, new IDisposable[] { tcpClient, stream }));
                         }
                         else
                         {
@@ -111,7 +110,7 @@ public class WebSocketThroughputBenchmarks
                 }
                 else if (this.Server.StartsWith("Samurai"))
                 {
-                    using var listener = new TcpListener(IPAddress.Loopback, this.port);
+                    var listener = new TcpListener(IPAddress.Loopback, this.port);
                     listener.Start();
                     for (var i = 0; i < this.ClientCount; i++)
                     {
@@ -125,7 +124,7 @@ public class WebSocketThroughputBenchmarks
                         if (context.IsWebSocketRequest)
                         {
                             var webSocket = await server.AcceptWebSocketAsync(context, options, connectCts.Token).ConfigureAwait(false);
-                            tasks.Add(this.EchoLoopAsync(webSocket, this.serverCts.Token, [tcpClient, stream]));
+                            tasks.Add(this.EchoLoopAsync(webSocket, this.serverCts.Token, new IDisposable[] { tcpClient, stream }));
                         }
                         else
                         {
@@ -140,7 +139,7 @@ public class WebSocketThroughputBenchmarks
                 else if (this.Server == "Native")
                 {
                     var listener = new HttpListener();
-                    listener.Prefixes.Add($"http://localhost:{port}/");
+                    listener.Prefixes.Add($"http://localhost:{this.port}/");
                     listener.Start();
                     for (var i = 0; i < this.ClientCount; i++)
                     {
@@ -148,7 +147,7 @@ public class WebSocketThroughputBenchmarks
                         if (context.Request.IsWebSocketRequest)
                         {
                             var webSocketContext = await context.AcceptWebSocketAsync(null);
-                            tasks.Add(this.EchoLoopAsync(webSocketContext.WebSocket, this.serverCts.Token, []));
+                            tasks.Add(this.EchoLoopAsync(webSocketContext.WebSocket, this.serverCts.Token, new IDisposable[0]));
                         }
                     }
                     Console.WriteLine($"All {this.ClientCount} clients connected and ready for WebSocket communication.");
@@ -177,39 +176,41 @@ public class WebSocketThroughputBenchmarks
         if (this.Client == "Ninja")
         {
             var client = new Ninja.WebSockets.WebSocketClientFactory();
-            for (var i = 0; i < this.ClientCount; i++)
+
+            this.clients = await Task.WhenAll(Enumerable.Range(0, this.ClientCount).Select(async _ =>
             {
-                this.clients[i] = await client.ConnectAsync(
+                return await client.ConnectAsync(
                     new Uri(this.serverUrl),
                     new Ninja.WebSockets.WebSocketClientOptions
                     {
                         SecWebSocketExtensions = this.permessageDeflate ? "permessage-deflate" : null
                     },
                     this.serverCts.Token).ConfigureAwait(false);
-            }
+            }));
+
         }
         else if (this.Client.StartsWith("Samurai"))
         {
             var client = new Samurai.WebSockets.WebSocketClientFactory();
-            for (var i = 0; i < this.ClientCount; i++)
+            this.clients = await Task.WhenAll(Enumerable.Range(0, this.ClientCount).Select(async _ =>
             {
-                this.clients[i] = await client.ConnectAsync(
+                return await client.ConnectAsync(
                     new Uri(this.serverUrl),
                     new Samurai.WebSockets.WebSocketClientOptions
                     {
                         SecWebSocketExtensions = this.permessageDeflate ? "permessage-deflate" : null
                     },
                     this.serverCts.Token).ConfigureAwait(false);
-            }
+            }));
         }
         else if (this.Client.StartsWith("Native"))
         {
-            for (var i = 0; i < this.ClientCount; i++)
+            this.clients = await Task.WhenAll(Enumerable.Range(0, this.ClientCount).Select(async _ =>
             {
                 var client = new ClientWebSocket();
                 await client.ConnectAsync(new Uri(this.serverUrl), this.serverCts.Token).ConfigureAwait(false);
-                this.clients[i] = client;
-            }
+                return client;
+            }));
         }
         else
         {
@@ -301,10 +302,10 @@ public class WebSocketThroughputBenchmarks
                         return;
 
                     var message = HandleWebSocketMessage(receiveBuffer, result, this.permessageDeflate);
-                    if (message != null)
+                    if (message.HasValue)
                     {
-                        if (message.Count != this.data.Count)
-                            throw new Exception($"[Server] Expected {this.permessageDeflate}: {this.data.Count} got {message.Count}");
+                        if (message.Value.Count != this.data.Count)
+                            throw new Exception($"[Server] Expected {this.permessageDeflate}: {this.data.Count} got {message.Value.Count}");
                         break;
                     }
                 }
@@ -320,7 +321,7 @@ public class WebSocketThroughputBenchmarks
         }
     }
 
-    private static ArraySegment<byte> HandleWebSocketMessage(Samurai.WebSockets.ArrayPoolStream messageBuffer, WebSocketReceiveResult result, bool permessageDeflate)
+    private static ArraySegment<byte>? HandleWebSocketMessage(Samurai.WebSockets.ArrayPoolStream messageBuffer, WebSocketReceiveResult result, bool permessageDeflate)
     {
         try
         {
@@ -363,14 +364,14 @@ public class WebSocketThroughputBenchmarks
                         return;
 
                     var message = HandleWebSocketMessage(receiveBuffer, result, this.permessageDeflate);
-                    if (message != null)
+                    if (message.HasValue)
                     {
-                        if (message.Count != this.data.Count)
+                        if (message.Value.Count != this.data.Count)
                         {
-                            throw new Exception($"[Server] Expected {this.permessageDeflate}: {this.data.Count} got {message.Count}");
+                            throw new Exception($"[Server] Expected {this.permessageDeflate}: {this.data.Count} got {message.Value.Count}");
                         }
 
-                        await webSocket.SendAsync(message, WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);
+                        await webSocket.SendAsync(message.Value, WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);
                         receiveBuffer.SetLength(0);
                     }
                 }

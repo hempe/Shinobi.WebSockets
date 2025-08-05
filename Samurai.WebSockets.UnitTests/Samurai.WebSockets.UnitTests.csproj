@@ -1,19 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFrameworks>net9.0;net472</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <SignAssembly>false</SignAssembly>
     <AssemblyOriginatorKeyFile>Samurai.WebSockets.pfx</AssemblyOriginatorKeyFile>
     <Configurations>Debug;Release;ReleaseSigned</Configurations>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <Nullable>enable</Nullable>
+    <LangVersion>8</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseSigned|AnyCPU'">
     <Optimize>true</Optimize>
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="System.Threading.Channels" Version="6.0.0" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Ninja.WebSockets" Version="1.1.8" />
@@ -25,7 +30,8 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.7" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.7" />
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0"
+      PrivateAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" Version="4.14.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>

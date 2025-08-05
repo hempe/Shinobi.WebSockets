@@ -10,12 +10,21 @@ using System.Threading.Tasks;
 using Samurai.WebSockets.Exceptions;
 using Samurai.WebSockets.Internal;
 
+#if NET9_0_OR_GREATER
+using System.Buffers.Text;
+using System.Runtime.InteropServices;
+#endif
+
 namespace Samurai.WebSockets
 {
-
     public readonly struct HttpHeader
     {
+#if NET9_0_OR_GREATER
+        private static readonly SearchValues<byte> CrLfBytes = SearchValues.Create(new byte[] { (byte)'\r', (byte)'\n' });
+#else
         private const string NewLine = "\r\n";
+#endif
+
         public readonly int? StatusCode;
         public readonly string? Method;
         public readonly string? Path;
@@ -52,7 +61,11 @@ namespace Samurai.WebSockets
             if (!this.headers.TryGetValue(headerName, out var values) || !values.Any())
                 return null;
 
+#if NET9_0_OR_GREATER
+            return string.Join(", ", values);
+#else
             return string.Join(", ", values.ToArray());
+#endif
         }
 
         /// <summary>
@@ -75,7 +88,7 @@ namespace Samurai.WebSockets
         public static async ValueTask<HttpHeader> ReadHttpHeaderAsync(Stream stream, CancellationToken cancellationToken)
         {
             const int MaxHeaderSize = 16 * 1024;
-            const int InitialChunkSize = 128;
+            const int InitialChunkSize = 1024; // Increased from 128 for better performance
 
             var headerBytes = Shared.Rent(MaxHeaderSize);
             var buffer = Shared.Rent(InitialChunkSize);
@@ -85,36 +98,46 @@ namespace Samurai.WebSockets
 
             try
             {
+#if NET9_0_OR_GREATER
+                // Use Memory<byte> for better performance on newer frameworks
+                var headerMemory = headerBytes.AsMemory(0, MaxHeaderSize);
+                var bufferMemory = buffer.AsMemory(0, InitialChunkSize);
+#endif
+
                 // Phase 1: Chunked reads (until close to limit)
                 while (MaxHeaderSize - totalHeaderBytes >= InitialChunkSize)
                 {
-                    int bytesRead = await stream.ReadAsync(buffer, 0, InitialChunkSize, cancellationToken).ConfigureAwait(false);
+#if NET9_0_OR_GREATER
+                    int bytesRead = await stream.ReadAsync(bufferMemory.Slice(0, Math.Min(InitialChunkSize, MaxHeaderSize - totalHeaderBytes)), cancellationToken).ConfigureAwait(false);
+#else
+                    int bytesRead = await stream.ReadAsync(buffer, 0, Math.Min(InitialChunkSize, MaxHeaderSize - totalHeaderBytes), cancellationToken).ConfigureAwait(false);
+#endif
                     if (bytesRead == 0)
                         return new HttpHeader();
 
+                    // Check for end sequence more efficiently
                     for (int i = 0; i < bytesRead; i++)
                     {
                         byte currentByte = buffer[i];
                         headerBytes[totalHeaderBytes++] = currentByte;
 
-                        switch ((char)currentByte)
+                        // State machine for \r\n\r\n detection
+                        sequenceIndex = currentByte switch
                         {
-                            case '\r':
-                                sequenceIndex = sequenceIndex == 0 || sequenceIndex == 2 ? sequenceIndex + 1 : 1;
-                                break;
+                            (byte)'\r' when sequenceIndex == 0 || sequenceIndex == 2 => sequenceIndex + 1,
+                            (byte)'\r' => 1,
+                            (byte)'\n' when sequenceIndex == 1 => 2,
+                            (byte)'\n' when sequenceIndex == 3 => 4, // Found complete sequence
+                            _ => 0
+                        };
 
-                            case '\n':
-                                if (sequenceIndex == 1)
-                                    sequenceIndex = 2;
-                                else if (sequenceIndex == 3)
-                                    return Parse(Encoding.UTF8.GetString(headerBytes, 0, totalHeaderBytes));
-                                else
-                                    sequenceIndex = 0;
-                                break;
-
-                            default:
-                                sequenceIndex = 0;
-                                break;
+                        if (sequenceIndex == 4)
+                        {
+#if NET9_0_OR_GREATER
+                            return Parse(headerBytes.AsSpan(0, totalHeaderBytes));
+#else
+                            return Parse(Encoding.UTF8.GetString(headerBytes, 0, totalHeaderBytes));
+#endif
                         }
                     }
                 }
@@ -123,38 +146,39 @@ namespace Samurai.WebSockets
                 var singleByteBuffer = Shared.Rent(1);
                 try
                 {
-                    while (true)
+                    while (totalHeaderBytes < MaxHeaderSize)
                     {
+#if NET9_0_OR_GREATER
+                        int bytesRead = await stream.ReadAsync(singleByteBuffer.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
+#else
                         int bytesRead = await stream.ReadAsync(singleByteBuffer, 0, 1, cancellationToken).ConfigureAwait(false);
+#endif
                         if (bytesRead == 0)
                             return new HttpHeader();
 
                         byte currentByte = singleByteBuffer[0];
-                        if (totalHeaderBytes >= MaxHeaderSize)
-                            throw new HttpHeaderTooLargeException("Http header too large (16KB)");
-
                         headerBytes[totalHeaderBytes++] = currentByte;
 
-                        switch ((char)currentByte)
+                        sequenceIndex = currentByte switch
                         {
-                            case '\r':
-                                sequenceIndex = sequenceIndex == 0 || sequenceIndex == 2 ? sequenceIndex + 1 : 1;
-                                break;
+                            (byte)'\r' when sequenceIndex == 0 || sequenceIndex == 2 => sequenceIndex + 1,
+                            (byte)'\r' => 1,
+                            (byte)'\n' when sequenceIndex == 1 => 2,
+                            (byte)'\n' when sequenceIndex == 3 => 4,
+                            _ => 0
+                        };
 
-                            case '\n':
-                                if (sequenceIndex == 1)
-                                    sequenceIndex = 2;
-                                else if (sequenceIndex == 3)
-                                    return Parse(Encoding.UTF8.GetString(headerBytes, 0, totalHeaderBytes));
-                                else
-                                    sequenceIndex = 0;
-                                break;
-
-                            default:
-                                sequenceIndex = 0;
-                                break;
+                        if (sequenceIndex == 4)
+                        {
+#if NET9_0_OR_GREATER
+                            return Parse(headerBytes.AsSpan(0, totalHeaderBytes));
+#else
+                            return Parse(Encoding.UTF8.GetString(headerBytes, 0, totalHeaderBytes));
+#endif
                         }
                     }
+
+                    throw new HttpHeaderTooLargeException("Http header too large (16KB)");
                 }
                 finally
                 {
@@ -168,39 +192,160 @@ namespace Samurai.WebSockets
             }
         }
 
+#if NET9_0_OR_GREATER
+        /// <summary>
+        /// Parse all HTTP headers from raw HTTP header bytes (optimized for .NET 9+)
+        /// </summary>
+        public static HttpHeader Parse(ReadOnlySpan<byte> httpHeaderBytes)
+        {
+            if (httpHeaderBytes.IsEmpty)
+                return new HttpHeader();
+
+            // Convert to string for parsing - in a real optimization, you'd parse directly from bytes
+            var httpHeader = Encoding.UTF8.GetString(httpHeaderBytes);
+            return ParseInternal(httpHeader.AsSpan());
+        }
+
+        /// <summary>
+        /// Parse all HTTP headers from a raw HTTP request/response string (optimized for .NET 9+)
+        /// </summary>
+        public static HttpHeader Parse(string httpHeader)
+        {
+            if (string.IsNullOrEmpty(httpHeader))
+                return new HttpHeader();
+
+            return ParseInternal(httpHeader.AsSpan());
+        }
+
+        private static HttpHeader ParseInternal(ReadOnlySpan<char> httpHeader)
+        {
+            if (httpHeader.IsEmpty)
+                return new HttpHeader();
+
+            var newlineIndex = httpHeader.IndexOf("\r\n".AsSpan());
+            if (newlineIndex == -1)
+                return new HttpHeader();
+
+            // Parse the first line
+            var firstLine = httpHeader.Slice(0, newlineIndex);
+            int? statusCode;
+            string? method = null;
+            string? path = null;
+            var headers = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+            if (firstLine.StartsWith("HTTP/".AsSpan()))
+            {
+                statusCode = ExtractStatusCodeSpan(firstLine);
+            }
+            else
+            {
+                statusCode = null;
+                var spaceIndex = firstLine.IndexOf(' ');
+                if (spaceIndex != -1)
+                {
+                    method = firstLine.Slice(0, spaceIndex).ToString();
+                    var secondSpaceIndex = firstLine.Slice(spaceIndex + 1).IndexOf(' ');
+                    if (secondSpaceIndex != -1)
+                    {
+                        path = firstLine.Slice(spaceIndex + 1, secondSpaceIndex).ToString();
+                    }
+                    else
+                    {
+                        path = firstLine.Slice(spaceIndex + 1).ToString();
+                    }
+                }
+            }
+
+            // Parse headers
+            var pos = newlineIndex + 2;
+            while (pos < httpHeader.Length)
+            {
+                var lineEnd = httpHeader.Slice(pos).IndexOf("\r\n".AsSpan());
+                if (lineEnd == -1) break;
+                lineEnd += pos;
+
+                if (lineEnd == pos) break; // Empty line
+
+                var colonPos = httpHeader.Slice(pos, lineEnd - pos).IndexOf(':');
+                if (colonPos == -1)
+                {
+                    pos = lineEnd + 2;
+                    continue;
+                }
+                colonPos += pos;
+
+                var headerName = httpHeader.Slice(pos, colonPos - pos).Trim().ToString();
+                var headerValue = httpHeader.Slice(colonPos + 1, lineEnd - colonPos - 1).Trim();
+
+                // Handle multi-line headers
+                var nextPos = lineEnd + 2;
+                var valueBuilder = new StringBuilder(headerValue.ToString());
+
+                while (nextPos < httpHeader.Length && (httpHeader[nextPos] == ' ' || httpHeader[nextPos] == '\t'))
+                {
+                    var nextLineEnd = httpHeader.Slice(nextPos).IndexOf("\r\n".AsSpan());
+                    if (nextLineEnd == -1) break;
+                    nextLineEnd += nextPos;
+
+                    valueBuilder.Append(" ").Append(httpHeader.Slice(nextPos, nextLineEnd - nextPos).Trim().ToString());
+                    nextPos = nextLineEnd + 2;
+                }
+
+                if (!headers.TryGetValue(headerName, out var valuesList))
+                {
+                    valuesList = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    headers[headerName] = valuesList;
+                }
+
+                valuesList.Add(valueBuilder.ToString());
+                pos = lineEnd + 2;
+            }
+
+            return new HttpHeader(statusCode, method, path, headers);
+        }
+
+        private static int? ExtractStatusCodeSpan(ReadOnlySpan<char> firstLine)
+        {
+            var firstSpace = firstLine.IndexOf(' ');
+            if (firstSpace == -1) return null;
+
+            var secondSpace = firstLine.Slice(firstSpace + 1).IndexOf(' ');
+            var endPos = secondSpace == -1 ? firstLine.Length : firstSpace + 1 + secondSpace;
+
+            var statusCodeSpan = firstLine.Slice(firstSpace + 1, endPos - firstSpace - 1);
+            return int.TryParse(statusCodeSpan, out var statusCode) ? statusCode : (int?)null;
+        }
+
+#else
         /// <summary>
         /// Parse all HTTP headers from a raw HTTP request/response string
         /// </summary>
-        /// <param name="httpHeader">Raw HTTP header string</param>
-        /// <returns>ParseResult with status code and all headers</returns>
         public static HttpHeader Parse(string httpHeader)
         {
+            const string NewLine = "\r\n";
 
             if (string.IsNullOrEmpty(httpHeader))
                 return new HttpHeader();
 
-            var headerStart = httpHeader.IndexOf(NewLine);
-
+            var headerStart = httpHeader.IndexOf(NewLine, StringComparison.Ordinal);
             if (headerStart == -1)
                 return new HttpHeader();
 
-            // Parse the first line to extract status code for responses
+            // Parse the first line
             var firstLine = httpHeader.Substring(0, headerStart);
             int? statusCode;
             string? method = null;
             string? path = null;
             var headers = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
-            if (firstLine.StartsWith("HTTP/"))
+            if (firstLine.StartsWith("HTTP/", StringComparison.Ordinal))
             {
-                // Response
                 statusCode = ExtractStatusCode(firstLine);
             }
             else
             {
                 statusCode = null;
-                // Request line: METHOD path HTTP/version
-                var parts = firstLine.Split(' ');
+                var parts = firstLine.Split(new[] { ' ' }, 3, StringSplitOptions.None);
                 if (parts.Length >= 2)
                 {
                     method = parts[0];
@@ -208,17 +353,16 @@ namespace Samurai.WebSockets
                 }
             }
 
-            // Skip the first line
+            // Parse headers
             var pos = headerStart + 2;
             var length = httpHeader.Length;
 
             while (pos < length)
             {
-                var lineEnd = httpHeader.IndexOf(NewLine, pos);
+                var lineEnd = httpHeader.IndexOf(NewLine, pos, StringComparison.Ordinal);
                 if (lineEnd == -1) break;
 
-                // Empty line indicates end of headers
-                if (lineEnd == pos) break;
+                if (lineEnd == pos) break; // Empty line
 
                 var colonPos = httpHeader.IndexOf(':', pos);
                 if (colonPos == -1 || colonPos > lineEnd)
@@ -227,63 +371,48 @@ namespace Samurai.WebSockets
                     continue;
                 }
 
-                // Extract header name and value
                 var headerName = httpHeader.Substring(pos, colonPos - pos).Trim();
-                var headerValue = new StringBuilder(httpHeader.Substring(colonPos + 1, lineEnd - colonPos - 1).Trim());
+                var headerValueBuilder = new StringBuilder(httpHeader.Substring(colonPos + 1, lineEnd - colonPos - 1).Trim());
 
-                // Handle multi-line headers (folded headers)
+                // Handle multi-line headers
                 var nextPos = lineEnd + 2;
                 while (nextPos < length && (httpHeader[nextPos] == ' ' || httpHeader[nextPos] == '\t'))
                 {
-                    var nextLineEnd = httpHeader.IndexOf(NewLine, nextPos);
+                    var nextLineEnd = httpHeader.IndexOf(NewLine, nextPos, StringComparison.Ordinal);
                     if (nextLineEnd == -1) break;
 
-                    headerValue.Append(" " + httpHeader.Substring(nextPos, nextLineEnd - nextPos).Trim());
+                    headerValueBuilder.Append(" ").Append(httpHeader.Substring(nextPos, nextLineEnd - nextPos).Trim());
                     nextPos = nextLineEnd + 2;
                 }
 
-                // Add to headers list (supporting multiple values)
-                HashSet<string>? valuesList;
-                if (!headers.TryGetValue(headerName, out valuesList))
+                if (!headers.TryGetValue(headerName, out var valuesList))
                 {
                     valuesList = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     headers[headerName] = valuesList;
                 }
 
-                valuesList.Add(headerValue.ToString());
-
+                valuesList.Add(headerValueBuilder.ToString());
                 pos = lineEnd + 2;
             }
 
             return new HttpHeader(statusCode, method, path, headers);
         }
 
-
-        /// <summary>
-        /// Extract status code from HTTP response line
-        /// </summary>
-        /// <param name="firstLine">First line of HTTP response</param>
-        /// <returns>Status code or null if not a response</returns>
         private static int? ExtractStatusCode(string firstLine)
         {
-            // Check if it's an HTTP response (starts with HTTP/)
-            if (!firstLine.StartsWith("HTTP/"))
+            if (!firstLine.StartsWith("HTTP/", StringComparison.Ordinal))
                 return null;
 
-            // Find the first space after HTTP/1.1
             var firstSpace = firstLine.IndexOf(' ');
             if (firstSpace == -1) return null;
 
-            // Find the second space (end of status code)
             var secondSpace = firstLine.IndexOf(' ', firstSpace + 1);
             var endPos = secondSpace == -1 ? firstLine.Length : secondSpace;
 
-            // Extract status code
             var statusCodeStr = firstLine.Substring(firstSpace + 1, endPos - firstSpace - 1);
-
-            int statusCode;
-            return int.TryParse(statusCodeStr, out statusCode) ? statusCode : (int?)null;
+            return int.TryParse(statusCodeStr, out var statusCode) ? statusCode : (int?)null;
         }
+#endif
 
         /// <summary>
         /// Validate WebSocket handshake response
@@ -294,7 +423,7 @@ namespace Samurai.WebSockets
         {
             if (result.StatusCode != 101)
             {
-                throw new InvalidOperationException(string.Format("WebSocket handshake failed: Expected status 101, got {0}", result.StatusCode));
+                throw new InvalidOperationException($"WebSocket handshake failed: Expected status 101, got {result.StatusCode}");
             }
 
             if (!result.HasHeader("Sec-WebSocket-Accept"))
@@ -303,5 +432,4 @@ namespace Samurai.WebSockets
             }
         }
     }
-
 }
