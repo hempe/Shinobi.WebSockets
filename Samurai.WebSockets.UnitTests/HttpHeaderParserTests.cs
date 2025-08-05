@@ -81,7 +81,7 @@ namespace Samurai.WebSockets.UnitTests
             var result = HttpHeader.Parse(validResponse);
 
             // Act & Assert - Should not throw
-            HttpHeader.ValidateWebSocketHandshake(result);
+            result.ValidateWebSocketHandshake();
         }
 
         [Fact]
@@ -96,7 +96,7 @@ namespace Samurai.WebSockets.UnitTests
 
             // Act & Assert
             var ex = Assert.Throws<InvalidOperationException>(() =>
-                HttpHeader.ValidateWebSocketHandshake(result));
+                result.ValidateWebSocketHandshake());
 
             Assert.Contains("Expected status 101, got 400", ex.Message);
         }
@@ -113,7 +113,7 @@ namespace Samurai.WebSockets.UnitTests
 
             // Act & Assert
             var ex = Assert.Throws<InvalidOperationException>(() =>
-                HttpHeader.ValidateWebSocketHandshake(result));
+                result.ValidateWebSocketHandshake());
 
             Assert.Contains("Missing Sec-WebSocket-Accept", ex.Message);
         }

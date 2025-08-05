@@ -58,62 +58,65 @@ public class Program
     {
         var assembly = typeof(Samurai.WebSockets.UnitTests.TheInternetTests).Assembly;
         string assemblyPath = assembly.Location;
-        string hardcodedTestClass = assembly.GetTypes().First(x => x.Name == name).FullName;
-
-        using var controller = new XunitFrontController(AppDomainSupport.Denied, assemblyPath);
-        using var discoverySink = new TestDiscoverySink();
-
-        // 1. Discover tests
-        controller.Find(includeSourceInformation: false, discoverySink, TestFrameworkOptions.ForDiscovery());
-        discoverySink.Finished.WaitOne();
-
-        // 2. Filter to only tests from the one class
-        var matchingTests = discoverySink.TestCases
-            .Where(tc => tc.TestMethod.TestClass.Class.Name == hardcodedTestClass)
-            .ToList();
-
-        if (matchingTests.Count == 0)
+        foreach (var test in assembly.GetTypes().Where(x => x.Name.Contains(name)))
         {
-            Console.WriteLine($"No tests found in: {hardcodedTestClass}");
-            return;
-        }
+            string hardcodedTestClass = test.FullName;
 
-        // 3. Run only filtered tests
-        using var executionSink = new TestExecutionSink();
-        controller.RunTests(matchingTests, executionSink, TestFrameworkOptions.ForExecution());
-        executionSink.Finished.WaitOne();
+            using var controller = new XunitFrontController(AppDomainSupport.Denied, assemblyPath);
+            using var discoverySink = new TestDiscoverySink();
 
-        // 4. Report results
-        foreach (var result in executionSink.TestResults)
-        {
-            switch (result)
+            // 1. Discover tests
+            controller.Find(includeSourceInformation: false, discoverySink, TestFrameworkOptions.ForDiscovery());
+            discoverySink.Finished.WaitOne();
+
+            // 2. Filter to only tests from the one class
+            var matchingTests = discoverySink.TestCases
+                .Where(tc => tc.TestMethod.TestClass.Class.Name == hardcodedTestClass)
+                .ToList();
+
+            if (matchingTests.Count == 0)
             {
-                case ITestPassed passed:
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine($"✅ {passed.Test.DisplayName}");
-                    Console.ResetColor();
-                    break;
-                case ITestFailed failed:
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"❌ {failed.Test.DisplayName}");
-                    Console.WriteLine(string.Join("\n", failed.Messages));
-                    Console.ResetColor();
-                    break;
-                case ITestSkipped skipped:
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine($"⚠️ {skipped.Test.DisplayName} (Skipped)");
-                    Console.ResetColor();
-                    break;
+                Console.WriteLine($"No tests found in: {hardcodedTestClass}");
+                return;
             }
-        }
 
-        Console.WriteLine($"Finished running {executionSink.TestResults.Count} test(s) from {hardcodedTestClass}");
+            // 3. Run only filtered tests
+            using var executionSink = new TestExecutionSink();
+            controller.RunTests(matchingTests, executionSink, TestFrameworkOptions.ForExecution());
+            executionSink.Finished.WaitOne();
+
+            // 4. Report results
+            foreach (var result in executionSink.TestResults)
+            {
+                switch (result)
+                {
+                    case ITestPassed passed:
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine($"✅ {passed.Test.DisplayName}");
+                        Console.ResetColor();
+                        break;
+                    case ITestFailed failed:
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"❌ {failed.Test.DisplayName}");
+                        Console.WriteLine(string.Join("\n", failed.Messages));
+                        Console.ResetColor();
+                        break;
+                    case ITestSkipped skipped:
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine($"⚠️ {skipped.Test.DisplayName} (Skipped)");
+                        Console.ResetColor();
+                        break;
+                }
+            }
+
+            Console.WriteLine($"Finished running {executionSink.TestResults.Count} test(s) from {hardcodedTestClass}");
+        }
     }
 }
 
 internal sealed class TestExecutionSink : TestMessageSink, IDisposable
 {
-    public List<Xunit.Abstractions.ITestResultMessage> TestResults { get; } = new List<Xunit.Abstractions.ITestResultMessage>();
+    public List<ITestResultMessage> TestResults { get; } = new List<ITestResultMessage>();
     public ManualResetEvent Finished { get; } = new ManualResetEvent(false);
 
     public TestExecutionSink()

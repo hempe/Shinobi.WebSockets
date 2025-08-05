@@ -28,7 +28,7 @@ namespace Samurai.WebSockets
         public readonly int? StatusCode;
         public readonly string? Method;
         public readonly string? Path;
-        private readonly IReadOnlyDictionary<string, HashSet<string>> headers;
+        internal readonly IReadOnlyDictionary<string, HashSet<string>> headers;
 
         public HttpHeader(int? statusCode, string? method, string? path, IReadOnlyDictionary<string, HashSet<string>> headers)
         {
@@ -415,21 +415,122 @@ namespace Samurai.WebSockets
 #endif
 
         /// <summary>
-        /// Validate WebSocket handshake response
+        /// Build HTTP response string from this header
         /// </summary>
-        /// <param name="result">Parse result from handshake response</param>
-        /// <exception cref="InvalidOperationException">Thrown when handshake validation fails</exception>
-        public static void ValidateWebSocketHandshake(HttpHeader result)
+        /// <param name="reasonPhrase">HTTP reason phrase (e.g., "Switching Protocols")</param>
+        /// <returns>Complete HTTP response string</returns>
+        public string ToHttpResponse(string reasonPhrase = "OK")
         {
-            if (result.StatusCode != 101)
+            if (!this.StatusCode.HasValue)
+                throw new InvalidOperationException("Cannot build HTTP response without status code");
+
+#if NET9_0_OR_GREATER
+            var builder = new StringBuilder();
+            builder.Append($"HTTP/1.1 {this.StatusCode.Value} {reasonPhrase}\r\n");
+
+            if (this.headers != null)
             {
-                throw new InvalidOperationException($"WebSocket handshake failed: Expected status 101, got {result.StatusCode}");
+                foreach (var header in this.headers)
+                {
+                    foreach (var value in header.Value)
+                    {
+                        builder.Append($"{header.Key}: {value}\r\n");
+                    }
+                }
             }
 
-            if (!result.HasHeader("Sec-WebSocket-Accept"))
+            builder.Append("\r\n");
+            return builder.ToString();
+#else
+            var builder = new StringBuilder();
+            builder.AppendFormat("HTTP/1.1 {0} {1}\r\n", StatusCode.Value, reasonPhrase);
+            
+            if (headers != null)
             {
-                throw new InvalidOperationException("WebSocket handshake failed: Missing Sec-WebSocket-Accept header");
+                foreach (var header in headers)
+                {
+                    foreach (var value in header.Value)
+                    {
+                        builder.AppendFormat("{0}: {1}\r\n", header.Key, value);
+                    }
+                }
             }
+            
+            builder.Append("\r\n");
+            return builder.ToString();
+#endif
+        }
+
+        /// <summary>
+        /// Build HTTP request string from this header
+        /// </summary>
+        /// <param name="httpVersion">HTTP version (default: "HTTP/1.1")</param>
+        /// <returns>Complete HTTP request string</returns>
+        public string ToHttpRequest(string httpVersion = "HTTP/1.1")
+        {
+            if (string.IsNullOrEmpty(this.Method) || string.IsNullOrEmpty(this.Path))
+                throw new InvalidOperationException("Cannot build HTTP request without method and path");
+
+#if NET9_0_OR_GREATER
+            var builder = new StringBuilder();
+            builder.Append($"{this.Method} {this.Path} {httpVersion}\r\n");
+
+            if (this.headers != null)
+            {
+                foreach (var header in this.headers)
+                {
+                    foreach (var value in header.Value)
+                    {
+                        builder.Append($"{header.Key}: {value}\r\n");
+                    }
+                }
+            }
+
+            builder.Append("\r\n");
+            return builder.ToString();
+#else
+            var builder = new StringBuilder();
+            builder.AppendFormat("{0} {1} {2}\r\n", Method, Path, httpVersion);
+            
+            if (headers != null)
+            {
+                foreach (var header in headers)
+                {
+                    foreach (var value in header.Value)
+                    {
+                        builder.AppendFormat("{0}: {1}\r\n", header.Key, value);
+                    }
+                }
+            }
+            
+            builder.Append("\r\n");
+            return builder.ToString();
+#endif
+        }
+
+        /// <summary>
+        /// Create a new HttpHeader for building responses
+        /// </summary>
+        public static HttpHeaderBuilder CreateResponse(int statusCode)
+            => new HttpHeaderBuilder(statusCode, null, null);
+
+        /// <summary>
+        /// Create a new HttpHeader for building requests
+        /// </summary>
+        public static HttpHeaderBuilder CreateRequest(string? method, string? path)
+            => new HttpHeaderBuilder(null, method, path);
+
+        /// <summary>
+        /// Validate WebSocket handshake response
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown when handshake validation fails</exception>
+        public void ValidateWebSocketHandshake()
+        {
+            if (this.StatusCode != 101)
+                throw new InvalidOperationException($"WebSocket handshake failed: Expected status 101, got {this.StatusCode}");
+
+            if (!this.HasHeader("Sec-WebSocket-Accept"))
+                throw new InvalidOperationException("WebSocket handshake failed: Missing Sec-WebSocket-Accept header");
         }
     }
 }
