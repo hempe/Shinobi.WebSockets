@@ -112,7 +112,7 @@ namespace Samurai.WebSockets
 
             try
             {
-                response = await HttpHeader.ReadHttpResponseAsync(responseStream, cancellationToken).ConfigureAwait(false);
+                response = await HttpResponse.ReadHttpResponseAsync(responseStream, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

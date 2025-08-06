@@ -366,7 +366,7 @@ namespace Samurai.WebSockets.UnitTests
                                 "\r\n";
 
             // Act - Parse then rebuild
-            var parsed = HttpHeader.ParseRequest(originalRequest);
+            var parsed = HttpRequest.ParseRequest(originalRequest);
             Assert.NotNull(parsed);
 
             var rebuilt = HttpRequest.Create(parsed.Method, parsed.Path)
