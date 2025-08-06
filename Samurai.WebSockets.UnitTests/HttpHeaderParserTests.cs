@@ -25,7 +25,7 @@ namespace Samurai.WebSockets.UnitTests
                          "\r\n";
 
             // Act
-            var result = HttpRequest.ParseRequest(request);
+            var result = HttpRequest.Parse(request);
 
             // Assert
             Assert.NotNull(result);
@@ -55,7 +55,7 @@ namespace Samurai.WebSockets.UnitTests
                           "\r\n";
 
             // Act
-            var result = HttpResponse.ParseResponse(response);
+            var result = HttpResponse.Parse(response);
 
             // Assert
             Assert.NotNull(result);
@@ -79,7 +79,7 @@ namespace Samurai.WebSockets.UnitTests
                                "Sec-WebSocket-Accept: HSmrc0sMlYUkAGmm5OPpG2HaGWk=\r\n" +
                                "\r\n";
 
-            var result = HttpResponse.ParseResponse(validResponse);
+            var result = HttpResponse.Parse(validResponse);
 
             Assert.NotNull(result);
             Assert.Equal(101, result.StatusCode);
@@ -94,7 +94,7 @@ namespace Samurai.WebSockets.UnitTests
                                  "Content-Type: text/plain\r\n" +
                                  "\r\n";
 
-            var result = HttpResponse.ParseResponse(invalidResponse);
+            var result = HttpResponse.Parse(invalidResponse);
 
             // Act & Assert
             Assert.NotNull(result);
@@ -109,7 +109,7 @@ namespace Samurai.WebSockets.UnitTests
                                        "Upgrade: websocket\r\n" +
                                        "\r\n";
 
-            var result = HttpResponse.ParseResponse(missingAcceptResponse);
+            var result = HttpResponse.Parse(missingAcceptResponse);
 
             // Act & Assert
             Assert.NotNull(result);
@@ -130,7 +130,7 @@ namespace Samurai.WebSockets.UnitTests
                          "\r\n";
 
             // Act
-            var result = HttpRequest.ParseRequest(request);
+            var result = HttpRequest.Parse(request);
             Assert.NotNull(result);
 
             // Assert
@@ -159,7 +159,7 @@ namespace Samurai.WebSockets.UnitTests
                           "\r\n";
 
             // Act
-            var result = HttpResponse.ParseResponse(response);
+            var result = HttpResponse.Parse(response);
             Assert.NotNull(result);
 
             // Assert
@@ -193,7 +193,7 @@ namespace Samurai.WebSockets.UnitTests
                          "\r\n";
 
             // Act
-            var result = HttpRequest.ParseRequest(request);
+            var result = HttpRequest.Parse(request);
             Assert.NotNull(result);
             // Assert
             var userAgent = result.GetHeaderValue("User-Agent");
@@ -207,23 +207,23 @@ namespace Samurai.WebSockets.UnitTests
         public void Parse_EdgeCases_ShouldHandleGracefully()
         {
             // Test empty input
-            var emptyResult = HttpResponse.ParseResponse("");
+            var emptyResult = HttpResponse.Parse("");
             Assert.Null(emptyResult);
 
             // Test status-only response
-            var statusOnlyResult = HttpResponse.ParseResponse("HTTP/1.1 404 Not Found\r\n\r\n");
+            var statusOnlyResult = HttpResponse.Parse("HTTP/1.1 404 Not Found\r\n\r\n");
             Assert.NotNull(statusOnlyResult);
             Assert.Equal(404, statusOnlyResult.StatusCode);
             Assert.Empty(statusOnlyResult.AsKeyValuePairs());
 
             // Test malformed header (missing colon)
-            var malformedResult = HttpResponse.ParseResponse("HTTP/1.1 200 OK\r\nHost example.com\r\nContent-Type: text/plain\r\n\r\n");
+            var malformedResult = HttpResponse.Parse("HTTP/1.1 200 OK\r\nHost example.com\r\nContent-Type: text/plain\r\n\r\n");
             Assert.NotNull(malformedResult);
             Assert.Equal("text/plain", malformedResult.GetHeaderValue("Content-Type"));
             Assert.False(malformedResult.HasHeader("Host example.com"));
 
             // Test header with empty value
-            var emptyValueResult = HttpResponse.ParseResponse("HTTP/1.1 200 OK\r\nX-Empty:\r\nContent-Length: 0\r\n\r\n");
+            var emptyValueResult = HttpResponse.Parse("HTTP/1.1 200 OK\r\nX-Empty:\r\nContent-Length: 0\r\n\r\n");
             Assert.NotNull(emptyValueResult);
             Assert.Equal("", emptyValueResult.GetHeaderValue("X-Empty"));
             Assert.Equal("0", emptyValueResult.GetHeaderValue("Content-Length"));
@@ -243,7 +243,7 @@ namespace Samurai.WebSockets.UnitTests
             var input = string.IsNullOrEmpty(firstLine) ? "" : firstLine + "\r\n\r\n";
 
             // Act
-            var result = HttpResponse.ParseResponse(input);
+            var result = HttpResponse.Parse(input);
 
             // Assert
             Assert.Equal(expectedStatusCode, result?.StatusCode);

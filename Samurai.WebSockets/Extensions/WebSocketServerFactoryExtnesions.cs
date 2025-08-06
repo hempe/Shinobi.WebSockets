@@ -26,7 +26,7 @@ namespace Samurai.WebSockets.Extensions
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>Http data read from the stream</returns>
         public static async ValueTask<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(this Stream stream, CancellationToken cancellationToken = default(CancellationToken))
-            => new WebSocketHttpContext(await HttpRequest.ReadHttpRequestAsync(stream, cancellationToken).ConfigureAwait(false), stream);
+            => new WebSocketHttpContext(await HttpRequest.ReadAsync(stream, cancellationToken).ConfigureAwait(false), stream);
 
         /// <summary>
         /// Accept web socket with default options

@@ -166,7 +166,7 @@ namespace Samurai.WebSockets
                     this.logger.LogInformation("Server: Connection opened.");
                     var stream = this.Certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), this.Certificate);
 
-                    context = new WebSocketHttpContext(await HttpRequest.ReadHttpRequestAsync(stream, cancellationToken).ConfigureAwait(false), stream);
+                    context = new WebSocketHttpContext(await HttpRequest.ReadAsync(stream, cancellationToken).ConfigureAwait(false), stream);
 
                     if (context.IsWebSocketRequest)
                     {

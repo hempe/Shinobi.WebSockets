@@ -32,7 +32,7 @@ namespace Samurai.WebSockets
         /// <param name="stream">The stream to read UTF8 text from</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>The HTTP response</returns>
-        public static async ValueTask<HttpResponse?> ReadHttpResponseAsync(Stream stream, CancellationToken cancellationToken)
+        public static async ValueTask<HttpResponse?> ReadAsync(Stream stream, CancellationToken cancellationToken)
         {
             var headerData = await ReadHttpHeaderDataAsync(stream, cancellationToken).ConfigureAwait(false);
 
@@ -40,9 +40,9 @@ namespace Samurai.WebSockets
                 return null;
 
 #if NET9_0_OR_GREATER
-            return ParseResponse(headerData);
+            return Parse(headerData);
 #else
-            return ParseResponse(Encoding.UTF8.GetString(headerData.Array!, headerData.Offset, headerData.Count));
+            return Parse(Encoding.UTF8.GetString(headerData.Array!, headerData.Offset, headerData.Count));
 #endif
         }
 
@@ -50,27 +50,27 @@ namespace Samurai.WebSockets
         /// <summary>
         /// Parse HTTP response from raw HTTP header bytes (optimized for .NET 9+)
         /// </summary>
-        public static HttpResponse? ParseResponse(ReadOnlySpan<byte> httpHeaderBytes)
+        public static HttpResponse? Parse(ReadOnlySpan<byte> httpHeaderBytes)
         {
             if (httpHeaderBytes.IsEmpty)
                 return null;
 
             var httpHeader = Encoding.UTF8.GetString(httpHeaderBytes);
-            return ParseResponseInternal(httpHeader.AsSpan());
+            return ParseInternal(httpHeader.AsSpan());
         }
 
         /// <summary>
         /// Parse HTTP response from a raw HTTP response string (optimized for .NET 9+)
         /// </summary>
-        public static HttpResponse? ParseResponse(string httpHeader)
+        public static HttpResponse? Parse(string httpHeader)
         {
             if (string.IsNullOrEmpty(httpHeader))
                 return null;
 
-            return ParseResponseInternal(httpHeader.AsSpan());
+            return ParseInternal(httpHeader.AsSpan());
         }
 
-        private static HttpResponse? ParseResponseInternal(ReadOnlySpan<char> httpHeader)
+        private static HttpResponse? ParseInternal(ReadOnlySpan<char> httpHeader)
         {
             if (httpHeader.IsEmpty)
                 return null;
@@ -110,7 +110,7 @@ namespace Samurai.WebSockets
         /// <summary>
         /// Parse HTTP response from a raw HTTP response string
         /// </summary>
-        public static HttpResponse? ParseResponse(string httpHeader)
+        public static HttpResponse? Parse(string httpHeader)
         {
             const string NewLine = "\r\n";
 
