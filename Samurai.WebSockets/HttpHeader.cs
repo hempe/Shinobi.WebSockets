@@ -28,9 +28,9 @@ namespace Samurai.WebSockets
         private const string NewLine = "\r\n";
 #endif
 
-        internal readonly IReadOnlyDictionary<string, HashSet<string>> headers;
+        internal readonly IDictionary<string, HashSet<string>> headers;
 
-        protected HttpHeader(IReadOnlyDictionary<string, HashSet<string>> headers)
+        protected HttpHeader(IDictionary<string, HashSet<string>> headers)
         {
             this.headers = headers;
         }

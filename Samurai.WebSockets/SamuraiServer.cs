@@ -146,7 +146,7 @@ namespace Samurai.WebSockets
             }
         }
 
-        public Func<WebSocketHttpContext, ValueTask<HttpErrorr?>>? OnAcceptAsync { get; }
+        public Func<WebSocketHttpContext, ValueTask<HttpError?>>? OnAcceptAsync { get; }
 
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)
         {
@@ -166,7 +166,19 @@ namespace Samurai.WebSockets
                     this.logger.LogInformation("Server: Connection opened.");
                     var stream = this.Certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), this.Certificate);
 
-                    context = new WebSocketHttpContext(await HttpRequest.ReadAsync(stream, cancellationToken).ConfigureAwait(false), stream);
+                    var httpRequest = await HttpRequest.ReadAsync(stream, cancellationToken).ConfigureAwait(false);
+                    if (httpRequest is null)
+                    {
+                        var response = HttpResponse.Create(400)
+                             .AddHeader("Content-Type", "text/plain")
+                             .Build();
+
+                        await stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
+                        stream.Close();
+                        return;
+                    }
+
+                    context = new WebSocketHttpContext(httpRequest, stream);
 
                     if (context.IsWebSocketRequest)
                     {
@@ -175,8 +187,8 @@ namespace Samurai.WebSockets
                             var error = await this.OnAcceptAsync(context);
                             if (error.HasValue)
                             {
-                                var response = error.Value.Header.ToHttpResponse(error.Value.Messsage, error.Value.Body);
-                                this.logger.LogInformation("Http accept was declined: {StatusCode}, {Message}", error.Value.Header.StatusCode, error.Value.Messsage);
+                                var response = error.Value.Header.WithBody(error.Value.Body).Build();
+                                this.logger.LogInformation("Http accept was declined: {StatusCode}, {Body}", error.Value.Header.StatusCode, error.Value.Body);
                                 await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
                                 context.Stream.Close();
                                 return;
@@ -191,7 +203,8 @@ namespace Samurai.WebSockets
                             .AddHeader("Upgrade", "websocket")
                             .AddHeader("Connection", "close")
                             .AddHeader("Content-Type", "text/plain")
-                            .ToHttpResponse("Upgrade Required", "WebSocket connection required. Use a WebSocket client.");
+                            .WithBody("WebSocket connection required. Use a WebSocket client.")
+                            .Build();
 
                         this.logger.LogInformation("Http header contains no web socket upgrade request. Close");
                         await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
@@ -213,7 +226,8 @@ namespace Samurai.WebSockets
                     {
                         var response = HttpResponse.Create(500)
                             .AddHeader("Content-Type", "text/plain")
-                            .ToHttpResponse("Internal Server Error", ex.Message);
+                            .WithBody(ex.Message)
+                            .Build();
 
                         await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
                         context.Stream.Close();
@@ -262,10 +276,9 @@ namespace Samurai.WebSockets
     }
 
 
-    public struct HttpErrorr
+    public struct HttpError
     {
         public HttpResponse Header { get; }
-        public string Messsage { get; }
         public string? Body { get; }
     }
 

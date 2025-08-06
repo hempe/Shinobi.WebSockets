@@ -15,7 +15,7 @@ namespace Samurai.WebSockets.UnitTests
                 .AddHeader("Content-Type", "application/json")
                 .AddHeader("Cache-Control", "no-cache")
                 .AddHeader("Server", "TestServer/1.0")
-                .ToHttpResponse("OK");
+                .Build();
 
             // Assert
             var expected = "HTTP/1.1 200 OK\r\n" +
@@ -99,7 +99,7 @@ namespace Samurai.WebSockets.UnitTests
                 .AddHeaderIf(!string.IsNullOrEmpty(subProtocol), "Sec-WebSocket-Protocol", subProtocol)
                 .AddHeaderIf(!string.IsNullOrEmpty(extensions), "Sec-WebSocket-Extensions", extensions)
                 .AddHeader("Server", "TestServer/1.0")
-                .ToHttpResponse("Switching Protocols");
+                .Build();
 
             // Assert
             var expected = "HTTP/1.1 101 Switching Protocols\r\n" +
@@ -118,9 +118,8 @@ namespace Samurai.WebSockets.UnitTests
         public void AddHeaderIf_TrueCondition_ShouldAddHeader()
         {
             // Arrange & Act
-            var header = HttpResponse.Create(200)
-                .AddHeaderIf(true, "X-Test", "value")
-                .Build();
+            HttpResponse header = HttpResponse.Create(200)
+                .AddHeaderIf(true, "X-Test", "value");
 
             // Assert
             Assert.True(header.HasHeader("X-Test"));
@@ -131,9 +130,8 @@ namespace Samurai.WebSockets.UnitTests
         public void AddHeaderIf_FalseCondition_ShouldNotAddHeader()
         {
             // Arrange & Act
-            var header = HttpResponse.Create(200)
-                .AddHeaderIf(false, "X-Test", "value")
-                .Build();
+            HttpResponse header = HttpResponse.Create(200)
+                .AddHeaderIf(false, "X-Test", "value");
 
             // Assert
             Assert.False(header.HasHeader("X-Test"));
@@ -144,9 +142,8 @@ namespace Samurai.WebSockets.UnitTests
         public void AddHeaderIf_WithValueFactory_TrueCondition_ShouldAddHeader()
         {
             // Arrange & Act
-            var header = HttpResponse.Create(200)
-                .AddHeaderIf(true, "X-Timestamp", () => DateTimeOffset.UtcNow.ToString("R"))
-                .Build();
+            HttpResponse header = HttpResponse.Create(200)
+                .AddHeaderIf(true, "X-Timestamp", () => DateTimeOffset.UtcNow.ToString("R"));
 
             // Assert
             Assert.True(header.HasHeader("X-Timestamp"));
@@ -160,13 +157,12 @@ namespace Samurai.WebSockets.UnitTests
             var factoryCalled = false;
 
             // Act
-            var header = HttpResponse.Create(200)
+            HttpResponse header = HttpResponse.Create(200)
                 .AddHeaderIf(false, "X-Test", () =>
                 {
                     factoryCalled = true;
                     return "value";
-                })
-                .Build();
+                });
 
             // Assert
             Assert.False(header.HasHeader("X-Test"));
@@ -177,9 +173,8 @@ namespace Samurai.WebSockets.UnitTests
         public void AddHeader_MultipleValues_ShouldHandleCorrectly()
         {
             // Arrange & Act
-            var header = HttpResponse.Create(200)
-                .AddHeader("Accept", new[] { "text/html", "application/json", "application/xml" })
-                .Build();
+            HttpResponse header = HttpResponse.Create(200)
+                .AddHeader("Accept", new[] { "text/html", "application/json", "application/xml" });
 
             // Assert
             var values = header.GetHeaderValues("Accept").ToArray();
@@ -195,11 +190,10 @@ namespace Samurai.WebSockets.UnitTests
         public void AddHeader_DuplicateHeaderNames_ShouldAccumulate()
         {
             // Arrange & Act
-            var header = HttpResponse.Create(200)
+            HttpResponse header = HttpResponse.Create(200)
                 .AddHeader("Set-Cookie", "session=abc123")
                 .AddHeader("Set-Cookie", "theme=dark")
-                .AddHeader("Set-Cookie", "lang=en")
-                .Build();
+                .AddHeader("Set-Cookie", "lang=en");
 
             // Assert
             var cookies = header.GetHeaderValues("Set-Cookie").ToArray();
@@ -218,9 +212,8 @@ namespace Samurai.WebSockets.UnitTests
                            "X-Custom: custom-value\r\n";
 
             // Act
-            var header = HttpResponse.Create(200)
-                .AddRawHeaders(rawHeaders)
-                .Build();
+            HttpResponse header = HttpResponse.Create(200)
+                .AddRawHeaders(rawHeaders);
 
             // Assert
             Assert.Equal("application/json", header.GetHeaderValue("Content-Type"));
@@ -232,10 +225,9 @@ namespace Samurai.WebSockets.UnitTests
         public void AddRawHeaders_EmptyInput_ShouldNotThrow()
         {
             // Arrange & Act
-            var header = HttpResponse.Create(200)
+            HttpResponse header = HttpResponse.Create(200)
                 .AddRawHeaders("")
-                .AddRawHeaders(null)
-                .Build();
+                .AddRawHeaders(null);
 
             // Assert
             Assert.Equal(200, header.StatusCode);
@@ -252,9 +244,8 @@ namespace Samurai.WebSockets.UnitTests
                            ": empty-name\r\n";
 
             // Act
-            var header = HttpResponse.Create(200)
-                .AddRawHeaders(rawHeaders)
-                .Build();
+            HttpResponse header = HttpResponse.Create(200)
+                .AddRawHeaders(rawHeaders);
 
             // Assert
             Assert.Equal("valid-value", header.GetHeaderValue("Valid-Header"));
@@ -269,14 +260,12 @@ namespace Samurai.WebSockets.UnitTests
             var sourceHeader = HttpResponse.Create(404)
                 .AddHeader("Content-Type", "text/plain")
                 .AddHeader("X-Error-Code", "USER_NOT_FOUND")
-                .AddHeader("Set-Cookie", new[] { "error=true", "timestamp=123456" })
-                .Build();
+                .AddHeader("Set-Cookie", new[] { "error=true", "timestamp=123456" });
 
             // Act
-            var targetHeader = HttpResponse.Create(200)
+            HttpResponse targetHeader = HttpResponse.Create(200)
                 .AddHeader("Server", "TestServer/1.0")
-                .AddHeaders(sourceHeader)
-                .Build();
+                .AddHeaders(sourceHeader);
 
             // Assert
             Assert.Equal(200, targetHeader.StatusCode); // Should keep target's status
@@ -326,7 +315,7 @@ namespace Samurai.WebSockets.UnitTests
                 .AddHeaderIf(false, "X-Debug", "enabled")
                 .AddHeader("Cache-Control", new[] { "no-cache", "no-store" })
                 .AddRawHeaders("X-Custom: raw-value\r\nX-Another: another-value")
-                .ToHttpResponse();
+                .Build();
 
             // Assert
             Assert.Contains("HTTP/1.1 200 OK", response);
@@ -346,9 +335,8 @@ namespace Samurai.WebSockets.UnitTests
         public void AddHeaderIf_WithEmptyOrNullValues_ShouldHandleGracefully(string? value)
         {
             // Arrange & Act
-            var header = HttpResponse.Create(200)
-                .AddHeaderIf(!string.IsNullOrWhiteSpace(value), "X-Optional", value!)
-                .Build();
+            HttpResponse header = HttpResponse.Create(200)
+                .AddHeaderIf(!string.IsNullOrWhiteSpace(value), "X-Optional", value!);
 
             // Assert
             Assert.False(header.HasHeader("X-Optional"));

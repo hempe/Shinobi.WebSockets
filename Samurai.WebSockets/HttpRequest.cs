@@ -20,7 +20,7 @@ namespace Samurai.WebSockets
         public readonly string Method;
         public readonly string Path;
 
-        public HttpRequest(string method, string path, IReadOnlyDictionary<string, HashSet<string>> headers)
+        public HttpRequest(string method, string path, IDictionary<string, HashSet<string>> headers)
             : base(headers)
         {
             this.Method = method;
@@ -202,8 +202,8 @@ namespace Samurai.WebSockets
         /// <summary>
         /// Create a new HttpRequest builder
         /// </summary>
-        public static HttpRequestBuilder Create(string method, string path)
-            => new HttpRequestBuilder(method, path);
+        public static HttpRequest Create(string method, string path)
+            => new HttpRequest(method, path, new Dictionary<string, HashSet<string>>());
 
         /// <summary>
         /// Validate WebSocket handshake request

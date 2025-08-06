@@ -17,12 +17,79 @@ namespace Samurai.WebSockets
     /// </summary>
     public sealed class HttpResponse : HttpHeader
     {
-        public readonly int StatusCode;
 
-        public HttpResponse(int statusCode, IReadOnlyDictionary<string, HashSet<string>> headers)
+#if NET9_0_OR_GREATER
+        private static ReadOnlySpan<char> GetReasonPhrase(int statusCode) => statusCode switch
+#else
+        private static string GetReasonPhrase(int statusCode) => statusCode switch
+#endif
+        {
+            100 => "Continue",
+            101 => "Switching Protocols",
+            102 => "Processing",
+            200 => "OK",
+            201 => "Created",
+            202 => "Accepted",
+            203 => "Non-Authoritative Information",
+            204 => "No Content",
+            205 => "Reset Content",
+            206 => "Partial Content",
+            207 => "Multi-Status",
+            300 => "Multiple Choices",
+            301 => "Moved Permanently",
+            302 => "Found",
+            303 => "See Other",
+            304 => "Not Modified",
+            305 => "Use Proxy",
+            307 => "Temporary Redirect",
+            308 => "Permanent Redirect",
+            400 => "Bad Request",
+            401 => "Unauthorized",
+            402 => "Payment Required",
+            403 => "Forbidden",
+            404 => "Not Found",
+            405 => "Method Not Allowed",
+            406 => "Not Acceptable",
+            407 => "Proxy Authentication Required",
+            408 => "Request Timeout",
+            409 => "Conflict",
+            410 => "Gone",
+            411 => "Length Required",
+            412 => "Precondition Failed",
+            413 => "Payload Too Large",
+            414 => "URI Too Long",
+            415 => "Unsupported Media Type",
+            416 => "Range Not Satisfiable",
+            417 => "Expectation Failed",
+            426 => "Upgrade Required",
+            500 => "Internal Server Error",
+            501 => "Not Implemented",
+            502 => "Bad Gateway",
+            503 => "Service Unavailable",
+            504 => "Gateway Timeout",
+            505 => "HTTP Version Not Supported",
+            _ => "Unknown Status"
+        };
+
+
+        public readonly int StatusCode;
+        internal string? reasonPhrase = null;
+        internal string? body = null;
+
+        internal HttpResponse(
+            int statusCode,
+            IDictionary<string, HashSet<string>> headers,
+            string? body = null
+            )
             : base(headers)
         {
             this.StatusCode = statusCode;
+#if NET9_0_OR_GREATER
+            this.reasonPhrase = GetReasonPhrase(statusCode).ToString();
+#else
+            this.reasonPhrase = GetReasonPhrase(statusCode);
+#endif
+            this.body = body;
         }
 
 
@@ -154,14 +221,12 @@ namespace Samurai.WebSockets
         /// <summary>
         /// Build HTTP response string from this header
         /// </summary>
-        /// <param name="reasonPhrase">HTTP reason phrase (e.g., "Switching Protocols")</param>
-        /// <param name="body">Optional response body</param>
         /// <returns>Complete HTTP response string</returns>
-        public string ToHttpResponse(string reasonPhrase = "OK", string? body = null)
+        public string Build()
         {
 #if NET9_0_OR_GREATER
             var builder = new StringBuilder();
-            builder.Append($"HTTP/1.1 {this.StatusCode} {reasonPhrase}\r\n");
+            builder.Append($"HTTP/1.1 {this.StatusCode} {this.reasonPhrase}\r\n");
 
             if (this.headers != null)
             {
@@ -174,7 +239,7 @@ namespace Samurai.WebSockets
                 }
             }
 
-            builder.Append("\r\n").Append(body);
+            builder.Append("\r\n").Append(this.body);
             return builder.ToString();
 #else
             var builder = new StringBuilder();
@@ -203,8 +268,8 @@ namespace Samurai.WebSockets
         /// <summary>
         /// Create a new HttpResponse builder
         /// </summary>
-        public static HttpResponseBuilder Create(int statusCode)
-            => new HttpResponseBuilder(statusCode);
+        public static HttpResponse Create(int statusCode)
+            => new HttpResponse(statusCode, new Dictionary<string, HashSet<string>>());
 
         /// <summary>
         /// Validate WebSocket handshake response
