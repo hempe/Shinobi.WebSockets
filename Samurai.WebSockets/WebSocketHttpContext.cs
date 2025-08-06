@@ -30,7 +30,7 @@ namespace Samurai.WebSockets
         /// <summary>
         /// The raw http header extracted from the stream
         /// </summary>
-        public HttpHeader HttpHeader { get; }
+        public HttpRequest HttpRequest { get; }
 
         /// <summary>
         /// The Path extracted from the http header
@@ -45,15 +45,15 @@ namespace Samurai.WebSockets
         /// <summary>
         /// Initialises a new instance of the WebSocketHttpContext class
         /// </summary>
-        /// <param name="httpHeader">The raw http header extracted from the stream</param>
+        /// <param name="httpRequest">The raw http request extracted from the stream</param>
         /// <param name="stream">The stream AFTER the header has already been read</param>
-        public WebSocketHttpContext(HttpHeader httpHeader, Stream stream)
+        public WebSocketHttpContext(HttpRequest httpRequest, Stream stream)
         {
-            this.IsWebSocketRequest = httpHeader.GetHeaderValue("Upgrade") == "websocket";
-            this.WebSocketRequestedProtocols = httpHeader.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
-            this.WebSocketExtensions = httpHeader.GetHeaderValues("Sec-WebSocket-Extensions").ToList();
-            this.Path = httpHeader.Path;
-            this.HttpHeader = httpHeader;
+            this.IsWebSocketRequest = httpRequest.GetHeaderValue("Upgrade") == "websocket";
+            this.WebSocketRequestedProtocols = httpRequest.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
+            this.WebSocketExtensions = httpRequest.GetHeaderValues("Sec-WebSocket-Extensions").ToList();
+            this.Path = httpRequest.Path;
+            this.HttpRequest = httpRequest;
             this.Stream = stream;
         }
     }

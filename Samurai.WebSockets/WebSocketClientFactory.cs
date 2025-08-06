@@ -108,11 +108,11 @@ namespace Samurai.WebSockets
         private async ValueTask<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string? secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
         {
             Events.Log?.ReadingHttpResponse(guid);
-            HttpHeader response;
+            HttpResponse? response;
 
             try
             {
-                response = await HttpHeader.ReadHttpHeaderAsync(responseStream, cancellationToken).ConfigureAwait(false);
+                response = await HttpHeader.ReadHttpResponseAsync(responseStream, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -121,13 +121,13 @@ namespace Samurai.WebSockets
             }
 
             this.ThrowIfInvalidResponseCode(response);
-            this.ThrowIfInvalidAcceptString(guid, response, secWebSocketKey);
+            this.ThrowIfInvalidAcceptString(guid, response!, secWebSocketKey);
 
             return new SamuraiWebSocket(
                 guid,
                 responseStream,
                 keepAliveInterval,
-                response.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true,
+                response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true,
                 includeExceptionInCloseResponse,
                 true,
                 response.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
@@ -150,10 +150,10 @@ namespace Samurai.WebSockets
             Events.Log?.ClientHandshakeSuccess(guid);
         }
 
-        private void ThrowIfInvalidResponseCode(HttpHeader header)
+        private void ThrowIfInvalidResponseCode(HttpResponse? repsonse)
         {
-            if (header.StatusCode != 101)
-                throw new InvalidHttpResponseCodeException(header.StatusCode);
+            if (repsonse?.StatusCode != 101)
+                throw new InvalidHttpResponseCodeException(repsonse?.StatusCode);
         }
 
         /// <summary>
@@ -235,7 +235,7 @@ namespace Samurai.WebSockets
         private ValueTask<WebSocket> PerformHandshakeAsync(Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
         {
             var secWebSocketKey = Shared.SecWebSocketKey();
-            var handshakeHttpRequest = HttpHeader.CreateRequest("GET", uri.PathAndQuery)
+            var handshakeHttpRequest = HttpRequest.Create("GET", uri.PathAndQuery)
                 .AddHeader("Host", $"{uri.Host}:{uri.Port}")
                 .AddHeader("Upgrade", "websocket")
                 .AddHeader("Connection", "Upgrade")
