@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -12,10 +13,24 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
+using Samurai.WebSockets.Exceptions;
 using Samurai.WebSockets.Extensions;
+using Samurai.WebSockets.Internal;
+using Samurai.WebSockets.Utils;
 
 namespace Samurai.WebSockets
 {
+
+
+    public delegate ValueTask<Stream> AcceptStreamHandler(TcpClient tcpClient, CancellationToken cancellationToken);
+    public delegate ValueTask<Stream> AcceptStreamInterceptor(TcpClient tcpClient, CancellationToken cancellationToken, AcceptStreamHandler next);
+
+    public class Interceptors
+    {
+        public IEnumerable<Next<TcpClient, Stream>>? AcceptStream { get; set; }
+        public IEnumerable<Next<WebSocketHttpContext, HttpResponse>>? Handshake { get; set; }
+    }
+
     public class SamuraiServer : IDisposable
     {
         private readonly ConcurrentDictionary<Guid, SamuraiServerClient> clients = new ConcurrentDictionary<Guid, SamuraiServerClient>();
@@ -28,11 +43,42 @@ namespace Samurai.WebSockets
         private readonly ushort port;
         private readonly ILogger<SamuraiServer> logger;
         private readonly WebSocketServerOptions options = new WebSocketServerOptions();
+        private readonly Invoke<TcpClient, Stream> ConnectStreamsAsync;
+        private readonly Invoke<WebSocketHttpContext, HttpResponse> HandshakeAsync;
 
-        public SamuraiServer(ILogger<SamuraiServer> logger, ushort port)
+
+        public SamuraiServer(
+            ILogger<SamuraiServer> logger,
+            Interceptors interceptors,
+            ushort port)
         {
             this.logger = logger;
             this.port = port;
+
+            this.ConnectStreamsAsync = Builder.BuildInterceptorChain(this.AcceptStreamCoreAsync, interceptors.AcceptStream);
+            this.HandshakeAsync = Builder.BuildInterceptorChain(this.HandshakeCoreAsync, interceptors.Handshake);
+        }
+
+        private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)
+        {
+            if (context.IsWebSocketRequest)
+                return ValueTask.FromResult(context.HandshakeResponse(this.options));
+
+            var response = HttpResponse.Create(426)
+                .AddHeader("Upgrade", "websocket")
+                .AddHeader("Connection", "close")
+                .AddHeader("Content-Type", "text/plain")
+                .WithBody("WebSocket connection required. Use a WebSocket client.");
+
+            this.logger.LogInformation("Http header contains no web socket upgrade request. Close");
+            return ValueTask.FromResult(response);
+        }
+
+
+        private async ValueTask<Stream> AcceptStreamCoreAsync(TcpClient tcpClient, CancellationToken _cancellationToken)
+        {
+            this.ThrowIfDisposed();
+            return this.Certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), this.Certificate);
         }
 
         public X509Certificate2? Certificate { private get; set; }
@@ -146,7 +192,11 @@ namespace Samurai.WebSockets
             }
         }
 
-        public Func<WebSocketHttpContext, ValueTask<HttpError?>>? OnAcceptAsync { get; }
+        private void ThrowIfDisposed()
+        {
+            if (this.isDisposed)
+                throw new ObjectDisposedException(nameof(ArrayPoolStream));
+        }
 
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)
         {
@@ -155,60 +205,65 @@ namespace Samurai.WebSockets
                 WebSocketHttpContext? context = null;
                 try
                 {
-                    if (this.isDisposed)
-                        return;
-
+                    this.ThrowIfDisposed();
 
                     // this worker thread stays alive until either of the following happens:
                     // Client sends a close connection request OR
                     // An unhandled exception is thrown OR
                     // The server is disposed
                     this.logger.LogInformation("Server: Connection opened.");
-                    var stream = this.Certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), this.Certificate);
+                    var stream = await this.ConnectStreamsAsync(tcpClient, source.Token);
 
-                    var httpRequest = await HttpRequest.ReadAsync(stream, cancellationToken).ConfigureAwait(false);
+                    var httpRequest = await HttpRequest.ReadAsync(stream, source.Token).ConfigureAwait(false);
                     if (httpRequest is null)
                     {
                         var response = HttpResponse.Create(400)
                              .AddHeader("Content-Type", "text/plain")
                              .Build();
 
-                        await stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
+                        await stream.WriteHttpHeaderAsync(response, source.Token).ConfigureAwait(false);
                         stream.Close();
                         return;
                     }
 
+                    var guid = Guid.NewGuid();
+                    Events.Log?.AcceptWebSocketStarted(guid);
                     context = new WebSocketHttpContext(httpRequest, stream);
-
-                    if (context.IsWebSocketRequest)
+                    var handshakeResponse = await this.HandshakeAsync(context, source.Token);
+                    if (handshakeResponse.StatusCode == 101)
                     {
-                        if (this.OnAcceptAsync != null)
+                        try
                         {
-                            var error = await this.OnAcceptAsync(context);
-                            if (error.HasValue)
-                            {
-                                var response = error.Value.Header.WithBody(error.Value.Body).Build();
-                                this.logger.LogInformation("Http accept was declined: {StatusCode}, {Body}", error.Value.Header.StatusCode, error.Value.Body);
-                                await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
-                                context.Stream.Close();
-                                return;
-                            }
+                            var message = handshakeResponse.Build();
+                            Events.Log?.SendingHandshakeResponse(guid, message);
+                            await context.Stream.WriteHttpHeaderAsync(message, cancellationToken).ConfigureAwait(false);
+                            var usePermessageDeflate = handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true;
+                            var webSocket = new SamuraiWebSocket(
+                                guid,
+                                context.Stream,
+                                this.options.KeepAliveInterval,
+                                usePermessageDeflate, this.options.IncludeExceptionInCloseResponse,
+                                false,
+                                this.options.SubProtocol);
 
-                            await this.HandleWebSocketAsync(new SamuraiServerClient(await context.AcceptWebSocketAsync(this.options, cancellationToken).ConfigureAwait(false)), source.Token).ConfigureAwait(false);
+
+                        }
+                        catch (WebSocketVersionNotSupportedException ex)
+                        {
+                            Events.Log?.WebSocketVersionNotSupported(guid, ex);
+                            await context.Stream.WriteHttpHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n{ex.Message}", cancellationToken).ConfigureAwait(false);
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            Events.Log?.BadRequest(guid, ex);
+                            await context.Stream.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", cancellationToken).ConfigureAwait(false);
+                            throw;
                         }
                     }
                     else
                     {
-                        var response = HttpResponse.Create(426)
-                            .AddHeader("Upgrade", "websocket")
-                            .AddHeader("Connection", "close")
-                            .AddHeader("Content-Type", "text/plain")
-                            .WithBody("WebSocket connection required. Use a WebSocket client.")
-                            .Build();
-
-                        this.logger.LogInformation("Http header contains no web socket upgrade request. Close");
-                        await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
-                        context.Stream.Close();
+                        await context.TerminateAsync(handshakeResponse, source.Token).ConfigureAwait(false);
                     }
 
                     this.logger.LogInformation("Server: Connection closed");
@@ -226,11 +281,9 @@ namespace Samurai.WebSockets
                     {
                         var response = HttpResponse.Create(500)
                             .AddHeader("Content-Type", "text/plain")
-                            .WithBody(ex.Message)
-                            .Build();
+                            .WithBody(ex.Message);
 
-                        await context.Stream.WriteHttpHeaderAsync(response, cancellationToken).ConfigureAwait(false);
-                        context.Stream.Close();
+                        await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                     }
 
                     this.logger.LogError(ex, "Failure at the TCP connection");

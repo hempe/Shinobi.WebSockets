@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Samurai.WebSockets.Exceptions;
 using Samurai.WebSockets.Extensions;
@@ -56,5 +58,12 @@ namespace Samurai.WebSockets
             this.HttpRequest = httpRequest;
             this.Stream = stream;
         }
+
+        public async ValueTask TerminateAsync(HttpResponse response, CancellationToken cancellationToken)
+        {
+            await this.Stream.WriteHttpHeaderAsync(response.Build(), cancellationToken);
+            this.Stream.Close();
+        }
+
     }
 }

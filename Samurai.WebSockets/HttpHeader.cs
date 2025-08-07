@@ -22,11 +22,7 @@ namespace Samurai.WebSockets
     /// </summary>
     public abstract class HttpHeader
     {
-#if NET9_0_OR_GREATER
-        private static readonly SearchValues<byte> CrLfBytes = SearchValues.Create(new byte[] { (byte)'\r', (byte)'\n' });
-#else
         private const string NewLine = "\r\n";
-#endif
 
         internal readonly IDictionary<string, HashSet<string>> headers;
 
@@ -59,11 +55,7 @@ namespace Samurai.WebSockets
             if (!this.headers.TryGetValue(headerName, out var values) || !values.Any())
                 return null;
 
-#if NET9_0_OR_GREATER
             return string.Join(", ", values);
-#else
-            return string.Join(", ", values.ToArray());
-#endif
         }
 
         /// <summary>
@@ -206,7 +198,7 @@ namespace Samurai.WebSockets
             var pos = startPos;
             while (pos < httpHeader.Length)
             {
-                var lineEnd = httpHeader.Slice(pos).IndexOf("\r\n".AsSpan());
+                var lineEnd = httpHeader.Slice(pos).IndexOf(NewLine.AsSpan());
                 if (lineEnd == -1) break;
                 lineEnd += pos;
 
@@ -229,7 +221,7 @@ namespace Samurai.WebSockets
 
                 while (nextPos < httpHeader.Length && (httpHeader[nextPos] == ' ' || httpHeader[nextPos] == '\t'))
                 {
-                    var nextLineEnd = httpHeader.Slice(nextPos).IndexOf("\r\n".AsSpan());
+                    var nextLineEnd = httpHeader.Slice(nextPos).IndexOf(NewLine.AsSpan());
                     if (nextLineEnd == -1) break;
                     nextLineEnd += nextPos;
 
@@ -251,7 +243,6 @@ namespace Samurai.WebSockets
 #else
         internal static void ParseHeaders(string httpHeader, int startPos, Dictionary<string, HashSet<string>> headers)
         {
-            const string NewLine = "\r\n";
             var pos = startPos;
             var length = httpHeader.Length;
 
