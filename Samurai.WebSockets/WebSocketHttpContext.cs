@@ -61,6 +61,9 @@ namespace Samurai.WebSockets
 
         public async ValueTask TerminateAsync(HttpResponse response, CancellationToken cancellationToken)
         {
+            if (!this.Stream.CanWrite)
+                return;
+
             await this.Stream.WriteHttpHeaderAsync(response.Build(), cancellationToken);
             this.Stream.Close();
         }

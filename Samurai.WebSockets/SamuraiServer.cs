@@ -251,13 +251,20 @@ namespace Samurai.WebSockets
                         catch (WebSocketVersionNotSupportedException ex)
                         {
                             Events.Log?.WebSocketVersionNotSupported(guid, ex);
-                            await context.Stream.WriteHttpHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n{ex.Message}", cancellationToken).ConfigureAwait(false);
+                            var response = HttpResponse.Create(426)
+                                .AddHeader("Sec-WebSocket-Version", "13")
+                                .WithBody(ex.Message);
+
+                            await context.TerminateAsync(response, source.Token).ConfigureAwait(false);
                             throw;
                         }
                         catch (Exception ex)
                         {
                             Events.Log?.BadRequest(guid, ex);
-                            await context.Stream.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", cancellationToken).ConfigureAwait(false);
+                            var response = HttpResponse.Create(400)
+                                .WithBody(ex.Message);
+
+                            await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                             throw;
                         }
                     }
@@ -265,8 +272,6 @@ namespace Samurai.WebSockets
                     {
                         await context.TerminateAsync(handshakeResponse, source.Token).ConfigureAwait(false);
                     }
-
-                    this.logger.LogInformation("Server: Connection closed");
                 }
                 catch (ObjectDisposedException)
                 {
@@ -287,6 +292,10 @@ namespace Samurai.WebSockets
                     }
 
                     this.logger.LogError(ex, "Failure at the TCP connection");
+                }
+                finally
+                {
+                    this.logger.LogInformation("Server: Connection closed");
                 }
             }
         }
