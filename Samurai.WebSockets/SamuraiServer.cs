@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -27,14 +29,16 @@ namespace Samurai.WebSockets
 
     public class Interceptors
     {
-        public IEnumerable<Next<TcpClient, Stream>>? AcceptStream { get; set; }
-        public IEnumerable<Next<WebSocketHttpContext, HttpResponse>>? Handshake { get; set; }
+        public IEnumerable<Next<TcpClient, Stream>>? OnAcceptStream { get; set; }
+        public IEnumerable<Next<WebSocketHttpContext, HttpResponse>>? OnHandshake { get; set; }
+        public IEnumerable<On<SamuraiWebSocket>>? OnConnect { get; set; }
+        public IEnumerable<On<SamuraiWebSocket>>? OnClose { get; set; }
+        public IEnumerable<On<SamuraiWebSocket, Exception>>? OnError { get; set; }
+        public IEnumerable<On<SamuraiWebSocket, WebSocketMessageType, Stream>>? OnMessage { get; set; }
     }
 
     public class SamuraiServer : IDisposable
     {
-        private readonly ConcurrentDictionary<Guid, SamuraiServerClient> clients = new ConcurrentDictionary<Guid, SamuraiServerClient>();
-
         private Task? runTask;
         private CancellationTokenSource? runToken;
         private TcpListener? listener; // Stop calls dispose, but dispose does not exist on net472
@@ -43,9 +47,12 @@ namespace Samurai.WebSockets
         private readonly ushort port;
         private readonly ILogger<SamuraiServer> logger;
         private readonly WebSocketServerOptions options = new WebSocketServerOptions();
-        private readonly Invoke<TcpClient, Stream> ConnectStreamsAsync;
-        private readonly Invoke<WebSocketHttpContext, HttpResponse> HandshakeAsync;
-
+        private readonly Invoke<TcpClient, Stream> OnConnectStreamsAsync;
+        private readonly Invoke<WebSocketHttpContext, HttpResponse> OnHandshakeAsync;
+        private readonly InvokeOn<SamuraiWebSocket> OnConnectAsync;
+        private readonly InvokeOn<SamuraiWebSocket> OnCloseAsync;
+        private readonly InvokeOn<SamuraiWebSocket, Exception> OnErrorAsync;
+        private readonly InvokeOn<SamuraiWebSocket, WebSocketMessageType, Stream> OnMessageAsync;
 
         public SamuraiServer(
             ILogger<SamuraiServer> logger,
@@ -55,8 +62,12 @@ namespace Samurai.WebSockets
             this.logger = logger;
             this.port = port;
 
-            this.ConnectStreamsAsync = Builder.BuildInterceptorChain(this.AcceptStreamCoreAsync, interceptors.AcceptStream);
-            this.HandshakeAsync = Builder.BuildInterceptorChain(this.HandshakeCoreAsync, interceptors.Handshake);
+            this.OnConnectStreamsAsync = Builder.BuildInterceptorChain(this.AcceptStreamCoreAsync, interceptors.OnAcceptStream);
+            this.OnHandshakeAsync = Builder.BuildInterceptorChain(this.HandshakeCoreAsync, interceptors.OnHandshake);
+            this.OnConnectAsync = Builder.BuildOmChain(interceptors.OnConnect);
+            this.OnCloseAsync = Builder.BuildOmChain(interceptors.OnClose);
+            this.OnErrorAsync = Builder.BuildOmChain(interceptors.OnError);
+            this.OnMessageAsync = Builder.BuildOmChain(interceptors.OnMessage);
         }
 
         private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)
@@ -212,7 +223,7 @@ namespace Samurai.WebSockets
                     // An unhandled exception is thrown OR
                     // The server is disposed
                     this.logger.LogInformation("Server: Connection opened.");
-                    var stream = await this.ConnectStreamsAsync(tcpClient, source.Token);
+                    var stream = await this.OnConnectStreamsAsync(tcpClient, source.Token);
 
                     var httpRequest = await HttpRequest.ReadAsync(stream, source.Token).ConfigureAwait(false);
                     if (httpRequest is null)
@@ -227,13 +238,13 @@ namespace Samurai.WebSockets
                     var guid = Guid.NewGuid();
                     Events.Log?.AcceptWebSocketStarted(guid);
                     context = new WebSocketHttpContext(httpRequest, stream, guid);
-                    var handshakeResponse = await this.HandshakeAsync(context, source.Token);
+                    var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
                     if (handshakeResponse.StatusCode == 101)
                     {
                         try
                         {
                             Events.Log?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
-                            await handshakeResponse.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
+                            await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
                             var usePermessageDeflate = handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true;
                             var webSocket = new SamuraiWebSocket(
                                 context,
@@ -242,7 +253,8 @@ namespace Samurai.WebSockets
                                 false,
                                 this.options.SubProtocol);
 
-
+                            await this.OnConnectAsync(webSocket, source.Token);
+                            await this.HandleWebSocketAsync(webSocket, source.Token);
 
                         }
                         catch (WebSocketVersionNotSupportedException ex)
@@ -313,45 +325,52 @@ namespace Samurai.WebSockets
             }
         }
 
-        private async Task HandleWebSocketAsync(SamuraiServerClient client, CancellationToken cancellationToken)
+        private async Task HandleWebSocketAsync(SamuraiWebSocket client, CancellationToken cancellationToken)
         {
-            var guid = client.WebSocket.Context.Guid;
+            using var receiveBuffer = new ArrayPoolStream();
+            WebSocketMessageType? currentMessageType = null;
+
             try
             {
-                this.clients.TryAdd(guid, client);
-                // TODO OnConnectAsync?
-                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                while (!cancellationToken.IsCancellationRequested && !this.isDisposed)
                 {
-                    //                    var listener = Task.Run(async () => await this.HandleWebSocketMessagesAsync(client, cts).ConfigureAwait(false));
-                    //                    var sender = Task.Run(async () => await this.HandleWebSocketHeartbeatSendingAsync(client, cts.Token).ConfigureAwait(false));
-                    //                    await Task.WhenAny(listener, sender).ConfigureAwait(false);
-                    //                    cts.Cancel();
+                    var result = await client.ReceiveAsync(receiveBuffer, cancellationToken);
 
-                    //                    await Task.WhenAll(listener, sender).ConfigureAwait(false);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        await this.OnCloseAsync(client, cancellationToken);
+                        return;
+                    }
+
+                    // If we're in the middle of a message, ensure message type consistency
+                    if (currentMessageType.HasValue && result.MessageType != currentMessageType.Value)
+                    {
+                        throw new InvalidOperationException($"WebSocket message type changed from {currentMessageType.Value} to {result.MessageType} during partial message.");
+                    }
+
+                    // Set the message type for the first frame of a new message
+                    if (!currentMessageType.HasValue)
+                    {
+                        currentMessageType = result.MessageType;
+                    }
+
+                    if (result.EndOfMessage)
+                    {
+                        receiveBuffer.Position = 0;
+                        await this.OnMessageAsync(client, result.MessageType, receiveBuffer, cancellationToken);
+                        receiveBuffer.SetLength(0);
+                        currentMessageType = null; // Reset for next message
+                    }
                 }
             }
-            finally
+            catch when (cancellationToken.IsCancellationRequested)
             {
-                this.clients.TryRemove(guid, out _);
+                await this.OnCloseAsync(client, cancellationToken);
             }
-        }
-    }
-
-
-    public struct HttpError
-    {
-        public HttpResponse Header { get; }
-        public string? Body { get; }
-    }
-
-    public class SamuraiServerClient
-    {
-        public readonly SamuraiWebSocket WebSocket;
-        public Dictionary<string, string> Info = new Dictionary<string, string>();
-
-        public SamuraiServerClient(SamuraiWebSocket webSocket)
-        {
-            this.WebSocket = webSocket;
+            catch (Exception e)
+            {
+                await this.OnErrorAsync(client, e, cancellationToken);
+            }
         }
     }
 }
