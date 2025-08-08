@@ -124,8 +124,7 @@ namespace Samurai.WebSockets
             this.ThrowIfInvalidAcceptString(guid, response!, secWebSocketKey);
 
             return new SamuraiWebSocket(
-                guid,
-                responseStream,
+                new WebSocketHttpContext(response!, responseStream, guid),
                 keepAliveInterval,
                 response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true,
                 includeExceptionInCloseResponse,

@@ -52,8 +52,6 @@ namespace Samurai.WebSockets
         private static readonly byte[] EMPTY = new byte[0];
         private readonly SemaphoreSlim semaphore = new SemaphoreSlim(1);
         private readonly Stopwatch stopwatch;
-        public readonly Guid Guid;
-        private readonly Stream stream;
         private readonly bool includeExceptionInCloseResponse;
         private readonly bool isClient;
         private readonly CancellationTokenSource internalReadCts;
@@ -67,17 +65,17 @@ namespace Samurai.WebSockets
         private string? closeStatusDescription;
         private long pingSentTicks;
 
+        public readonly WebSocketHttpContext Context;
+
         public SamuraiWebSocket(
-            Guid guid,
-            Stream stream,
+            WebSocketHttpContext context,
             TimeSpan keepAliveInterval,
             bool permessageDeflate,
             bool includeExceptionInCloseResponse,
             bool isClient,
             string? subProtocol)
         {
-            this.Guid = guid;
-            this.stream = stream;
+            this.Context = context;
             this.isClient = isClient;
             this.SubProtocol = subProtocol;
             this.internalReadCts = new CancellationTokenSource();
@@ -87,12 +85,12 @@ namespace Samurai.WebSockets
             if (permessageDeflate)
             {
                 this.perMessageDeflateHandler = new PerMessageDeflateHandler();
-                Events.Log?.UsePerMessageDeflate(guid);
+                Events.Log?.UsePerMessageDeflate(context.Guid);
             }
             else
             {
                 this.perMessageDeflateHandler = null;
-                Events.Log?.NoMessageCompression(guid);
+                Events.Log?.NoMessageCompression(context.Guid);
             }
 
             this.KeepAliveInterval = keepAliveInterval;
@@ -104,7 +102,7 @@ namespace Samurai.WebSockets
 
             if (keepAliveInterval == TimeSpan.Zero)
             {
-                Events.Log?.KeepAliveIntervalZero(guid);
+                Events.Log?.KeepAliveIntervalZero(context.Guid);
             }
             else
             {
@@ -147,14 +145,14 @@ namespace Samurai.WebSockets
                             // If the buffer used to read the frame was too small to fit the whole frame then we need to "remember" this frame
                             // and return what we have. Subsequent calls to the read function will simply continue reading off the stream without 
                             // decoding the first few bytes as a websocket header.
-                            this.readCursor = await WebSocketFrameReader.ReadFromCursorAsync(this.stream, buffer, this.readCursor.Value, linkedCts.Token).ConfigureAwait(false);
+                            this.readCursor = await WebSocketFrameReader.ReadFromCursorAsync(this.Context.Stream, buffer, this.readCursor.Value, linkedCts.Token).ConfigureAwait(false);
                             frame = this.readCursor.Value.WebSocketFrame;
                         }
                         else
                         {
-                            this.readCursor = await WebSocketFrameReader.ReadAsync(this.stream, buffer, linkedCts.Token).ConfigureAwait(false);
+                            this.readCursor = await WebSocketFrameReader.ReadAsync(this.Context.Stream, buffer, linkedCts.Token).ConfigureAwait(false);
                             frame = this.readCursor.Value.WebSocketFrame;
-                            Events.Log?.ReceivedFrame(this.Guid, frame.OpCode, frame.IsFinBitSet, frame.Count);
+                            Events.Log?.ReceivedFrame(this.Context.Guid, frame.OpCode, frame.IsFinBitSet, frame.Count);
                         }
                     }
                     catch (InternalBufferOverflowException ex)
@@ -248,14 +246,14 @@ namespace Samurai.WebSockets
                     var frame = this.perMessageDeflateHandler.Write(buffer, messageType, endOfMessage);
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient);
-                    Events.Log?.SendingFrame(this.Guid, opCode, endOfMessage, frame.Count, true);
+                    Events.Log?.SendingFrame(this.Context.Guid, opCode, endOfMessage, frame.Count, true);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient);
-                    Events.Log?.SendingFrame(this.Guid, msOpCode, endOfMessage, buffer.Count, false);
+                    Events.Log?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
                 this.isContinuationFrame = !endOfMessage;
@@ -285,7 +283,7 @@ namespace Samurai.WebSockets
         {
             if (this.state != WebSocketState.Open)
             {
-                Events.Log?.InvalidStateBeforeClose(this.Guid, this.state);
+                Events.Log?.InvalidStateBeforeClose(this.Context.Guid, this.state);
                 return;
             }
 
@@ -294,8 +292,8 @@ namespace Samurai.WebSockets
             try
             {
                 WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
-                Events.Log?.CloseHandshakeStarted(this.Guid, closeStatus, statusDescription);
-                Events.Log?.SendingFrame(this.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+                Events.Log?.CloseHandshakeStarted(this.Context.Guid, closeStatus, statusDescription);
+                Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
             }
             finally
             {
@@ -320,8 +318,8 @@ namespace Samurai.WebSockets
                 try
                 {
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
-                    Events.Log?.CloseOutputNoHandshake(this.Guid, closeStatus, statusDescription);
-                    Events.Log?.SendingFrame(this.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+                    Events.Log?.CloseOutputNoHandshake(this.Context.Guid, closeStatus, statusDescription);
+                    Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
                 }
                 finally
                 {
@@ -333,7 +331,7 @@ namespace Samurai.WebSockets
             }
             else
             {
-                Events.Log?.InvalidStateBeforeCloseOutput(this.Guid, this.state);
+                Events.Log?.InvalidStateBeforeCloseOutput(this.Context.Guid, this.state);
             }
 
             // cancel pending reads
@@ -345,7 +343,7 @@ namespace Samurai.WebSockets
         /// </summary>
         public override void Dispose()
         {
-            Events.Log?.WebSocketDispose(this.Guid, this.state);
+            Events.Log?.WebSocketDispose(this.Context.Guid, this.state);
 
             try
             {
@@ -361,25 +359,25 @@ namespace Samurai.WebSockets
                     catch (OperationCanceledException)
                     {
                         // log don't throw
-                        Events.Log?.WebSocketDisposeCloseTimeout(this.Guid, this.state);
+                        Events.Log?.WebSocketDisposeCloseTimeout(this.Context.Guid, this.state);
                     }
                 }
 
                 // cancel pending reads - usually does nothing
                 this.internalReadCts.Cancel();
-                this.stream.Close();
+                this.Context.Stream.Close();
                 this.perMessageDeflateHandler?.Dispose();
             }
             catch (Exception ex)
             {
                 // log dont throw
-                Events.Log?.WebSocketDisposeError(this.Guid, this.state, ex);
+                Events.Log?.WebSocketDisposeError(this.Context.Guid, this.state, ex);
             }
         }
 
         private async ValueTask PingForeverAsync(CancellationToken cancellationToken)
         {
-            Events.Log?.PingPongStarted(this.Guid, (int)this.KeepAliveInterval.TotalSeconds);
+            Events.Log?.PingPongStarted(this.Context.Guid, (int)this.KeepAliveInterval.TotalSeconds);
 
             try
             {
@@ -392,7 +390,7 @@ namespace Samurai.WebSockets
 
                     if (this.pingSentTicks != 0)
                     {
-                        Events.Log?.KeepAliveIntervalExpired(this.Guid, (int)this.KeepAliveInterval.TotalSeconds);
+                        Events.Log?.KeepAliveIntervalExpired(this.Context.Guid, (int)this.KeepAliveInterval.TotalSeconds);
                         await this.CloseAsync(
                             WebSocketCloseStatus.NormalClosure,
                             "No Pong message received in response to a Ping after KeepAliveInterval {this.KeepAliveInterval}",
@@ -417,7 +415,7 @@ namespace Samurai.WebSockets
             }
             finally
             {
-                Events.Log?.PingPongEnded(this.Guid);
+                Events.Log?.PingPongEnded(this.Context.Guid);
             }
         }
 
@@ -431,7 +429,7 @@ namespace Samurai.WebSockets
             {
                 using var stream = new ArrayPoolStream();
                 WebSocketFrameWriter.Write(WebSocketOpCode.Ping, payload, stream, true, this.isClient);
-                Events.Log?.SendingFrame(this.Guid, WebSocketOpCode.Ping, true, payload.Count, false);
+                Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.Ping, true, payload.Count, false);
                 await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -482,7 +480,7 @@ namespace Samurai.WebSockets
                 {
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(WebSocketOpCode.Pong, payload, stream, true, this.isClient);
-                    Events.Log?.SendingFrame(this.Guid, WebSocketOpCode.Pong, true, payload.Count, false);
+                    Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.Pong, true, payload.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -506,7 +504,7 @@ namespace Samurai.WebSockets
             {
                 // this is a response to close handshake initiated by this instance
                 this.state = WebSocketState.Closed;
-                Events.Log?.CloseHandshakeComplete(this.Guid);
+                Events.Log?.CloseHandshakeComplete(this.Context.Guid);
             }
             else if (this.state == WebSocketState.Open)
             {
@@ -514,18 +512,18 @@ namespace Samurai.WebSockets
                 // However, the same CloseStatus as recieved should be sent back.
                 var closePayload = new ArraySegment<byte>(EMPTY, 0, 0);
                 this.state = WebSocketState.CloseReceived;
-                Events.Log?.CloseHandshakeRespond(this.Guid, frame.CloseStatus, frame.CloseStatusDescription);
+                Events.Log?.CloseHandshakeRespond(this.Context.Guid, frame.CloseStatus, frame.CloseStatusDescription);
 
                 using (var stream = new ArrayPoolStream())
                 {
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.isClient);
-                    Events.Log?.SendingFrame(this.Guid, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
+                    Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
             {
-                Events.Log?.CloseFrameReceivedInUnexpectedState(this.Guid, this.state, frame.CloseStatus, frame.CloseStatusDescription);
+                Events.Log?.CloseFrameReceivedInUnexpectedState(this.Context.Guid, this.state, frame.CloseStatus, frame.CloseStatusDescription);
             }
 
             return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Close, frame.IsFinBitSet, frame.CloseStatus, frame.CloseStatusDescription);
@@ -542,7 +540,7 @@ namespace Samurai.WebSockets
             await this.semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await this.stream.WriteAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+                await this.Context.Stream.WriteAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -580,7 +578,7 @@ namespace Samurai.WebSockets
         private async ValueTask CloseOutputAutoTimeoutAsync(WebSocketCloseStatus closeStatus, string statusDescription, Exception ex)
         {
             var timeSpan = TimeSpan.FromSeconds(5);
-            Events.Log?.CloseOutputAutoTimeout(this.Guid, closeStatus, statusDescription, ex);
+            Events.Log?.CloseOutputAutoTimeout(this.Context.Guid, closeStatus, statusDescription, ex);
 
             try
             {
@@ -596,12 +594,12 @@ namespace Samurai.WebSockets
             catch (OperationCanceledException)
             {
                 // do not throw an exception because that will mask the original exception
-                Events.Log?.CloseOutputAutoTimeoutCancelled(this.Guid, (int)timeSpan.TotalSeconds, closeStatus, statusDescription, ex);
+                Events.Log?.CloseOutputAutoTimeoutCancelled(this.Context.Guid, (int)timeSpan.TotalSeconds, closeStatus, statusDescription, ex);
             }
             catch (Exception closeException)
             {
                 // do not throw an exception because that will mask the original exception
-                Events.Log?.CloseOutputAutoTimeoutError(this.Guid, closeException, closeStatus, statusDescription, ex);
+                Events.Log?.CloseOutputAutoTimeoutError(this.Context.Guid, closeException, closeStatus, statusDescription, ex);
             }
         }
     }

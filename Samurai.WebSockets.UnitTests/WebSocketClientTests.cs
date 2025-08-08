@@ -13,7 +13,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Samurai.WebSockets.Internal;
-using Samurai.WebSockets.Extensions;
 
 using Xunit;
 
@@ -37,8 +36,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             this.logger.LogDebug("CanCancelReceive");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
+            var webSocketClient = this.GetWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var buffer = new ArraySegment<byte>(new byte[10]);
 
@@ -47,12 +46,32 @@ namespace Samurai.WebSockets.UnitTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => webSocketClient.ReceiveAsync(buffer, tokenSource.Token));
         }
 
+        private SamuraiWebSocket GetWebSocket(
+            Guid guid,
+            Stream mockNetworkStream,
+            TimeSpan keepAliveInterval,
+            bool permessageDeflate,
+            bool includeExceptionInCloseResponse,
+            bool isClient,
+            string? subProtocol)
+        {
+
+            return new SamuraiWebSocket(
+                new WebSocketHttpContext(HttpResponse.Create(101), mockNetworkStream, guid),
+                keepAliveInterval,
+                permessageDeflate,
+                includeExceptionInCloseResponse,
+                isClient,
+                subProtocol
+            );
+        }
+
         [Fact]
         public async Task CanCancelSendAsync()
         {
             this.logger.LogDebug("CanCancelSend");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
+            var webSocketClient = this.GetWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var buffer = new ArraySegment<byte>(new byte[10]);
 
@@ -66,8 +85,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             this.logger.LogDebug("SimpleSend");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
+            var webSocketClient = this.GetWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
@@ -92,8 +111,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             this.logger.LogDebug("SimpleSendHugeMessage");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
+            var webSocketClient = this.GetWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
@@ -116,8 +135,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             this.logger.LogDebug("PermessageDeflateSendAsync");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, true, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
+            var webSocketClient = this.GetWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, true, false, true, null);
+            var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, true, tokenSource.Token);
@@ -140,8 +159,8 @@ namespace Samurai.WebSockets.UnitTests
         {
             this.logger.LogDebug("PermessageDeflateGiantMessage");
             using var theInternet = new TheInternet();
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, true, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
+            var webSocketClient = this.GetWebSocket(Guid.NewGuid(), theInternet.ClientNetworkStream!, TimeSpan.Zero, true, false, true, null);
+            var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, true, tokenSource.Token);
@@ -171,8 +190,8 @@ namespace Samurai.WebSockets.UnitTests
             var serverConnectTask = serverPipe.WaitForConnectionAsync();
             await Task.WhenAll(clientConnectTask, serverConnectTask);
 
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), clientPipe, TimeSpan.Zero, false, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, false, false, false, null);
+            var webSocketClient = this.GetWebSocket(Guid.NewGuid(), clientPipe, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = this.GetWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
@@ -202,8 +221,8 @@ namespace Samurai.WebSockets.UnitTests
             var serverConnectTask = serverPipe.WaitForConnectionAsync();
             await Task.WhenAll(clientConnectTask, serverConnectTask);
 
-            var webSocketClient = new SamuraiWebSocket(Guid.NewGuid(), clientPipe, TimeSpan.Zero, false, false, true, null);
-            var webSocketServer = new SamuraiWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, false, false, false, null);
+            var webSocketClient = this.GetWebSocket(Guid.NewGuid(), clientPipe, TimeSpan.Zero, false, false, true, null);
+            var webSocketServer = this.GetWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
             var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -17,46 +18,59 @@ namespace Samurai.WebSockets
         /// <summary>
         /// True if this is a valid WebSocket request
         /// </summary>
-        public bool IsWebSocketRequest { get; }
+        public readonly bool IsWebSocketRequest;
 
         /// <summary>
         /// The protocols requested by the client in the WebSocket handshake
         /// </summary>
-        public IList<string> WebSocketRequestedProtocols { get; }
+        public readonly IList<string> WebSocketRequestedProtocols;
 
         /// <summary>
         /// Gets the Sec-WebSocket-Extensions requested by the WebSocket handshake.
         /// </summary>
-        public IList<string> WebSocketExtensions { get; }
+        public readonly IList<string> WebSocketExtensions;
 
         /// <summary>
         /// The raw http header extracted from the stream
         /// </summary>
-        public HttpRequest HttpRequest { get; }
+        public readonly HttpRequest? HttpRequest;
 
         /// <summary>
         /// The Path extracted from the http header
         /// </summary>
-        public string? Path { get; }
+        public readonly string? Path;
 
         /// <summary>
         /// The stream AFTER the header has already been read
         /// </summary>
-        public Stream Stream { get; }
+        public readonly Stream Stream;
+
+        /// <summary>
+        /// The connection identifier
+        /// </summary>
+        public readonly Guid Guid;
 
         /// <summary>
         /// Initialises a new instance of the WebSocketHttpContext class
         /// </summary>
-        /// <param name="httpRequest">The raw http request extracted from the stream</param>
+        /// <param name="httpHeader">The raw http request extracted from the stream</param>
         /// <param name="stream">The stream AFTER the header has already been read</param>
-        public WebSocketHttpContext(HttpRequest httpRequest, Stream stream)
+        /// <param name="guid">Connection identifier</param>
+        public WebSocketHttpContext(HttpHeader httpHeader, Stream stream, Guid guid)
         {
-            this.IsWebSocketRequest = httpRequest.GetHeaderValue("Upgrade") == "websocket";
-            this.WebSocketRequestedProtocols = httpRequest.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
-            this.WebSocketExtensions = httpRequest.GetHeaderValues("Sec-WebSocket-Extensions").ToList();
+            this.Guid = guid;
+            this.IsWebSocketRequest = httpHeader.GetHeaderValue("Upgrade") == "websocket";
+            this.WebSocketRequestedProtocols = httpHeader.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
+            this.WebSocketExtensions = httpHeader.GetHeaderValues("Sec-WebSocket-Extensions").ToList();
+            this.Stream = stream;
+        }
+
+        public WebSocketHttpContext(HttpRequest httpRequest, Stream stream, Guid guid)
+            : this((HttpHeader)httpRequest, stream, guid)
+        {
+
             this.Path = httpRequest.Path;
             this.HttpRequest = httpRequest;
-            this.Stream = stream;
         }
 
         public async ValueTask TerminateAsync(HttpResponse response, CancellationToken cancellationToken)

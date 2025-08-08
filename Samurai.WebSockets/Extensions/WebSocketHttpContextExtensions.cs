@@ -11,7 +11,12 @@ namespace Samurai.WebSockets.Extensions
 
         public static HttpResponse HandshakeResponse(this WebSocketHttpContext context, WebSocketServerOptions options)
         {
-
+#if NET9_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(context.HttpRequest);
+#else
+            if(context.HttpRequest is null)
+            throw new ArgumentNullException(nameof(context.HttpRequest));
+#endif
             CheckWebSocketVersion(context.HttpRequest);
 
             var secWebSocketKey = context.HttpRequest.GetHeaderValue("Sec-WebSocket-Key");
@@ -27,8 +32,6 @@ namespace Samurai.WebSockets.Extensions
                     .AddHeaderIf(options.SubProtocol != null, "Sec-WebSocket-Protocol", options.SubProtocol!)
                     .AddHeaderIf(compress, "Sec-WebSocket-Extensions", "permessage-deflate")
                     .AddHeader("Sec-WebSocket-Accept", setWebSocketAccept);
-
-
         }
 
 
@@ -45,6 +48,5 @@ namespace Samurai.WebSockets.Extensions
 
             throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in http header");
         }
-
     }
 }

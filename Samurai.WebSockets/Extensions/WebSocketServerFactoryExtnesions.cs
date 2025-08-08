@@ -25,7 +25,7 @@ namespace Samurai.WebSockets.Extensions
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>Http data read from the stream</returns>
         public static async ValueTask<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(this Stream stream, CancellationToken cancellationToken = default(CancellationToken))
-            => new WebSocketHttpContext(await HttpRequest.ReadAsync(stream, cancellationToken).ConfigureAwait(false) ?? throw new Exception("Invalid request"), stream);
+            => new WebSocketHttpContext(await HttpRequest.ReadAsync(stream, cancellationToken).ConfigureAwait(false) ?? throw new Exception("Invalid request"), stream, Guid.NewGuid());
 
         /// <summary>
         /// Accept web socket with default options
@@ -51,7 +51,7 @@ namespace Samurai.WebSockets.Extensions
             Events.Log?.AcceptWebSocketStarted(guid);
             var usePermessageDeflate = await PerformHandshakeAsync(guid, options, context, cancellationToken).ConfigureAwait(false);
             Events.Log?.ServerHandshakeSuccess(guid);
-            return new SamuraiWebSocket(guid, context.Stream, options.KeepAliveInterval, usePermessageDeflate, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
+            return new SamuraiWebSocket(context, options.KeepAliveInterval, usePermessageDeflate, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
         }
 
         private static async ValueTask<bool> PerformHandshakeAsync(Guid guid, WebSocketServerOptions options, WebSocketHttpContext context, CancellationToken cancellationToken)

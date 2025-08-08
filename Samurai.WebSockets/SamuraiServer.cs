@@ -226,7 +226,7 @@ namespace Samurai.WebSockets
 
                     var guid = Guid.NewGuid();
                     Events.Log?.AcceptWebSocketStarted(guid);
-                    context = new WebSocketHttpContext(httpRequest, stream);
+                    context = new WebSocketHttpContext(httpRequest, stream, guid);
                     var handshakeResponse = await this.HandshakeAsync(context, source.Token);
                     if (handshakeResponse.StatusCode == 101)
                     {
@@ -236,12 +236,12 @@ namespace Samurai.WebSockets
                             await handshakeResponse.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
                             var usePermessageDeflate = handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true;
                             var webSocket = new SamuraiWebSocket(
-                                guid,
-                                context.Stream,
+                                context,
                                 this.options.KeepAliveInterval,
                                 usePermessageDeflate, this.options.IncludeExceptionInCloseResponse,
                                 false,
                                 this.options.SubProtocol);
+
 
 
                         }
@@ -315,7 +315,7 @@ namespace Samurai.WebSockets
 
         private async Task HandleWebSocketAsync(SamuraiServerClient client, CancellationToken cancellationToken)
         {
-            var guid = client.WebSocket.Guid;
+            var guid = client.WebSocket.Context.Guid;
             try
             {
                 this.clients.TryAdd(guid, client);
