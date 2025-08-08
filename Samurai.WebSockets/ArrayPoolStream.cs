@@ -130,6 +130,20 @@ namespace Samurai.WebSockets
             return this.innerStream!.Read(buffer, offset, count);
         }
 
+        public Span<byte> GetFreeSpan(int sizeHint)
+        {
+            this.ThrowIfDisposed();
+
+            if (sizeHint <= 0)
+                sizeHint = 1; // At least 1 byte requested
+
+            // Ensure there is enough free space in buffer
+            var freeSegment = this.GetFreeArraySegment(sizeHint);
+
+            // Return the span over the free buffer space
+            return new Span<byte>(freeSegment.Array!, freeSegment.Offset, sizeHint);
+        }
+
         private void EnlargeBuffer(int additionalBytesNeeded)
         {
             this.ThrowIfDisposed();

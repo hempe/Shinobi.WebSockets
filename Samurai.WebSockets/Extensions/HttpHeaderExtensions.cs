@@ -137,19 +137,5 @@ namespace Samurai.WebSockets.Extensions
             var sha1Hash = SHA1.Create().ComputeHash(concatenatedAsBytes);
             return Convert.ToBase64String(sha1Hash);
         }
-
-
-        /// <summary>
-        /// Writes an HTTP response string to the stream
-        /// </summary>
-        /// <param name="stream">The stream to write to</param>
-        /// <param name="response">The response (without the new line characters)</param>
-        /// <param name="cancellationToken">The cancellation token</param>
-        public static async ValueTask WriteHttpHeaderAsync(this Stream stream, string response, CancellationToken cancellationToken)
-        {
-            response = response.Trim() + "\r\n\r\n";
-            var bytes = Encoding.UTF8.GetBytes(response);
-            await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
-        }
     }
 }

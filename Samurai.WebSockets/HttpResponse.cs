@@ -1,7 +1,10 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
+using System.Text.Unicode;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -263,6 +266,57 @@ namespace Samurai.WebSockets
             }
             return builder.ToString();
 #endif
+        }
+        public async ValueTask WriteToStreamAsync(Stream stream, CancellationToken cancellationToken)
+        {
+            // Create your pooled buffer stream
+            using var bufferStream = new ArrayPoolStream();
+
+            // Helper local to encode & write a string chunk
+            void EncodeAndWrite(string text)
+            {
+                if (string.IsNullOrEmpty(text)) return;
+#if NET9_0_OR_GREATER 
+                var maxBytes = Encoding.UTF8.GetMaxByteCount(text.Length);
+                var span = bufferStream.GetFreeSpan(maxBytes);
+                var bytesEncoded = Encoding.UTF8.GetBytes(text.AsSpan(), span);
+                bufferStream.Position += bytesEncoded;
+#else
+
+                byte[] bytes = Encoding.UTF8.GetBytes(text);
+                bufferStream.Write(bytes, 0, bytes.Length);
+#endif
+            }
+
+            // Write status line
+            EncodeAndWrite($"HTTP/1.1 {this.StatusCode} {this.reasonPhrase}\r\n");
+
+            // Write headers
+            if (this.headers != null)
+            {
+                foreach (var header in this.headers)
+                {
+                    foreach (var value in header.Value)
+                    {
+                        EncodeAndWrite($"{header.Key}: {value}\r\n");
+                    }
+                }
+            }
+
+            // Blank line to separate headers and body
+            EncodeAndWrite("\r\n");
+
+            // Write body if any
+            if (!string.IsNullOrEmpty(this.body))
+            {
+                EncodeAndWrite(this.body);
+            }
+
+            // Get the buffered data segment
+            var segment = bufferStream.GetDataArraySegment();
+
+            // Write all buffered data to the output stream at once, with cancellation support
+            await stream.WriteAsync(segment.Array!, segment.Offset, segment.Count, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>

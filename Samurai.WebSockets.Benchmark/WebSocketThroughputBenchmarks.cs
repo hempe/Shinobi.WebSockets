@@ -34,14 +34,14 @@ public class WebSocketThroughputBenchmarks
 
 
     //[Params(1_000, 10_000)]
-    public int MessageCount { get; set; } = 1_000;
+    public int MessageCount { get; set; } = 1_00;
 
     //[Params(16, 64)]
     [Params(1, 17)]
     public int MessageSizeKb { get; set; } = 16;
 
     //[Params(1000)]
-    public int ClientCount { get; set; } = 1_000;
+    public int ClientCount { get; set; } = 1_00;
 
     //[Params("Ninja", "Samurai", "Samurai.PermessageDeflate")]
     [Params("Ninja", "Samurai", "Native")]

@@ -96,10 +96,10 @@ namespace Samurai.WebSockets.Internal
                 this.logger.LogInformation("Server {Guid} started accepting WebSocket", guid);
         }
 
-        internal void SendingHandshakeResponse(Guid guid, string response)
+        internal void SendingHandshakeResponse(Guid guid, int statusCode)
         {
             if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Server {Guid} sending handshake response: {Response}", guid, response);
+                this.logger.LogInformation("Server {Guid} sending handshake response, StatusCode: {statusCode}", guid, statusCode);
         }
 
         internal void WebSocketVersionNotSupported(Guid guid, Exception exception)

@@ -59,22 +59,22 @@ namespace Samurai.WebSockets.Extensions
             try
             {
                 var response = context.HandshakeResponse(options);
-                var message = response.Build();
-
-                Events.Log?.SendingHandshakeResponse(guid, message);
-                await context.Stream.WriteHttpHeaderAsync(message, cancellationToken).ConfigureAwait(false);
+                Events.Log?.SendingHandshakeResponse(guid, response.StatusCode);
+                await response.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
                 return response.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true;
             }
             catch (WebSocketVersionNotSupportedException ex)
             {
                 Events.Log?.WebSocketVersionNotSupported(guid, ex);
-                await context.Stream.WriteHttpHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\n{ex.Message}", cancellationToken).ConfigureAwait(false);
+                var response = HttpResponse.Create(426).AddHeader("Sec-WebSocket-Version", "13").WithBody(ex.Message);
+                await response.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
                 throw;
             }
             catch (Exception ex)
             {
                 Events.Log?.BadRequest(guid, ex);
-                await context.Stream.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", cancellationToken).ConfigureAwait(false);
+                var response = HttpResponse.Create(400);
+                await response.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
                 throw;
             }
         }

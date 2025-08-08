@@ -23,7 +23,8 @@ namespace WebSockets.DemoServer
                 = new Samurai.WebSockets.Internal.Events(loggerFactory.CreateLogger<Samurai.WebSockets.Internal.Events>());
 
             ushort port = 27416;
-            var server = new SamuraiServer(loggerFactory.CreateLogger<SamuraiServer>(), port);
+            var interceptors = new Interceptors();
+            var server = new SamuraiServer(loggerFactory.CreateLogger<SamuraiServer>(), interceptors, port);
             await server.StartAsync();
             // var webSocketServerFactory = new WebSocketServerFactory();
             //await StartWebServerAsync(port, logger, loggerFactory, webSocketServerFactory).ConfigureAwait(false);

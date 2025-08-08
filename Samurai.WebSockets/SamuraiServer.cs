@@ -62,7 +62,7 @@ namespace Samurai.WebSockets
         private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)
         {
             if (context.IsWebSocketRequest)
-                return ValueTask.FromResult(context.HandshakeResponse(this.options));
+                return new ValueTask<HttpResponse>(context.HandshakeResponse(this.options));
 
             var response = HttpResponse.Create(426)
                 .AddHeader("Upgrade", "websocket")
@@ -71,7 +71,7 @@ namespace Samurai.WebSockets
                 .WithBody("WebSocket connection required. Use a WebSocket client.");
 
             this.logger.LogInformation("Http header contains no web socket upgrade request. Close");
-            return ValueTask.FromResult(response);
+            return new ValueTask<HttpResponse>(response);
         }
 
 
@@ -217,11 +217,9 @@ namespace Samurai.WebSockets
                     var httpRequest = await HttpRequest.ReadAsync(stream, source.Token).ConfigureAwait(false);
                     if (httpRequest is null)
                     {
-                        var response = HttpResponse.Create(400)
-                             .AddHeader("Content-Type", "text/plain")
-                             .Build();
+                        var response = HttpResponse.Create(400).AddHeader("Content-Type", "text/plain");
 
-                        await stream.WriteHttpHeaderAsync(response, source.Token).ConfigureAwait(false);
+                        await response.WriteToStreamAsync(stream, source.Token).ConfigureAwait(false);
                         stream.Close();
                         return;
                     }
@@ -234,9 +232,8 @@ namespace Samurai.WebSockets
                     {
                         try
                         {
-                            var message = handshakeResponse.Build();
-                            Events.Log?.SendingHandshakeResponse(guid, message);
-                            await context.Stream.WriteHttpHeaderAsync(message, cancellationToken).ConfigureAwait(false);
+                            Events.Log?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
+                            await handshakeResponse.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
                             var usePermessageDeflate = handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true;
                             var webSocket = new SamuraiWebSocket(
                                 guid,
@@ -254,7 +251,7 @@ namespace Samurai.WebSockets
                             var response = HttpResponse.Create(426)
                                 .AddHeader("Sec-WebSocket-Version", "13")
                                 .WithBody(ex.Message);
-
+                            Events.Log?.SendingHandshakeResponse(guid, response.StatusCode);
                             await context.TerminateAsync(response, source.Token).ConfigureAwait(false);
                             throw;
                         }
@@ -264,12 +261,14 @@ namespace Samurai.WebSockets
                             var response = HttpResponse.Create(400)
                                 .WithBody(ex.Message);
 
+                            Events.Log?.SendingHandshakeResponse(guid, response.StatusCode);
                             await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                             throw;
                         }
                     }
                     else
                     {
+                        Events.Log?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
                         await context.TerminateAsync(handshakeResponse, source.Token).ConfigureAwait(false);
                     }
                 }
@@ -296,6 +295,7 @@ namespace Samurai.WebSockets
                 finally
                 {
                     this.logger.LogInformation("Server: Connection closed");
+
                 }
             }
         }

@@ -64,7 +64,7 @@ namespace Samurai.WebSockets
             if (!this.Stream.CanWrite)
                 return;
 
-            await this.Stream.WriteHttpHeaderAsync(response.Build(), cancellationToken);
+            await response.WriteToStreamAsync(this.Stream, cancellationToken);
             this.Stream.Close();
         }
 

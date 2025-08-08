@@ -22,6 +22,8 @@ using Ninja.WebSockets;
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [RankColumn]
+[MinIterationCount(5)]
+[MaxIterationCount(15)]
 public class WebSocketServerClientBenchmarks
 {
     private WebSocketServerFactory server;
