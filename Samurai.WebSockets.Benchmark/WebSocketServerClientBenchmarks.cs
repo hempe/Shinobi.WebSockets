@@ -17,8 +17,8 @@ using BenchmarkDotNet.Order;
 
 using Ninja.WebSockets;
 
-[SimpleJob(RuntimeMoniker.Net90)]
-// [SimpleJob(RuntimeMoniker.Net472)]
+// [SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net472)]
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [RankColumn]

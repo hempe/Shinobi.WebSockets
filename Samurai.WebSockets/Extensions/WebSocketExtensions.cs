@@ -10,7 +10,7 @@ namespace Samurai.WebSockets.Extensions
 {
     public static class WebSocketExtensions
     {
-        public static async Task<WebSocketReceiveResult> ReceiveAsync(
+        public static async ValueTask<WebSocketReceiveResult> ReceiveAsync(
             this WebSocket webSocket,
             ArrayPoolStream ms,
             CancellationToken cancellationToken)
@@ -30,7 +30,7 @@ namespace Samurai.WebSockets.Extensions
         /// <param name="message">The text message to send</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Task representing the async operation</returns>
-        public static async Task SendTextAsync(this WebSocket? webSocket, string? message, CancellationToken cancellationToken = default)
+        public static async ValueTask SendTextAsync(this WebSocket? webSocket, string? message, CancellationToken cancellationToken = default)
         {
             if (webSocket == null)
                 throw new ArgumentNullException(nameof(webSocket));
@@ -52,7 +52,7 @@ namespace Samurai.WebSockets.Extensions
         /// <param name="data">The binary data to send</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Task representing the async operation</returns>
-        public static async Task SendBinaryAsync(this WebSocket? webSocket, byte[]? data, CancellationToken cancellationToken = default)
+        public static async ValueTask SendBinaryAsync(this WebSocket? webSocket, byte[]? data, CancellationToken cancellationToken = default)
         {
             if (webSocket == null)
                 throw new ArgumentNullException(nameof(webSocket));

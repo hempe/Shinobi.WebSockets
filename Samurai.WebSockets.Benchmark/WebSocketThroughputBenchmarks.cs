@@ -15,11 +15,13 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 
+using Samurai.WebSockets;
 using Samurai.WebSockets.Extensions;
 
 
 [SimpleJob(RuntimeMoniker.Net90)]
-// [SimpleJob(RuntimeMoniker.Net472)]
+[SimpleJob(RuntimeMoniker.Net472, Environment = "Windows")]
+[SimpleJob(typeof(MonoRuntime))]
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [MinIterationCount(5)]
@@ -34,19 +36,19 @@ public class WebSocketThroughputBenchmarks
 
 
     //[Params(1_000, 10_000)]
-    public int MessageCount { get; set; } = 1_00;
+    public int MessageCount { get; set; } = 1_000;
 
     //[Params(16, 64)]
     [Params(1, 17)]
-    public int MessageSizeKb { get; set; } = 16;
+    public int MessageSizeKb { get; set; } = 4;
 
     //[Params(1000)]
     public int ClientCount { get; set; } = 1_00;
 
     //[Params("Ninja", "Samurai", "Samurai.PermessageDeflate")]
-    [Params("Ninja", "Samurai", "Native")]
+    [Params("Ninja", "Samurai", "Native", "SS")]
     //[Params("Ninja", "Samurai")]
-    public string Server { get; set; } = "Samurai";
+    public string Server { get; set; } = "SS";
 
     [Params("Ninja", "Samurai", "Native")]
     //[Params("Ninja", "Samurai")]
@@ -153,6 +155,36 @@ public class WebSocketThroughputBenchmarks
                     Console.WriteLine($"All {this.ClientCount} clients connected and ready for WebSocket communication.");
                     serverReady.SetResult(true);
                     cleanup = () => listener.Stop();
+                }
+                else if (this.Server == "SS")
+                {
+                    var clients = 0;
+                    var server = Samurai.WebSockets.WebSocketBuilder.Create()
+                        .UsePort((ushort)this.port)
+                        .OnConnect((client, next, cancellationToken) =>
+                        {
+                            Interlocked.Increment(ref clients);
+                            if (clients == this.ClientCount)
+                                serverReady.SetResult(true);
+
+                            return next(client, cancellationToken);
+                        })
+                        .OnMessage(async (client, type, stream, next, cancellationToken) =>
+                        {
+                            if (type == Samurai.WebSockets.MessageType.Binary && stream is ArrayPoolStream aps)
+                            {
+                                aps.Position = aps.Length;
+                                var seg = aps.GetDataArraySegment();
+                                await client.SendAsync(seg, WebSocketMessageType.Binary, true, cancellationToken);
+                            }
+                        }).Build();
+
+                    await server.StartAsync();
+                    cleanup = () =>
+                    {
+                        server.StopAsync().GetAwaiter().GetResult();
+                        server.Dispose();
+                    };
                 }
                 else
                 {

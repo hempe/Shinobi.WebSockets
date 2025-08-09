@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
@@ -33,7 +34,7 @@ namespace WebSockets.DemoServer
                 var server = WebSocketBuilder.Create()
                     .UsePort(8080)
                     .UseDevCertificate()         // Enable SSL with ASP.NET Core dev cert
-                    .UseLogging(loggerFactory)   // Log connections/disconnections/errors
+                                                 //.UseLogging(loggerFactory)   // Log connections/disconnections/errors
                     .UseCors("*")                // Allow all origins
                     .OnConnect(async (webSocket, next, cancellationToken) =>
                     {
@@ -71,6 +72,9 @@ namespace WebSockets.DemoServer
                                 break;
                         }
                     })
+                    .OnBinaryMessage((webSocket, bytes, cancellationToken) =>
+                        webSocket.SendBinaryAsync(bytes, cancellationToken)
+                    )
                     .OnHandshake((context, next, cancellationToken) =>
                     {
                         // This is not a harded web server, but for testing this seem fine:
@@ -99,10 +103,7 @@ namespace WebSockets.DemoServer
 
                 logger.LogInformation("WebSocket server started successfully!");
                 logger.LogInformation("HTTPS WebSocket URL: wss://localhost:8080");
-                logger.LogInformation("Test with a WebSocket client or browser console:" + Environment.NewLine
-                                    + "   const ws = new WebSocket('wss://localhost:8080');" + Environment.NewLine
-                                    + "   ws.onmessage = e => console.log('Received:', e.data);" + Environment.NewLine
-                                    + "   ws.send('time');");
+                logger.LogInformation("Test with the demo client, lauche https://localhost:8080");
 
                 Console.WriteLine("\nPress any key to stop the server...");
 

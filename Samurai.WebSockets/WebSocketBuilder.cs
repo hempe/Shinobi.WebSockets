@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Cryptography.X509Certificates;
@@ -152,16 +153,21 @@ namespace Samurai.WebSockets
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
 
-            return this.OnMessage(async (webSocket, messageType, stream, _next, cancellationToken) =>
+            return this.OnMessage(async (webSocket, messageType, stream, next, cancellationToken) =>
             {
                 if (messageType == MessageType.Text)
                 {
-                    using (var reader = new StreamReader(stream, leaveOpen: true))
-                    {
-                        var message = await reader.ReadToEndAsync();
-                        await handler(webSocket, message, cancellationToken);
-                    }
+#if NET9_0_OR_GREATER
+                    using var reader = new StreamReader(stream, leaveOpen: true);
+#else
+                    var reader = new StreamReader(stream);
+#endif
+                    var message = await reader.ReadToEndAsync();
+                    await handler(webSocket, message, cancellationToken);
+                    return;
                 }
+
+                await next(webSocket, messageType, stream, cancellationToken);
             });
         }
 
@@ -169,7 +175,7 @@ namespace Samurai.WebSockets
         /// Adds a handler specifically for binary messages
         /// </summary>
         /// <param name="handler">Binary message handler</param>
-        public WebSocketBuilder OnBinaryMessage(Func<SamuraiWebSocket, byte[], CancellationToken, Task> handler)
+        public WebSocketBuilder OnBinaryMessage(Func<SamuraiWebSocket, byte[], CancellationToken, ValueTask> handler)
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
 
@@ -179,10 +185,13 @@ namespace Samurai.WebSockets
                 {
                     using (var memoryStream = new MemoryStream())
                     {
-                        await stream.CopyToAsync(memoryStream, cancellationToken);
+                        stream.CopyTo(memoryStream);
                         await handler(webSocket, memoryStream.ToArray(), cancellationToken);
+                        return;
                     }
                 }
+
+                await next(webSocket, messageType, stream, cancellationToken);
             });
         }
 
