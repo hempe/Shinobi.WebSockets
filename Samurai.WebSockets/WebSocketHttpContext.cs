@@ -10,6 +10,7 @@ using Samurai.WebSockets.Extensions;
 
 namespace Samurai.WebSockets
 {
+
     /// <summary>
     /// The WebSocket HTTP Context used to initiate a WebSocket handshake
     /// </summary>
@@ -79,8 +80,6 @@ namespace Samurai.WebSockets
                 return;
 
             await response.WriteToStreamAsync(this.Stream, cancellationToken);
-            this.Stream.Close();
         }
-
     }
 }

@@ -6,49 +6,8 @@ using System.Threading.Tasks;
 
 namespace Samurai.WebSockets.Utils
 {
-
-    // 1 input
-    public delegate ValueTask InvokeOn<TInput>(TInput input, CancellationToken cancellationToken);
-
-    public delegate ValueTask On<TInput>(
-        TInput input,
-        CancellationToken cancellationToken,
-        InvokeOn<TInput> next);
-
-
-    // 2 inputs
-    public delegate ValueTask InvokeOn<TInput1, TInput2>(
-        TInput1 input1,
-        TInput2 input2,
-        CancellationToken cancellationToken);
-
-    public delegate ValueTask On<TInput1, TInput2>(
-        TInput1 input1,
-        TInput2 input2,
-        CancellationToken cancellationToken,
-        InvokeOn<TInput1, TInput2> next);
-
-
-    // 3 inputs
-    public delegate ValueTask InvokeOn<TInput1, TInput2, TInput3>(
-        TInput1 input1,
-        TInput2 input2,
-        TInput3 input3,
-        CancellationToken cancellationToken);
-
-    public delegate ValueTask On<TInput1, TInput2, TInput3>(
-        TInput1 input1,
-        TInput2 input2,
-        TInput3 input3,
-        CancellationToken cancellationToken,
-        InvokeOn<TInput1, TInput2, TInput3> next);
-
-    public delegate ValueTask<TResult> Invoke<TInput, TResult>(TInput input, CancellationToken cancellationToken);
-    public delegate ValueTask<TResult> Next<TInput, TResult>(TInput input, CancellationToken cancellationToken, Invoke<TInput, TResult> next);
-
-    public static class Builder
+    internal static class Builder
     {
-
         public static Invoke<TInput, TResult> BuildInterceptorChain<TInput, TResult>(
             Invoke<TInput, TResult> terminal,
             IEnumerable<Next<TInput, TResult>>? interceptors)
@@ -60,7 +19,7 @@ namespace Samurai.WebSockets.Utils
             foreach (var interceptor in interceptors.Reverse())
             {
                 var next = chain;
-                chain = (input, cancellationToken) => interceptor(input, cancellationToken, next);
+                chain = (input, cancellationToken) => interceptor(input, next, cancellationToken);
             }
 
             return chain;
@@ -79,7 +38,7 @@ namespace Samurai.WebSockets.Utils
             foreach (var interceptor in interceptors.Reverse())
             {
                 var next = chain;
-                chain = (input, cancellationToken) => interceptor(input, cancellationToken, next);
+                chain = (input, cancellationToken) => interceptor(input, next, cancellationToken);
             }
 
             return chain;
@@ -98,7 +57,7 @@ namespace Samurai.WebSockets.Utils
             foreach (var interceptor in interceptors.Reverse())
             {
                 var next = chain;
-                chain = (input1, input2, cancellationToken) => interceptor(input1, input2, cancellationToken, next);
+                chain = (input1, input2, cancellationToken) => interceptor(input1, input2, next, cancellationToken);
             }
 
             return chain;
@@ -117,7 +76,7 @@ namespace Samurai.WebSockets.Utils
             foreach (var interceptor in interceptors.Reverse())
             {
                 var next = chain;
-                chain = (input1, input2, input3, cancellationToken) => interceptor(input1, input2, input3, cancellationToken, next);
+                chain = (input1, input2, input3, cancellationToken) => interceptor(input1, input2, input3, next, cancellationToken);
             }
 
             return chain;

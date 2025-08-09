@@ -306,6 +306,7 @@ namespace Samurai.WebSockets
         {
             if (this.isDisposed)
                 throw new ObjectDisposedException(nameof(ArrayPoolStream));
+
         }
     }
 }

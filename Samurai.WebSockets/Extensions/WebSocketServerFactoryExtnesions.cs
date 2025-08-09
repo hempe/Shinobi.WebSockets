@@ -67,14 +67,14 @@ namespace Samurai.WebSockets.Extensions
             {
                 Events.Log?.WebSocketVersionNotSupported(guid, ex);
                 var response = HttpResponse.Create(426).AddHeader("Sec-WebSocket-Version", "13").WithBody(ex.Message);
-                await response.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
+                await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                 throw;
             }
             catch (Exception ex)
             {
                 Events.Log?.BadRequest(guid, ex);
                 var response = HttpResponse.Create(400);
-                await response.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
+                await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                 throw;
             }
         }

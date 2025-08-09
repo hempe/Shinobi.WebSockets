@@ -23,6 +23,18 @@ using Samurai.WebSockets.Utils;
 namespace Samurai.WebSockets
 {
 
+    public enum MessageType
+    {
+        /// <summary>
+        /// The message is clear text.
+        /// </summary>
+        Text = 0,
+
+        /// <summary>
+        /// The message is clear text.
+        /// </summary>
+        Binary = 1,
+    }
 
     public delegate ValueTask<Stream> AcceptStreamHandler(TcpClient tcpClient, CancellationToken cancellationToken);
     public delegate ValueTask<Stream> AcceptStreamInterceptor(TcpClient tcpClient, CancellationToken cancellationToken, AcceptStreamHandler next);
@@ -34,7 +46,7 @@ namespace Samurai.WebSockets
         public IEnumerable<On<SamuraiWebSocket>>? OnConnect { get; set; }
         public IEnumerable<On<SamuraiWebSocket>>? OnClose { get; set; }
         public IEnumerable<On<SamuraiWebSocket, Exception>>? OnError { get; set; }
-        public IEnumerable<On<SamuraiWebSocket, WebSocketMessageType, Stream>>? OnMessage { get; set; }
+        public IEnumerable<On<SamuraiWebSocket, MessageType, Stream>>? OnMessage { get; set; }
     }
 
     public class SamuraiServer : IDisposable
@@ -45,17 +57,17 @@ namespace Samurai.WebSockets
 
         private bool isDisposed;
         private readonly ushort port;
-        private readonly ILogger<SamuraiServer> logger;
+        private readonly ILogger<SamuraiServer>? logger;
         private readonly WebSocketServerOptions options = new WebSocketServerOptions();
         private readonly Invoke<TcpClient, Stream> OnConnectStreamsAsync;
         private readonly Invoke<WebSocketHttpContext, HttpResponse> OnHandshakeAsync;
         private readonly InvokeOn<SamuraiWebSocket> OnConnectAsync;
         private readonly InvokeOn<SamuraiWebSocket> OnCloseAsync;
         private readonly InvokeOn<SamuraiWebSocket, Exception> OnErrorAsync;
-        private readonly InvokeOn<SamuraiWebSocket, WebSocketMessageType, Stream> OnMessageAsync;
+        private readonly InvokeOn<SamuraiWebSocket, MessageType, Stream> OnMessageAsync;
 
         public SamuraiServer(
-            ILogger<SamuraiServer> logger,
+            ILogger<SamuraiServer>? logger,
             Interceptors interceptors,
             ushort port)
         {
@@ -81,7 +93,7 @@ namespace Samurai.WebSockets
                 .AddHeader("Content-Type", "text/plain")
                 .WithBody("WebSocket connection required. Use a WebSocket client.");
 
-            this.logger.LogInformation("Http header contains no web socket upgrade request. Close");
+            this.logger?.LogInformation("Http header contains no web socket upgrade request. Close");
             return new ValueTask<HttpResponse>(response);
         }
 
@@ -147,7 +159,7 @@ namespace Samurai.WebSockets
                     this.listener = new TcpListener(IPAddress.Any, port);
                     this.listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     this.listener.Start();
-                    this.logger.LogInformation("Server started listening on port {Port}", port);
+                    this.logger?.LogInformation("Server started listening on port {Port}", port);
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
@@ -160,7 +172,7 @@ namespace Samurai.WebSockets
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
-                    this.logger.LogError(ex, "Error listening on port {Port}. Make sure IIS or another application is not running and consuming your port.", port);
+                    this.logger?.LogError(ex, "Error listening on port {Port}. Make sure IIS or another application is not running and consuming your port.", port);
                 }
             }
         }
@@ -177,14 +189,14 @@ namespace Samurai.WebSockets
             try
             {
                 var sslStream = new SslStream(stream, true);
-                this.logger.LogInformation("Attempting to secure connection...");
+                this.logger?.LogInformation("Attempting to secure connection...");
 
 #if NET8_0_OR_GREATER
                 await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
 #else
                 await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
 #endif
-                this.logger.LogInformation("Connection successfully secured");
+                this.logger?.LogInformation("Connection successfully secured");
                 return sslStream;
             }
             catch (ObjectDisposedException)
@@ -193,10 +205,10 @@ namespace Samurai.WebSockets
             }
             catch (Exception e)
             {
-                this.logger.LogError(e, "Failed to upgrade stream to ssl stream.");
+                this.logger?.LogError(e, "Failed to upgrade stream to ssl stream.");
                 if (e.InnerException != null)
                 {
-                    this.logger.LogError(e.InnerException, "Failed to upgrade stream to ssl stream, inner exception: {Message}.", e.Message);
+                    this.logger?.LogError(e.InnerException, "Failed to upgrade stream to ssl stream, inner exception: {Message}.", e.Message);
                 }
 
                 throw;
@@ -206,11 +218,12 @@ namespace Samurai.WebSockets
         private void ThrowIfDisposed()
         {
             if (this.isDisposed)
-                throw new ObjectDisposedException(nameof(ArrayPoolStream));
+                throw new ObjectDisposedException(nameof(SamuraiServer));
         }
 
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)
         {
+            using (tcpClient)
             using (var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 WebSocketHttpContext? context = null;
@@ -222,7 +235,7 @@ namespace Samurai.WebSockets
                     // Client sends a close connection request OR
                     // An unhandled exception is thrown OR
                     // The server is disposed
-                    this.logger.LogInformation("Server: Connection opened.");
+
                     var stream = await this.OnConnectStreamsAsync(tcpClient, source.Token);
 
                     var httpRequest = await HttpRequest.ReadAsync(stream, source.Token).ConfigureAwait(false);
@@ -241,12 +254,13 @@ namespace Samurai.WebSockets
                     var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
                     if (handshakeResponse.StatusCode == 101)
                     {
+                        SamuraiWebSocket? webSocket = null;
                         try
                         {
                             Events.Log?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
                             await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
                             var usePermessageDeflate = handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true;
-                            var webSocket = new SamuraiWebSocket(
+                            webSocket = new SamuraiWebSocket(
                                 context,
                                 this.options.KeepAliveInterval,
                                 usePermessageDeflate, this.options.IncludeExceptionInCloseResponse,
@@ -270,6 +284,13 @@ namespace Samurai.WebSockets
                         catch (Exception ex)
                         {
                             Events.Log?.BadRequest(guid, ex);
+
+                            if (webSocket?.State == WebSocketState.Open)
+                            {
+                                await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, ex.Message, source.Token).ConfigureAwait(false);
+                                throw;
+                            }
+
                             var response = HttpResponse.Create(400)
                                 .WithBody(ex.Message);
 
@@ -302,12 +323,11 @@ namespace Samurai.WebSockets
                         await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                     }
 
-                    this.logger.LogError(ex, "Failure at the TCP connection");
+                    this.logger?.LogError(ex, "Failure at the TCP connection");
                 }
                 finally
                 {
-                    this.logger.LogInformation("Server: Connection closed");
-
+                    this.logger?.LogInformation("Server: Connection closed");
                 }
             }
         }
@@ -357,7 +377,7 @@ namespace Samurai.WebSockets
                     if (result.EndOfMessage)
                     {
                         receiveBuffer.Position = 0;
-                        await this.OnMessageAsync(client, result.MessageType, receiveBuffer, cancellationToken);
+                        await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
                         receiveBuffer.SetLength(0);
                         currentMessageType = null; // Reset for next message
                     }

@@ -3,17 +3,15 @@ using System.Net.Security;
 using System.Net.WebSockets;
 
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Samurai.WebSockets.Internal
 {
     public sealed class Events
     {
         private readonly ILogger<Events> logger;
-        public static Events? Log { get; set; } = null;
+        internal static Events? Log { get; set; } = null;
 
-
-        public Events(ILogger<Events> logger)
+        internal Events(ILogger<Events> logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }

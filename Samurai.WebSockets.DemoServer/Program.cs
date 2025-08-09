@@ -1,59 +1,128 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
 using Samurai.WebSockets;
+using Samurai.WebSockets.Extensions;
 
 namespace WebSockets.DemoServer
 {
-    internal class Program
+    internal static class Program
     {
-        private static async Task Main(string[] _)
+        private static async Task Main(string[] args)
         {
             var loggerFactory = LoggerFactory.Create(builder => builder
-                    .SetMinimumLevel(LogLevel.Trace)
-                    .AddConsole());
+                .SetMinimumLevel(LogLevel.Trace)
+                .AddConsole());
 
-            var logger = loggerFactory.CreateLogger<Program>();
+            var logger = loggerFactory.CreateLogger<SamuraiServer>();
 
-            Samurai.WebSockets.Internal.Events.Log
-                = new Samurai.WebSockets.Internal.Events(loggerFactory.CreateLogger<Samurai.WebSockets.Internal.Events>());
+            logger.LogInformation("Starting WebSocket Demo Server...");
+            logger.LogInformation("Features included:");
+            logger.LogInformation("- Echo messages");
+            logger.LogInformation("- Connection logging");
+            logger.LogInformation("- SSL support with dev certificate");
+            logger.LogInformation("- Connection limit (10 max)");
 
-            ushort port = 27416;
-            var interceptors = new Interceptors();
-            var server = new SamuraiServer(loggerFactory.CreateLogger<SamuraiServer>(), interceptors, port);
-            await server.StartAsync();
-            // var webSocketServerFactory = new WebSocketServerFactory();
-            //await StartWebServerAsync(port, logger, loggerFactory, webSocketServerFactory).ConfigureAwait(false);
-            logger.LogInformation("Server stopped. Press ENTER to exit.");
-            Console.ReadLine();
-            await server.StopAsync();
-        }
-
-        private static async Task StartWebServerAsync(
-            ushort port,
-            ILogger logger,
-            ILoggerFactory loggerFactory,
-            IWebSocketServerFactory webSocketServerFactory)
-        {
             try
             {
-                IList<string> supportedSubProtocols = ["chatV1", "chatV2", "chatV3"];
-                using (WebServer server = new WebServer(webSocketServerFactory, loggerFactory, supportedSubProtocols))
-                {
-                    await server.ListenAsync(port);
-                    logger.LogInformation($"Listening on port {port}");
-                    logger.LogInformation("Press any key to quit");
-                    Console.ReadKey();
-                }
+                // Create the WebSocket server with multiple features
+                var server = WebSocketBuilder.Create()
+                    .UsePort(8080)
+                    .UseDevCertificate()         // Enable SSL with ASP.NET Core dev cert
+                    .UseLogging(loggerFactory)   // Log connections/disconnections/errors
+                    .UseCors("*")                // Allow all origins
+                    .OnConnect(async (webSocket, next, cancellationToken) =>
+                    {
+                        logger.LogInformation("New client connected: {ConnectionId}", webSocket.Context.Guid);
+                        await webSocket.SendTextAsync("Welcome to the WebSocket Demo Server!", cancellationToken);
+                        await next(webSocket, cancellationToken);
+                    })
+                    .OnClose((webSocket, next, cancellationToken) =>
+                    {
+                        logger.LogInformation("Client disconnected: {ConnectionId}", webSocket.Context.Guid);
+                        return next(webSocket, cancellationToken);
+                    })
+                    .OnTextMessage(async (webSocket, message, cancellationToken) =>
+                    {
+                        logger.LogInformation("Received from {ConnectionId}: {Message}", webSocket.Context.Guid, message);
+
+                        // Handle special commands
+                        switch (message.Trim().ToLower())
+                        {
+                            case "time":
+                                await webSocket.SendTextAsync($"Server time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}", cancellationToken);
+                                break;
+                            case "help":
+                                await webSocket.SendTextAsync(
+                                    "Available commands:\n" +
+                                    "- time: Get server time\n" +
+                                    "- help: Show this help\n" +
+                                    "- Any other text will be echoed back",
+                                    cancellationToken);
+                                break;
+                            default:
+                                await webSocket.SendTextAsync($"ECHO: {message}", cancellationToken);
+                                break;
+                        }
+                    })
+                    .OnHandshake((context, next, cancellationToken) =>
+                    {
+                        if (!context.IsWebSocketRequest && context.Path == "/")
+                        {
+                            var assembly = Assembly.GetExecutingAssembly();
+                            var resourceName = "Samurai.WebSockets.DemoServer.Client.html";
+                            using var stream = assembly.GetManifestResourceStream(resourceName) ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
+                            using var reader = new StreamReader(stream);
+                            var htmlContent = reader.ReadToEnd();
+
+                            var response = HttpResponse.Create(200)
+                                .AddHeader("Content-Type", "text/html; charset=utf-8")
+                                .WithBody(htmlContent);
+
+                            return new ValueTask<HttpResponse>(response);
+                        }
+
+                        logger.LogInformation("Path: {Path}", context.Path);
+                        return next(context, cancellationToken);
+                    })
+                    .Build();
+
+                // Start the server
+                await server.StartAsync();
+
+                logger.LogInformation("WebSocket server started successfully!");
+                logger.LogInformation("HTTPS WebSocket URL: wss://localhost:8080");
+                logger.LogInformation("Test with a WebSocket client or browser console:" + Environment.NewLine
+                                    + "   const ws = new WebSocket('wss://localhost:8080');" + Environment.NewLine
+                                    + "   ws.onmessage = e => console.log('Received:', e.data);" + Environment.NewLine
+                                    + "   ws.send('time');");
+
+                Console.WriteLine("\nPress any key to stop the server...");
+
+                // Keep the server running until a key is pressed
+                Console.ReadLine();
+
+                logger.LogInformation("Shutting down server...");
+                await server.StopAsync();
+                logger.LogInformation("Server stopped.");
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("development certificate"))
+            {
+                logger.LogError("SSL Certificate Error: {ErrorMessage}", ex.Message);
+                logger.LogInformation("To fix this, run the following command: dotnet dev-certs https --trust");
+                logger.LogInformation("Alternatively, you can run without SSL by removing the .UseDevCertificate() call.");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex.ToString());
-                Console.ReadKey();
+                logger.LogError(ex, "Error starting server: {ErrorMessage}", ex.Message);
+            }
+            finally
+            {
+                loggerFactory.Dispose();
             }
         }
     }
