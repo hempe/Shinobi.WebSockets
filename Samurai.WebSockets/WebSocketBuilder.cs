@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Http.Headers;
 using System.Net.Sockets;
-using System.Net.WebSockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,17 +11,50 @@ using Microsoft.Extensions.Logging;
 
 namespace Samurai.WebSockets
 {
+    // Stream acceptance delegates
+    public delegate ValueTask<Stream> AcceptStreamHandler(TcpClient tcpClient, CancellationToken cancellationToken);
+    public delegate ValueTask<Stream> AcceptStreamInterceptor(TcpClient tcpClient, AcceptStreamHandler next, CancellationToken cancellationToken);
+
+    // Certificate selection delegates  
+    public delegate ValueTask<X509Certificate2?> CertificateSelectionHandler(TcpClient tcpClient, CancellationToken cancellationToken);
+    public delegate ValueTask<X509Certificate2?> CertificateSelectionInterceptor(TcpClient tcpClient, CertificateSelectionHandler next, CancellationToken cancellationToken);
+
+    // Handshake delegates
+    public delegate ValueTask<HttpResponse> HandshakeHandler(WebSocketHttpContext context, CancellationToken cancellationToken);
+    public delegate ValueTask<HttpResponse> HandshakeInterceptor(WebSocketHttpContext context, HandshakeHandler next, CancellationToken cancellationToken);
+
+    // WebSocket connection delegates
+    public delegate ValueTask WebSocketConnectHandler(SamuraiWebSocket webSocket, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketConnectInterceptor(SamuraiWebSocket webSocket, WebSocketConnectHandler next, CancellationToken cancellationToken);
+
+    // WebSocket close delegates  
+    public delegate ValueTask WebSocketCloseHandler(SamuraiWebSocket webSocket, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketCloseInterceptor(SamuraiWebSocket webSocket, WebSocketCloseHandler next, CancellationToken cancellationToken);
+
+    // WebSocket error delegates
+    public delegate ValueTask WebSocketErrorHandler(SamuraiWebSocket webSocket, Exception exception, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketErrorInterceptor(SamuraiWebSocket webSocket, Exception exception, WebSocketErrorHandler next, CancellationToken cancellationToken);
+
+    // WebSocket message delegates
+    public delegate ValueTask WebSocketMessageHandler(SamuraiWebSocket webSocket, MessageType messageType, Stream messageStream, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketMessageInterceptor(SamuraiWebSocket webSocket, MessageType messageType, Stream messageStream, WebSocketMessageHandler next, CancellationToken cancellationToken);
+
+    // Simplified message handlers (for convenience methods)
+    public delegate ValueTask WebSocketTextMessageHandler(SamuraiWebSocket webSocket, string message, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketBinaryMessageHandler(SamuraiWebSocket webSocket, byte[] message, CancellationToken cancellationToken);
+
+    // Authentication delegate
+    public delegate bool WebSocketAuthenticator(WebSocketHttpContext context);
+
     public class WebSocketBuilder
     {
-        private readonly List<Next<TcpClient, Stream>> onAcceptStream = new List<Next<TcpClient, Stream>>();
-        private readonly List<Next<TcpClient, X509Certificate2?>> onSelectionCertificate = new List<Next<TcpClient, X509Certificate2?>>();
-
-        private readonly List<Next<WebSocketHttpContext, HttpResponse>> onHandshake = new List<Next<WebSocketHttpContext, HttpResponse>>();
-        private readonly List<On<SamuraiWebSocket>> onConnect = new List<On<SamuraiWebSocket>>();
-        private readonly List<On<SamuraiWebSocket>> onClose = new List<On<SamuraiWebSocket>>();
-        private readonly List<On<SamuraiWebSocket, Exception>> onError = new List<On<SamuraiWebSocket, Exception>>();
-        private readonly List<On<SamuraiWebSocket, MessageType, Stream>> onMessage = new List<On<SamuraiWebSocket, MessageType, Stream>>();
-
+        private readonly List<AcceptStreamInterceptor> onAcceptStream = new List<AcceptStreamInterceptor>();
+        private readonly List<CertificateSelectionInterceptor> onSelectionCertificate = new List<CertificateSelectionInterceptor>();
+        private readonly List<HandshakeInterceptor> onHandshake = new List<HandshakeInterceptor>();
+        private readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();
+        private readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
+        private readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
+        private readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
         private ILogger<SamuraiServer>? logger;
         private WebSocketServerOptions configuration = new WebSocketServerOptions();
 
@@ -43,16 +74,17 @@ namespace Samurai.WebSockets
         /// <param name="certificate">X509 certificate for SSL/TLS</param>
         public WebSocketBuilder UseSsl(X509Certificate2? certificate)
         {
-            this.onSelectionCertificate.Add((_client, _next, _cancellationToken) => new ValueTask<X509Certificate2?>(certificate));
+            this.onSelectionCertificate.Add((tcpClient, next, cancellationToken) => new ValueTask<X509Certificate2?>(certificate));
             return this;
         }
 
         /// <summary>
         /// Adds an interceptor for selecting the certificate.
         /// </summary>
-        public WebSocketBuilder UseSsl(Next<TcpClient, X509Certificate2?> interceptor)
+        /// <param name="interceptor">Certificate selection interceptor</param>
+        public WebSocketBuilder UseSsl(CertificateSelectionInterceptor interceptor)
         {
-            this.onSelectionCertificate.Add(interceptor);
+            this.onSelectionCertificate.Add(interceptor ?? throw new ArgumentNullException(nameof(interceptor)));
             return this;
         }
 
@@ -132,7 +164,7 @@ namespace Samurai.WebSockets
         /// Adds an interceptor for stream acceptance (e.g., for SSL/TLS, logging, etc.)
         /// </summary>
         /// <param name="interceptor">Stream acceptance interceptor</param>
-        public WebSocketBuilder OnAcceptStream(Next<TcpClient, Stream> interceptor)
+        public WebSocketBuilder OnAcceptStream(AcceptStreamInterceptor interceptor)
         {
             this.onAcceptStream.Add(interceptor ?? throw new ArgumentNullException(nameof(interceptor)));
             return this;
@@ -142,7 +174,7 @@ namespace Samurai.WebSockets
         /// Adds an interceptor for WebSocket handshake (e.g., for authentication, custom headers, etc.)
         /// </summary>
         /// <param name="interceptor">Handshake interceptor</param>
-        public WebSocketBuilder OnHandshake(Next<WebSocketHttpContext, HttpResponse> interceptor)
+        public WebSocketBuilder OnHandshake(HandshakeInterceptor interceptor)
         {
             this.onHandshake.Add(interceptor ?? throw new ArgumentNullException(nameof(interceptor)));
             return this;
@@ -152,7 +184,7 @@ namespace Samurai.WebSockets
         /// Adds a handler for when a WebSocket connection is established
         /// </summary>
         /// <param name="handler">Connection handler</param>
-        public WebSocketBuilder OnConnect(On<SamuraiWebSocket> handler)
+        public WebSocketBuilder OnConnect(WebSocketConnectInterceptor handler)
         {
             this.onConnect.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
@@ -162,7 +194,7 @@ namespace Samurai.WebSockets
         /// Adds a handler for when a WebSocket connection is closed
         /// </summary>
         /// <param name="handler">Close handler</param>
-        public WebSocketBuilder OnClose(On<SamuraiWebSocket> handler)
+        public WebSocketBuilder OnClose(WebSocketCloseInterceptor handler)
         {
             this.onClose.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
@@ -172,7 +204,7 @@ namespace Samurai.WebSockets
         /// Adds a handler for WebSocket errors
         /// </summary>
         /// <param name="handler">Error handler</param>
-        public WebSocketBuilder OnError(On<SamuraiWebSocket, Exception> handler)
+        public WebSocketBuilder OnError(WebSocketErrorInterceptor handler)
         {
             this.onError.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
@@ -182,7 +214,7 @@ namespace Samurai.WebSockets
         /// Adds a handler for incoming WebSocket messages
         /// </summary>
         /// <param name="handler">Message handler</param>
-        public WebSocketBuilder OnMessage(On<SamuraiWebSocket, MessageType, Stream> handler)
+        public WebSocketBuilder OnMessage(WebSocketMessageInterceptor handler)
         {
             this.onMessage.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
@@ -192,25 +224,25 @@ namespace Samurai.WebSockets
         /// Adds a handler specifically for text messages
         /// </summary>
         /// <param name="handler">Text message handler</param>
-        public WebSocketBuilder OnTextMessage(Func<SamuraiWebSocket, string, CancellationToken, ValueTask> handler)
+        public WebSocketBuilder OnTextMessage(WebSocketTextMessageHandler handler)
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
 
-            return this.OnMessage(async (webSocket, messageType, stream, next, cancellationToken) =>
+            return this.OnMessage(async (webSocket, messageType, messageStream, next, cancellationToken) =>
             {
                 if (messageType == MessageType.Text)
                 {
 #if NET9_0_OR_GREATER
-                    using var reader = new StreamReader(stream, leaveOpen: true);
+                    using var reader = new StreamReader(messageStream, leaveOpen: true);
 #else
-                    var reader = new StreamReader(stream);
+                    var reader = new StreamReader(messageStream);
 #endif
                     var message = await reader.ReadToEndAsync();
                     await handler(webSocket, message, cancellationToken);
                     return;
                 }
 
-                await next(webSocket, messageType, stream, cancellationToken);
+                await next(webSocket, messageType, messageStream, cancellationToken);
             });
         }
 
@@ -218,23 +250,23 @@ namespace Samurai.WebSockets
         /// Adds a handler specifically for binary messages
         /// </summary>
         /// <param name="handler">Binary message handler</param>
-        public WebSocketBuilder OnBinaryMessage(Func<SamuraiWebSocket, byte[], CancellationToken, ValueTask> handler)
+        public WebSocketBuilder OnBinaryMessage(WebSocketBinaryMessageHandler handler)
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
 
-            return this.OnMessage(async (webSocket, messageType, stream, next, cancellationToken) =>
+            return this.OnMessage(async (webSocket, messageType, messageStream, next, cancellationToken) =>
             {
                 if (messageType == MessageType.Binary)
                 {
                     using (var memoryStream = new MemoryStream())
                     {
-                        stream.CopyTo(memoryStream);
+                        messageStream.CopyTo(memoryStream);
                         await handler(webSocket, memoryStream.ToArray(), cancellationToken);
                         return;
                     }
                 }
 
-                await next(webSocket, messageType, stream, cancellationToken);
+                await next(webSocket, messageType, messageStream, cancellationToken);
             });
         }
 
@@ -248,10 +280,10 @@ namespace Samurai.WebSockets
             Internal.Events.Log = new Internal.Events(loggerFactory.CreateLogger<Internal.Events>());
             this.logger = loggerFactory.CreateLogger<SamuraiServer>();
 
-            this.OnAcceptStream((client, next, cancellationToken) =>
+            this.OnAcceptStream((tcpClient, next, cancellationToken) =>
             {
                 this.logger.LogInformation("Server: Connection opened.");
-                return next(client, cancellationToken);
+                return next(tcpClient, cancellationToken);
             });
 
             this.OnConnect((webSocket, next, cancellationToken) =>
@@ -279,7 +311,7 @@ namespace Samurai.WebSockets
         /// Adds basic authentication to the WebSocket handshake
         /// </summary>
         /// <param name="authenticator">Authentication function that returns true if authentication succeeds</param>
-        public WebSocketBuilder UseAuthentication(Func<WebSocketHttpContext, bool> authenticator)
+        public WebSocketBuilder UseAuthentication(WebSocketAuthenticator authenticator)
         {
             if (authenticator == null) throw new ArgumentNullException(nameof(authenticator));
 
@@ -373,14 +405,27 @@ namespace Samurai.WebSockets
                 this.AddSubProtocolNegotiation();
             }
 
-            // Set the interceptors from our collected handlers
-            this.configuration.OnAcceptStream = this.onAcceptStream.Count > 0 ? this.onAcceptStream : null;
-            this.configuration.OnHandshake = this.onHandshake.Count > 0 ? this.onHandshake : null;
-            this.configuration.OnConnect = this.onConnect.Count > 0 ? this.onConnect : null;
-            this.configuration.OnClose = this.onClose.Count > 0 ? this.onClose : null;
-            this.configuration.OnError = this.onError.Count > 0 ? this.onError : null;
-            this.configuration.OnMessage = this.onMessage.Count > 0 ? this.onMessage : null;
-            this.configuration.OnSelectionCertificate = this.onSelectionCertificate.Count > 0 ? this.onSelectionCertificate : null;
+            // Convert explicit delegates back to generic delegates for the configuration
+            this.configuration.OnAcceptStream = this.onAcceptStream.Count > 0 ?
+                this.onAcceptStream.Cast<Next<TcpClient, Stream>>().ToList() : null;
+
+            this.configuration.OnSelectionCertificate = this.onSelectionCertificate.Count > 0 ?
+                this.onSelectionCertificate.Cast<Next<TcpClient, X509Certificate2?>>().ToList() : null;
+
+            this.configuration.OnHandshake = this.onHandshake.Count > 0 ?
+                this.onHandshake.Cast<Next<WebSocketHttpContext, HttpResponse>>().ToList() : null;
+
+            this.configuration.OnConnect = this.onConnect.Count > 0 ?
+                this.onConnect.Cast<On<SamuraiWebSocket>>().ToList() : null;
+
+            this.configuration.OnClose = this.onClose.Count > 0 ?
+                this.onClose.Cast<On<SamuraiWebSocket>>().ToList() : null;
+
+            this.configuration.OnError = this.onError.Count > 0 ?
+                this.onError.Cast<On<SamuraiWebSocket, Exception>>().ToList() : null;
+
+            this.configuration.OnMessage = this.onMessage.Count > 0 ?
+                this.onMessage.Cast<On<SamuraiWebSocket, MessageType, Stream>>().ToList() : null;
 
             return new SamuraiServer(this.configuration, this.logger);
         }

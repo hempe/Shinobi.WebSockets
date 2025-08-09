@@ -35,9 +35,6 @@ namespace Samurai.WebSockets
         Binary = 1,
     }
 
-    public delegate ValueTask<Stream> AcceptStreamHandler(TcpClient tcpClient, CancellationToken cancellationToken);
-    public delegate ValueTask<Stream> AcceptStreamInterceptor(TcpClient tcpClient, CancellationToken cancellationToken, AcceptStreamHandler next);
-
     public class SamuraiServer : IDisposable
     {
         private Task? runTask;

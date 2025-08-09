@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Samurai.WebSockets.Internal
 {
-    public static class WebSocketFrameCommon
+    internal static class WebSocketFrameCommon
     {
         public const int MaskKeyLength = 4;
 
