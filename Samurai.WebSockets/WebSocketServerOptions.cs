@@ -9,44 +9,40 @@ using System.Threading.Tasks;
 
 namespace Samurai.WebSockets
 {
-    // 1 input
-    public delegate ValueTask InvokeOn<TInput>(TInput input, CancellationToken cancellationToken);
+    // Stream acceptance delegates
+    public delegate ValueTask<Stream> AcceptStreamHandler(TcpClient tcpClient, CancellationToken cancellationToken);
+    public delegate ValueTask<Stream> AcceptStreamInterceptor(TcpClient tcpClient, AcceptStreamHandler next, CancellationToken cancellationToken);
 
-    public delegate ValueTask On<TInput>(
-        TInput input,
-        InvokeOn<TInput> next,
-        CancellationToken cancellationToken);
+    // Certificate selection delegates  
+    public delegate ValueTask<X509Certificate2?> CertificateSelectionHandler(TcpClient tcpClient, CancellationToken cancellationToken);
+    public delegate ValueTask<X509Certificate2?> CertificateSelectionInterceptor(TcpClient tcpClient, CertificateSelectionHandler next, CancellationToken cancellationToken);
 
+    // Handshake delegates
+    public delegate ValueTask<HttpResponse> HandshakeHandler(WebSocketHttpContext context, CancellationToken cancellationToken);
+    public delegate ValueTask<HttpResponse> HandshakeInterceptor(WebSocketHttpContext context, HandshakeHandler next, CancellationToken cancellationToken);
 
-    // 2 inputs
-    public delegate ValueTask InvokeOn<TInput1, TInput2>(
-        TInput1 input1,
-        TInput2 input2,
-        CancellationToken cancellationToken);
+    // WebSocket connection delegates
+    public delegate ValueTask WebSocketConnectHandler(SamuraiWebSocket webSocket, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketConnectInterceptor(SamuraiWebSocket webSocket, WebSocketConnectHandler next, CancellationToken cancellationToken);
 
-    public delegate ValueTask On<TInput1, TInput2>(
-        TInput1 input1,
-        TInput2 input2,
-        InvokeOn<TInput1, TInput2> next,
-        CancellationToken cancellationToken);
+    // WebSocket close delegates  
+    public delegate ValueTask WebSocketCloseHandler(SamuraiWebSocket webSocket, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketCloseInterceptor(SamuraiWebSocket webSocket, WebSocketCloseHandler next, CancellationToken cancellationToken);
 
+    // WebSocket error delegates
+    public delegate ValueTask WebSocketErrorHandler(SamuraiWebSocket webSocket, Exception exception, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketErrorInterceptor(SamuraiWebSocket webSocket, Exception exception, WebSocketErrorHandler next, CancellationToken cancellationToken);
 
-    // 3 inputs
-    public delegate ValueTask InvokeOn<TInput1, TInput2, TInput3>(
-        TInput1 input1,
-        TInput2 input2,
-        TInput3 input3,
-        CancellationToken cancellationToken);
+    // WebSocket message delegates
+    public delegate ValueTask WebSocketMessageHandler(SamuraiWebSocket webSocket, MessageType messageType, Stream messageStream, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketMessageInterceptor(SamuraiWebSocket webSocket, MessageType messageType, Stream messageStream, WebSocketMessageHandler next, CancellationToken cancellationToken);
 
-    public delegate ValueTask On<TInput1, TInput2, TInput3>(
-        TInput1 input1,
-        TInput2 input2,
-        TInput3 input3,
-        InvokeOn<TInput1, TInput2, TInput3> next,
-        CancellationToken cancellationToken);
+    // Simplified message handlers (for convenience methods)
+    public delegate ValueTask WebSocketTextMessageHandler(SamuraiWebSocket webSocket, string message, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketBinaryMessageHandler(SamuraiWebSocket webSocket, byte[] message, CancellationToken cancellationToken);
 
-    public delegate ValueTask<TResult> Invoke<TInput, TResult>(TInput input, CancellationToken cancellationToken);
-    public delegate ValueTask<TResult> Next<TInput, TResult>(TInput input, Invoke<TInput, TResult> next, CancellationToken cancellationToken);
+    // Authentication delegate
+    public delegate bool WebSocketAuthenticator(WebSocketHttpContext context);
 
     /// <summary>
     /// Comprehensive WebSocket server configuration including interceptors and options
@@ -66,7 +62,6 @@ namespace Samurai.WebSockets
         /// This is done to prevent proxy servers from closing your connection
         /// A timespan of zero will disable the automatic ping pong mechanism
         /// You can manually control ping pong messages using the PingPongManager class.
-        /// If you do that it is advisable to set this KeepAliveInterval to zero in the WebSocketServerFactory
         /// </summary>
         public TimeSpan KeepAliveInterval { get; set; }
 
@@ -96,41 +91,40 @@ namespace Samurai.WebSockets
         /// </remark>
         public bool AllowPerMessageDeflate { get; set; }
 
-
         /// <summary>
-        /// SSL X509Certificate2 interceptor.
+        /// SSL X509Certificate2 interceptors.
         /// </summary>
-        public IEnumerable<Next<TcpClient, X509Certificate2?>>? OnSelectionCertificate { get; set; }
+        public IEnumerable<CertificateSelectionInterceptor>? OnSelectionCertificate { get; set; }
 
         /// <summary>
         /// Stream acceptance interceptors (e.g., for SSL/TLS, logging, etc.)
         /// </summary>
-        public IEnumerable<Next<TcpClient, Stream>>? OnAcceptStream { get; set; }
+        public IEnumerable<AcceptStreamInterceptor>? OnAcceptStream { get; set; }
 
         /// <summary>
         /// WebSocket handshake interceptors (e.g., for authentication, custom headers, etc.)
         /// </summary>
-        public IEnumerable<Next<WebSocketHttpContext, HttpResponse>>? OnHandshake { get; set; }
+        public IEnumerable<HandshakeInterceptor>? OnHandshake { get; set; }
 
         /// <summary>
         /// Handlers for when a WebSocket connection is established
         /// </summary>
-        public IEnumerable<On<SamuraiWebSocket>>? OnConnect { get; set; }
+        public IEnumerable<WebSocketConnectInterceptor>? OnConnect { get; set; }
 
         /// <summary>
         /// Handlers for when a WebSocket connection is closed
         /// </summary>
-        public IEnumerable<On<SamuraiWebSocket>>? OnClose { get; set; }
+        public IEnumerable<WebSocketCloseInterceptor>? OnClose { get; set; }
 
         /// <summary>
         /// Handlers for WebSocket errors
         /// </summary>
-        public IEnumerable<On<SamuraiWebSocket, Exception>>? OnError { get; set; }
+        public IEnumerable<WebSocketErrorInterceptor>? OnError { get; set; }
 
         /// <summary>
         /// Handlers for incoming WebSocket messages
         /// </summary>
-        public IEnumerable<On<SamuraiWebSocket, MessageType, Stream>>? OnMessage { get; set; }
+        public IEnumerable<WebSocketMessageInterceptor>? OnMessage { get; set; }
 
         /// <summary>
         /// Initialises a new instance of the WebSocketServerConfiguration class

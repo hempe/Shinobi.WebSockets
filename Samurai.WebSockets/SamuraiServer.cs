@@ -44,13 +44,14 @@ namespace Samurai.WebSockets
         private bool isDisposed;
         private readonly ILogger<SamuraiServer>? logger;
         private readonly WebSocketServerOptions options;
-        private readonly Invoke<TcpClient, Stream> OnConnectStreamsAsync;
-        private readonly Invoke<TcpClient, X509Certificate2?> SelectionCertificateAsync;
-        private readonly Invoke<WebSocketHttpContext, HttpResponse> OnHandshakeAsync;
-        private readonly InvokeOn<SamuraiWebSocket> OnConnectAsync;
-        private readonly InvokeOn<SamuraiWebSocket> OnCloseAsync;
-        private readonly InvokeOn<SamuraiWebSocket, Exception> OnErrorAsync;
-        private readonly InvokeOn<SamuraiWebSocket, MessageType, Stream> OnMessageAsync;
+
+        private readonly AcceptStreamHandler OnConnectStreamsAsync;
+        private readonly CertificateSelectionHandler SelectionCertificateAsync;
+        private readonly HandshakeHandler OnHandshakeAsync;
+        private readonly WebSocketConnectHandler OnConnectAsync;
+        private readonly WebSocketCloseHandler OnCloseAsync;
+        private readonly WebSocketErrorHandler OnErrorAsync;
+        private readonly WebSocketMessageHandler OnMessageAsync;
 
         public SamuraiServer(
             WebSocketServerOptions options,
@@ -58,13 +59,15 @@ namespace Samurai.WebSockets
         {
             this.logger = logger;
             this.options = options;
-            this.OnConnectStreamsAsync = Builder.BuildInterceptorChain(this.AcceptStreamCoreAsync, options.OnAcceptStream);
-            this.SelectionCertificateAsync = Builder.BuildInterceptorChain(this.SelectionCertificateCoreAsync, options.OnSelectionCertificate);
-            this.OnHandshakeAsync = Builder.BuildInterceptorChain(this.HandshakeCoreAsync, options.OnHandshake);
-            this.OnConnectAsync = Builder.BuildOmChain(options.OnConnect);
-            this.OnCloseAsync = Builder.BuildOmChain(options.OnClose);
-            this.OnErrorAsync = Builder.BuildOmChain(options.OnError);
-            this.OnMessageAsync = Builder.BuildOmChain(options.OnMessage);
+
+            // Use the specific builders
+            this.OnConnectStreamsAsync = Builder.BuildAcceptStreamChain(this.AcceptStreamCoreAsync, options.OnAcceptStream);
+            this.SelectionCertificateAsync = Builder.BuildCertificateSelectionChain(this.SelectionCertificateCoreAsync, options.OnSelectionCertificate);
+            this.OnHandshakeAsync = Builder.BuildHandshakeChain(this.HandshakeCoreAsync, options.OnHandshake);
+            this.OnConnectAsync = Builder.BuildWebSocketConnectChain(options.OnConnect);
+            this.OnCloseAsync = Builder.BuildWebSocketCloseChain(options.OnClose);
+            this.OnErrorAsync = Builder.BuildWebSocketErrorChain(options.OnError);
+            this.OnMessageAsync = Builder.BuildWebSocketMessageChain(options.OnMessage);
         }
 
         private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)

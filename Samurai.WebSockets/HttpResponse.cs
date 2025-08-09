@@ -243,11 +243,11 @@ namespace Samurai.WebSockets
             return builder.ToString();
 #else
             var builder = new StringBuilder();
-            builder.AppendFormat("HTTP/1.1 {0} {1}\r\n", StatusCode, reasonPhrase);
+            builder.AppendFormat("HTTP/1.1 {0} {1}\r\n", this.StatusCode, this.reasonPhrase);
 
-            if (headers != null)
+            if (this.headers != null)
             {
-                foreach (var header in headers)
+                foreach (var header in this.headers)
                 {
                     foreach (var value in header.Value)
                     {
@@ -257,9 +257,9 @@ namespace Samurai.WebSockets
             }
 
             builder.Append("\r\n");
-            if (!string.IsNullOrEmpty(body))
+            if (!string.IsNullOrEmpty(this.body))
             {
-                builder.Append(body);
+                builder.Append(this.body);
             }
             return builder.ToString();
 #endif
@@ -306,7 +306,7 @@ namespace Samurai.WebSockets
             // Write body if any
             if (!string.IsNullOrEmpty(this.body))
             {
-                EncodeAndWrite(this.body);
+                EncodeAndWrite(this.body!);
             }
 
             // Get the buffered data segment

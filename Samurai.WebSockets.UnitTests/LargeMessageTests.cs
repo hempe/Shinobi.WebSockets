@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
+using Samurai.WebSockets.Extensions;
 using Samurai.WebSockets.Internal;
 
 using Xunit;
@@ -196,16 +197,15 @@ namespace Samurai.WebSockets.UnitTests
                 try
                 {
                     this.logger.LogDebug("[Server] Waiting for connection...");
-                    var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
-
-                    var server = new WebSocketServerFactory();
-                    var context = await server.ReadHttpHeaderFromStreamAsync(tcpClient.GetStream());
+                    using var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    using var str = tcpClient.GetStream();
+                    var context = await str.ReadHttpHeaderFromStreamAsync(cancellationToken);
 
                     this.logger.LogDebug("[Server] Connection established.");
                     if (context.IsWebSocketRequest)
                     {
                         this.logger.LogDebug("[Server] WebSocket request received.");
-                        this.webSocket = await server.AcceptWebSocketAsync(context, cancellationToken);
+                        this.webSocket = await context.AcceptWebSocketAsync(cancellationToken);
                         this.logger.LogDebug("[Server] WebSocket accepted.");
                         var receiveBuffer = new byte[4096];
                         var stream = new MemoryStream();
@@ -303,16 +303,16 @@ namespace Samurai.WebSockets.UnitTests
                 try
                 {
                     this.logger.LogDebug("[Server] Waiting for connection...");
-                    var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    using var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                    using var str = tcpClient.GetStream();
 
-                    var server = new Ninja.WebSockets.WebSocketServerFactory();
-                    var context = await server.ReadHttpHeaderFromStreamAsync(tcpClient.GetStream());
+                    var context = await str.ReadHttpHeaderFromStreamAsync(cancellationToken);
 
                     this.logger.LogDebug("[Server] Connection established.");
                     if (context.IsWebSocketRequest)
                     {
                         this.logger.LogDebug("[Server] WebSocket request received.");
-                        this.webSocket = await server.AcceptWebSocketAsync(context, cancellationToken);
+                        this.webSocket = await context.AcceptWebSocketAsync(cancellationToken);
                         this.logger.LogDebug("[Server] WebSocket accepted.");
                         var receiveBuffer = new byte[4096];
                         var stream = new MemoryStream();

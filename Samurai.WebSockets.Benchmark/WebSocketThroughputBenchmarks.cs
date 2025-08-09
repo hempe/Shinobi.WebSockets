@@ -94,11 +94,10 @@ public class WebSocketThroughputBenchmarks
                         var stream = tcpClient.GetStream();
                         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-                        var server = new Ninja.WebSockets.WebSocketServerFactory();
-                        var context = await server.ReadHttpHeaderFromStreamAsync(stream, connectCts.Token).ConfigureAwait(false);
+                        var context = await stream.ReadHttpHeaderFromStreamAsync(connectCts.Token).ConfigureAwait(false);
                         if (context.IsWebSocketRequest)
                         {
-                            var webSocket = await server.AcceptWebSocketAsync(context, connectCts.Token).ConfigureAwait(false);
+                            var webSocket = await context.AcceptWebSocketAsync(connectCts.Token).ConfigureAwait(false);
                             tasks.Add(this.EchoLoopAsync(webSocket, this.serverCts.Token, new IDisposable[] { tcpClient, stream }));
                         }
                         else
@@ -121,12 +120,11 @@ public class WebSocketThroughputBenchmarks
                         var stream = tcpClient.GetStream();
                         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-                        var server = new Samurai.WebSockets.WebSocketServerFactory();
                         var options = new Samurai.WebSockets.WebSocketServerOptions { AllowPerMessageDeflate = true };
-                        var context = await server.ReadHttpHeaderFromStreamAsync(stream, connectCts.Token).ConfigureAwait(false);
+                        var context = await stream.ReadHttpHeaderFromStreamAsync(connectCts.Token).ConfigureAwait(false);
                         if (context.IsWebSocketRequest)
                         {
-                            var webSocket = await server.AcceptWebSocketAsync(context, options, connectCts.Token).ConfigureAwait(false);
+                            var webSocket = await context.AcceptWebSocketAsync(options, connectCts.Token).ConfigureAwait(false);
                             tasks.Add(this.EchoLoopAsync(webSocket, this.serverCts.Token, new IDisposable[] { tcpClient, stream }));
                         }
                         else

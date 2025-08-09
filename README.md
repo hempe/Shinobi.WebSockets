@@ -12,6 +12,7 @@ No dependencies.
 ## Getting Started
 
 As a client, use the WebSocketClientFactory
+TODO: Rewrite everyting.
 
 ```csharp
 var factory = new WebSocketClientFactory();

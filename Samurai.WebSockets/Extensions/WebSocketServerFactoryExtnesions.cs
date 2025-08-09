@@ -8,10 +8,6 @@ using Samurai.WebSockets.Internal;
 
 namespace Samurai.WebSockets.Extensions
 {
-    public class WebSocketServerFactory
-    {
-
-    }
     /// <summary>
     /// Web socket server factory used to open web socket server connections
     /// </summary>
@@ -29,7 +25,6 @@ namespace Samurai.WebSockets.Extensions
 
         /// <summary>
         /// Accept web socket with default options
-        /// Call ReadHttpHeaderFromStreamAsync first to get WebSocketHttpContext
         /// </summary>
         /// <param name="context">The http context used to initiate this web socket request</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
@@ -39,7 +34,6 @@ namespace Samurai.WebSockets.Extensions
 
         /// <summary>
         /// Accept web socket with options specified
-        /// Call ReadHttpHeaderFromStreamAsync first to get WebSocketHttpContext
         /// </summary>
         /// <param name="context">The http context used to initiate this web socket request</param>
         /// <param name="options">The web socket options</param>

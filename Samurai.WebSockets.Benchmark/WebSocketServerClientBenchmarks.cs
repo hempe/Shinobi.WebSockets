@@ -17,6 +17,8 @@ using BenchmarkDotNet.Order;
 
 using Ninja.WebSockets;
 
+using Samurai.WebSockets.Extensions;
+
 [SimpleJob(RuntimeMoniker.Net90)]
 //[SimpleJob(RuntimeMoniker.Net472)]
 [MemoryDiagnoser]
@@ -26,7 +28,6 @@ using Ninja.WebSockets;
 [MaxIterationCount(15)]
 public class WebSocketServerClientBenchmarks
 {
-    private WebSocketServerFactory server;
     private TcpListener listener;
     private List<ClientWebSocket> clients;
     private int port;
@@ -47,7 +48,6 @@ public class WebSocketServerClientBenchmarks
         this.port = GetAvailablePort();
         this.serverUrl = $"ws://localhost:{this.port}/";
         this.serverCts = new CancellationTokenSource();
-        this.server = new WebSocketServerFactory();
         this.serverReadyTcs = new TaskCompletionSource<bool>();
 
         // Start the WebSocket server
@@ -217,11 +217,11 @@ public class WebSocketServerClientBenchmarks
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            var context = await this.server.ReadHttpHeaderFromStreamAsync(stream).ConfigureAwait(false);
+            var context = await stream.ReadHttpHeaderFromStreamAsync().ConfigureAwait(false);
 
             if (context.IsWebSocketRequest)
             {
-                webSocket = await this.server.AcceptWebSocketAsync(context).ConfigureAwait(false);
+                webSocket = await context.AcceptWebSocketAsync().ConfigureAwait(false);
 
                 // Register this client for disconnect tracking
                 var disconnectTcs = new TaskCompletionSource<bool>();
