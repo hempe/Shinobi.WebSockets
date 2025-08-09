@@ -45,13 +45,14 @@ public class WebSocketThroughputBenchmarks
     public int ClientCount { get; set; } = 1_00;
 
     //[Params("Ninja", "Samurai", "Samurai.PermessageDeflate")]
-    [Params("Ninja", "Samurai", "Native", "SS")]
+    //[Params("Ninja", "Samurai", "Native", "SS")]
+    [Params("Samurai", "SS", "SS.SSL")]
     //[Params("Ninja", "Samurai")]
     public string Server { get; set; } = "SS";
 
-    [Params("Ninja", "Samurai", "Native")]
+    //[Params("Ninja", "Samurai", "Native")]
     //[Params("Ninja", "Samurai")]
-    public string Client { get; set; } = "Samurai";
+    public string Client { get; set; } = "Native";
 
     private ArraySegment<byte> data;
 
@@ -68,7 +69,8 @@ public class WebSocketThroughputBenchmarks
         this.data = new ArraySegment<byte>(bytes, 0, this.MessageSizeKb * 1024);
 
         this.port = GetAvailablePort();
-        this.serverUrl = $"ws://localhost:{this.port}/";
+        var ssl = this.Server.Contains("SSL");
+        this.serverUrl = $"{(ssl ? "wss" : "ws")}://localhost:{this.port}/";
         this.serverCts = new CancellationTokenSource();
         this.clients = new WebSocket[this.ClientCount];
 
@@ -185,7 +187,40 @@ public class WebSocketThroughputBenchmarks
                         server.Dispose();
                     };
                 }
+
+                else if (this.Server == "SS.SSL")
+                {
+                    var clients = 0;
+                    var server = Samurai.WebSockets.WebSocketBuilder.Create()
+                        .UsePort((ushort)this.port)
+                        .UseDevCertificate()
+                        .OnConnect((client, next, cancellationToken) =>
+                        {
+                            Interlocked.Increment(ref clients);
+                            if (clients == this.ClientCount)
+                                serverReady.SetResult(true);
+
+                            return next(client, cancellationToken);
+                        })
+                        .OnMessage(async (client, type, stream, next, cancellationToken) =>
+                        {
+                            if (type == Samurai.WebSockets.MessageType.Binary && stream is ArrayPoolStream aps)
+                            {
+                                aps.Position = aps.Length;
+                                var seg = aps.GetDataArraySegment();
+                                await client.SendAsync(seg, WebSocketMessageType.Binary, true, cancellationToken);
+                            }
+                        }).Build();
+
+                    await server.StartAsync();
+                    cleanup = () =>
+                    {
+                        server.StopAsync().GetAwaiter().GetResult();
+                        server.Dispose();
+                    };
+                }
                 else
+
                 {
                     throw new NotSupportedException($"{this.Server} is not supported");
                 }

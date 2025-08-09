@@ -4,8 +4,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-
-
 namespace Samurai.WebSockets.Extensions
 {
     public static class WebSocketExtensions

@@ -48,6 +48,7 @@ namespace Samurai.WebSockets
         private readonly ILogger<SamuraiServer>? logger;
         private readonly WebSocketServerOptions options;
         private readonly Invoke<TcpClient, Stream> OnConnectStreamsAsync;
+        private readonly Invoke<TcpClient, X509Certificate2?> SelectionCertificateAsync;
         private readonly Invoke<WebSocketHttpContext, HttpResponse> OnHandshakeAsync;
         private readonly InvokeOn<SamuraiWebSocket> OnConnectAsync;
         private readonly InvokeOn<SamuraiWebSocket> OnCloseAsync;
@@ -61,6 +62,7 @@ namespace Samurai.WebSockets
             this.logger = logger;
             this.options = options;
             this.OnConnectStreamsAsync = Builder.BuildInterceptorChain(this.AcceptStreamCoreAsync, options.OnAcceptStream);
+            this.SelectionCertificateAsync = Builder.BuildInterceptorChain(this.SelectionCertificateCoreAsync, options.OnSelectionCertificate);
             this.OnHandshakeAsync = Builder.BuildInterceptorChain(this.HandshakeCoreAsync, options.OnHandshake);
             this.OnConnectAsync = Builder.BuildOmChain(options.OnConnect);
             this.OnCloseAsync = Builder.BuildOmChain(options.OnClose);
@@ -83,14 +85,19 @@ namespace Samurai.WebSockets
             return new ValueTask<HttpResponse>(response);
         }
 
-
-        private async ValueTask<Stream> AcceptStreamCoreAsync(TcpClient tcpClient, CancellationToken _cancellationToken)
+        private ValueTask<X509Certificate2?> SelectionCertificateCoreAsync(TcpClient tcpClient, CancellationToken _cancellationToken)
         {
             this.ThrowIfDisposed();
-            return this.Certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), this.Certificate);
+            return new ValueTask<X509Certificate2?>((X509Certificate2?)null);
         }
 
-        public X509Certificate2? Certificate { private get; set; }
+
+        private async ValueTask<Stream> AcceptStreamCoreAsync(TcpClient tcpClient, CancellationToken cancellationToken)
+        {
+            this.ThrowIfDisposed();
+            var certificate = await this.SelectionCertificateAsync(tcpClient, cancellationToken);
+            return certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), certificate);
+        }
 
         public async Task StopAsync()
         {

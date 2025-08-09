@@ -16,6 +16,8 @@ namespace Samurai.WebSockets
     public class WebSocketBuilder
     {
         private readonly List<Next<TcpClient, Stream>> onAcceptStream = new List<Next<TcpClient, Stream>>();
+        private readonly List<Next<TcpClient, X509Certificate2?>> onSelectionCertificate = new List<Next<TcpClient, X509Certificate2?>>();
+
         private readonly List<Next<WebSocketHttpContext, HttpResponse>> onHandshake = new List<Next<WebSocketHttpContext, HttpResponse>>();
         private readonly List<On<SamuraiWebSocket>> onConnect = new List<On<SamuraiWebSocket>>();
         private readonly List<On<SamuraiWebSocket>> onClose = new List<On<SamuraiWebSocket>>();
@@ -23,7 +25,6 @@ namespace Samurai.WebSockets
         private readonly List<On<SamuraiWebSocket, MessageType, Stream>> onMessage = new List<On<SamuraiWebSocket, MessageType, Stream>>();
 
         private ILogger<SamuraiServer>? logger;
-        private X509Certificate2? certificate;
         private WebSocketServerOptions configuration = new WebSocketServerOptions();
 
         /// <summary>
@@ -40,9 +41,18 @@ namespace Samurai.WebSockets
         /// Configures SSL/TLS support with the provided certificate
         /// </summary>
         /// <param name="certificate">X509 certificate for SSL/TLS</param>
-        public WebSocketBuilder UseSsl(X509Certificate2 certificate)
+        public WebSocketBuilder UseSsl(X509Certificate2? certificate)
         {
-            this.certificate = certificate ?? throw new ArgumentNullException(nameof(certificate));
+            this.onSelectionCertificate.Add((_client, _next, _cancellationToken) => new ValueTask<X509Certificate2?>(certificate));
+            return this;
+        }
+
+        /// <summary>
+        /// Adds an interceptor for selecting the certificate.
+        /// </summary>
+        public WebSocketBuilder UseSsl(Next<TcpClient, X509Certificate2?> interceptor)
+        {
+            this.onSelectionCertificate.Add(interceptor);
             return this;
         }
 
@@ -370,15 +380,9 @@ namespace Samurai.WebSockets
             this.configuration.OnClose = this.onClose.Count > 0 ? this.onClose : null;
             this.configuration.OnError = this.onError.Count > 0 ? this.onError : null;
             this.configuration.OnMessage = this.onMessage.Count > 0 ? this.onMessage : null;
+            this.configuration.OnSelectionCertificate = this.onSelectionCertificate.Count > 0 ? this.onSelectionCertificate : null;
 
-            var server = new SamuraiServer(this.configuration, this.logger);
-
-            if (this.certificate != null)
-            {
-                server.Certificate = this.certificate;
-            }
-
-            return server;
+            return new SamuraiServer(this.configuration, this.logger);
         }
 
         /// <summary>

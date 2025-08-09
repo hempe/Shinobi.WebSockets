@@ -1,21 +1,27 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net.Sockets;
-using System.Net.WebSockets;
+using System.Collections.Concurrent;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
-
-using Microsoft.Extensions.Logging;
-
-using Samurai.WebSockets.Internal;
 
 // Extension methods for easier usage
 namespace Samurai.WebSockets.Extensions
 {
     public static class WebSocketBuilderExtensions
     {
+        // Cache for certificates to avoid repeated store access
+        private static readonly ConcurrentDictionary<string, CachedCertificate> certificateCache = new ConcurrentDictionary<string, CachedCertificate>();
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> loadingSemaphores = new ConcurrentDictionary<string, SemaphoreSlim>();
+        private static readonly TimeSpan DefaultCacheExpiration = TimeSpan.FromMinutes(5);
+
+        private class CachedCertificate
+        {
+            public X509Certificate2 Certificate { get; set; } = null!;
+            public DateTime CachedAt { get; set; }
+            public TimeSpan CacheExpiration { get; set; }
+
+            public bool IsExpired => DateTime.UtcNow - this.CachedAt > this.CacheExpiration;
+        }
 
         /// <summary>
         /// Uses the ASP.NET Core development certificate for SSL/TLS
@@ -25,12 +31,182 @@ namespace Samurai.WebSockets.Extensions
         public static WebSocketBuilder UseDevCertificate(this WebSocketBuilder builder)
         {
             var certificate = GetAspNetCoreDevelopmentCertificate();
-            if (certificate == null)
-            {
+            if (certificate is null)
                 throw new InvalidOperationException("ASP.NET Core development certificate not found. Please ensure the development certificate is installed. Run 'dotnet dev-certs https --trust' to install and trust the development certificate.");
-            }
 
             return builder.UseSsl(certificate);
+        }
+
+        /// <summary>
+        /// Uses a certificate from the specified store and subject name with caching
+        /// </summary>
+        /// <param name="builder">The WebSocketBuilder instance</param>
+        /// <param name="storeName">The certificate store name</param>
+        /// <param name="storeLocation">The certificate store location</param>
+        /// <param name="subjectName">The certificate subject name to search for</param>
+        /// <param name="cacheExpiration">How long to cache the certificate (default: 5 minutes)</param>
+        /// <returns>The WebSocketBuilder for method chaining</returns>
+        public static WebSocketBuilder UseCertificate(
+            this WebSocketBuilder builder,
+            StoreName storeName,
+            StoreLocation storeLocation,
+            string subjectName,
+            TimeSpan? cacheExpiration = null)
+        {
+            var expiration = cacheExpiration ?? DefaultCacheExpiration;
+
+            // Load and validate certificate immediately to fail fast
+            var certificate = GetCachedCertificate(storeName, storeLocation, X509FindType.FindBySubjectName, subjectName, expiration);
+
+            // Create interceptor that uses cached certificate lookup
+            builder.UseSsl(async (_client, _next, _cancellationToken) =>
+                await GetCachedCertificateAsync(storeName, storeLocation, X509FindType.FindBySubjectName, subjectName, expiration));
+
+            return builder;
+        }
+
+        /// <summary>
+        /// Uses a certificate from the specified store and thumbprint with caching
+        /// </summary>
+        /// <param name="builder">The WebSocketBuilder instance</param>
+        /// <param name="storeName">The certificate store name</param>
+        /// <param name="storeLocation">The certificate store location</param>
+        /// <param name="thumbprint">The certificate thumbprint</param>
+        /// <param name="cacheExpiration">How long to cache the certificate (default: 5 minutes)</param>
+        /// <returns>The WebSocketBuilder for method chaining</returns>
+        public static WebSocketBuilder UseCertificateByThumbprint(
+            this WebSocketBuilder builder,
+            StoreName storeName,
+            StoreLocation storeLocation,
+            string thumbprint,
+            TimeSpan? cacheExpiration = null)
+        {
+            var expiration = cacheExpiration ?? DefaultCacheExpiration;
+
+            // Load and validate certificate immediately to fail fast
+            var certificate = GetCachedCertificate(storeName, storeLocation, X509FindType.FindByThumbprint, thumbprint, expiration);
+
+            // Create interceptor that uses cached certificate lookup
+            builder.UseSsl(async (_client, _next, _cancellationToken) =>
+                await GetCachedCertificateAsync(storeName, storeLocation, X509FindType.FindByThumbprint, thumbprint, expiration));
+
+            return builder;
+        }
+
+        /// <summary>
+        /// Gets a cached certificate synchronously (for startup/configuration), refreshing if expired. Uses semaphore to prevent concurrent loads.
+        /// </summary>
+        private static X509Certificate2 GetCachedCertificate(
+            StoreName storeName,
+            StoreLocation storeLocation,
+            X509FindType findType,
+            string findValue,
+            TimeSpan cacheExpiration)
+        {
+            var cacheKey = $"{storeLocation}_{storeName}_{findType}_{findValue}";
+
+            // Check if we have a valid cached certificate
+            if (certificateCache.TryGetValue(cacheKey, out var cached) && !cached.IsExpired)
+                return cached.Certificate;
+
+            // Get or create a semaphore for this cache key to prevent concurrent loads
+            var semaphore = loadingSemaphores.GetOrAdd(cacheKey, _ => new SemaphoreSlim(1, 1));
+
+            semaphore.Wait();
+            try
+            {
+                return LoadAndCacheCertificate(cacheKey, storeName, storeLocation, findType, findValue, cacheExpiration);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Gets a cached certificate asynchronously (for runtime pipeline), refreshing if expired. Uses semaphore to prevent concurrent loads.
+        /// </summary>
+        private static async ValueTask<X509Certificate2?> GetCachedCertificateAsync(
+            StoreName storeName,
+            StoreLocation storeLocation,
+            X509FindType findType,
+            string findValue,
+            TimeSpan cacheExpiration)
+        {
+            var cacheKey = $"{storeLocation}_{storeName}_{findType}_{findValue}";
+
+            // Check if we have a valid cached certificate
+            if (certificateCache.TryGetValue(cacheKey, out var cached) && !cached.IsExpired)
+                return cached.Certificate;
+
+            // Get or create a semaphore for this cache key to prevent concurrent loads
+            var semaphore = loadingSemaphores.GetOrAdd(cacheKey, _ => new SemaphoreSlim(1, 1));
+
+            await semaphore.WaitAsync();
+            try
+            {
+                return LoadAndCacheCertificate(cacheKey, storeName, storeLocation, findType, findValue, cacheExpiration);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Loads and caches a certificate. Called within semaphore protection.
+        /// </summary>
+        private static X509Certificate2 LoadAndCacheCertificate(
+            string cacheKey,
+            StoreName storeName,
+            StoreLocation storeLocation,
+            X509FindType findType,
+            string findValue,
+            TimeSpan cacheExpiration)
+        {
+            // Double-check after acquiring the semaphore
+            if (certificateCache.TryGetValue(cacheKey, out var cached) && !cached.IsExpired)
+                return cached.Certificate;
+
+            // Load certificate from store - this will throw if not found or invalid
+            var certificate = LoadCertificateFromStore(storeName, storeLocation, findType, findValue);
+
+            // Cache the result
+            certificateCache.AddOrUpdate(cacheKey,
+                new CachedCertificate
+                {
+                    Certificate = certificate,
+                    CachedAt = DateTime.UtcNow,
+                    CacheExpiration = cacheExpiration
+                },
+                (_key, _existing) => new CachedCertificate
+                {
+                    Certificate = certificate,
+                    CachedAt = DateTime.UtcNow,
+                    CacheExpiration = cacheExpiration
+                });
+
+            return certificate;
+        }
+
+        /// <summary>
+        /// Loads a certificate from the specified store using the given find criteria
+        /// </summary>
+        private static X509Certificate2 LoadCertificateFromStore(StoreName storeName, StoreLocation storeLocation, X509FindType findType, string findValue)
+        {
+            using var store = new X509Store(storeName, storeLocation);
+            store.Open(OpenFlags.ReadOnly);
+
+            var certificates = store.Certificates.Find(findType, findValue, false);
+
+            // Filter for valid certificates and take the first one
+            foreach (var cert in certificates)
+            {
+                if (cert.HasPrivateKey && cert.NotAfter > DateTime.Now)
+                    return new X509Certificate2(cert);
+            }
+
+            throw new InvalidOperationException($"Certificate with {findType} '{findValue}' not found in store '{storeName}' at location '{storeLocation}', or no valid certificate found with private key that hasn't expired.");
         }
 
         /// <summary>
@@ -76,37 +252,43 @@ namespace Samurai.WebSockets.Extensions
                 }
             }
 
-            // Alternative approach: try the Personal store location as well
-            using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine))
+            // Alternative approach: try the LocalMachine store as well
+            using var machineStore = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+            machineStore.Open(OpenFlags.ReadOnly);
+
+            var machineCertificates = machineStore.Certificates.Find(
+                X509FindType.FindBySubjectName,
+                "localhost",
+                false);
+
+            foreach (X509Certificate2 cert in machineCertificates)
             {
-                try
+                if (cert.Subject.Contains("CN=localhost") &&
+                    cert.HasPrivateKey &&
+                    cert.NotAfter > DateTime.Now &&
+                    (cert.FriendlyName.Contains("ASP.NET Core") ||
+                     cert.Issuer.Contains("localhost")))
                 {
-                    store.Open(OpenFlags.ReadOnly);
-
-                    var certificates = store.Certificates.Find(
-                        X509FindType.FindBySubjectName,
-                        "localhost",
-                        false);
-
-                    foreach (X509Certificate2 cert in certificates)
-                    {
-                        if (cert.Subject.Contains("CN=localhost") &&
-                            cert.HasPrivateKey &&
-                            cert.NotAfter > DateTime.Now &&
-                            (cert.FriendlyName.Contains("ASP.NET Core") ||
-                             cert.Issuer.Contains("localhost")))
-                        {
-                            return new X509Certificate2(cert);
-                        }
-                    }
-                }
-                catch
-                {
-                    // Ignore if we can't access the LocalMachine store
+                    return new X509Certificate2(cert);
                 }
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Clears the certificate cache (useful for testing or manual cache invalidation)
+        /// </summary>
+        public static void ClearCertificateCache()
+        {
+            certificateCache.Clear();
+
+            // Clean up semaphores
+            foreach (var semaphore in loadingSemaphores.Values)
+            {
+                semaphore.Dispose();
+            }
+            loadingSemaphores.Clear();
         }
     }
 }

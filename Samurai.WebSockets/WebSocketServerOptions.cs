@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -95,7 +96,12 @@ namespace Samurai.WebSockets
         /// </remark>
         public bool AllowPerMessageDeflate { get; set; }
 
-        // Interceptors
+
+        /// <summary>
+        /// SSL X509Certificate2 interceptor.
+        /// </summary>
+        public IEnumerable<Next<TcpClient, X509Certificate2?>>? OnSelectionCertificate { get; set; }
+
         /// <summary>
         /// Stream acceptance interceptors (e.g., for SSL/TLS, logging, etc.)
         /// </summary>
