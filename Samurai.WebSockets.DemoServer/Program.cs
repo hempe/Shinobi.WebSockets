@@ -39,6 +39,10 @@ namespace WebSockets.DemoServer
                     {
                         logger.LogInformation("New client connected: {ConnectionId}", webSocket.Context.Guid);
                         await webSocket.SendTextAsync("Welcome to the WebSocket Demo Server!", cancellationToken);
+                        await webSocket.SendTextAsync("Available commands:", cancellationToken);
+                        await webSocket.SendTextAsync("- time: Get server time", cancellationToken);
+                        await webSocket.SendTextAsync("- help: Show this help", cancellationToken);
+                        await webSocket.SendTextAsync("- Any other text will be echoed back", cancellationToken);
                         await next(webSocket, cancellationToken);
                     })
                     .OnClose((webSocket, next, cancellationToken) =>
@@ -57,12 +61,10 @@ namespace WebSockets.DemoServer
                                 await webSocket.SendTextAsync($"Server time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}", cancellationToken);
                                 break;
                             case "help":
-                                await webSocket.SendTextAsync(
-                                    "Available commands:\n" +
-                                    "- time: Get server time\n" +
-                                    "- help: Show this help\n" +
-                                    "- Any other text will be echoed back",
-                                    cancellationToken);
+                                await webSocket.SendTextAsync("Available commands:", cancellationToken);
+                                await webSocket.SendTextAsync("- time: Get server time", cancellationToken);
+                                await webSocket.SendTextAsync("- help: Show this help", cancellationToken);
+                                await webSocket.SendTextAsync("- Any other text will be echoed back", cancellationToken);
                                 break;
                             default:
                                 await webSocket.SendTextAsync($"ECHO: {message}", cancellationToken);
