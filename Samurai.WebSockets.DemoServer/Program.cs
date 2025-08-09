@@ -73,6 +73,7 @@ namespace WebSockets.DemoServer
                     })
                     .OnHandshake((context, next, cancellationToken) =>
                     {
+                        // This is not a harded web server, but for testing this seem fine:
                         if (!context.IsWebSocketRequest && context.Path == "/")
                         {
                             var assembly = Assembly.GetExecutingAssembly();
