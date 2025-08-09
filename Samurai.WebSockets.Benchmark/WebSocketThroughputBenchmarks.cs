@@ -20,8 +20,7 @@ using Samurai.WebSockets.Extensions;
 
 
 [SimpleJob(RuntimeMoniker.Net90)]
-[SimpleJob(RuntimeMoniker.Net472, Environment = "Windows")]
-[SimpleJob(typeof(MonoRuntime))]
+//[SimpleJob(RuntimeMoniker.Net472)]
 [MemoryDiagnoser]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [MinIterationCount(5)]

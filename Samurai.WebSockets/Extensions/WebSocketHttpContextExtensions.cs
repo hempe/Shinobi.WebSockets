@@ -14,8 +14,8 @@ namespace Samurai.WebSockets.Extensions
 #if NET9_0_OR_GREATER
             ArgumentNullException.ThrowIfNull(context.HttpRequest);
 #else
-            if(context.HttpRequest is null)
-            throw new ArgumentNullException(nameof(context.HttpRequest));
+            if (context.HttpRequest is null)
+                throw new ArgumentNullException(nameof(context.HttpRequest));
 #endif
             CheckWebSocketVersion(context.HttpRequest);
 
@@ -29,7 +29,6 @@ namespace Samurai.WebSockets.Extensions
             return HttpResponse.Create(101)
                     .AddHeader("Connection", "Upgrade")
                     .AddHeader("Upgrade", "websocket")
-                    .AddHeaderIf(options.SubProtocol != null, "Sec-WebSocket-Protocol", options.SubProtocol!)
                     .AddHeaderIf(compress, "Sec-WebSocket-Extensions", "permessage-deflate")
                     .AddHeader("Sec-WebSocket-Accept", setWebSocketAccept);
         }

@@ -22,7 +22,6 @@ using Samurai.WebSockets.Utils;
 
 namespace Samurai.WebSockets
 {
-
     public enum MessageType
     {
         /// <summary>
@@ -39,16 +38,6 @@ namespace Samurai.WebSockets
     public delegate ValueTask<Stream> AcceptStreamHandler(TcpClient tcpClient, CancellationToken cancellationToken);
     public delegate ValueTask<Stream> AcceptStreamInterceptor(TcpClient tcpClient, CancellationToken cancellationToken, AcceptStreamHandler next);
 
-    public class Interceptors
-    {
-        public IEnumerable<Next<TcpClient, Stream>>? OnAcceptStream { get; set; }
-        public IEnumerable<Next<WebSocketHttpContext, HttpResponse>>? OnHandshake { get; set; }
-        public IEnumerable<On<SamuraiWebSocket>>? OnConnect { get; set; }
-        public IEnumerable<On<SamuraiWebSocket>>? OnClose { get; set; }
-        public IEnumerable<On<SamuraiWebSocket, Exception>>? OnError { get; set; }
-        public IEnumerable<On<SamuraiWebSocket, MessageType, Stream>>? OnMessage { get; set; }
-    }
-
     public class SamuraiServer : IDisposable
     {
         private Task? runTask;
@@ -56,9 +45,8 @@ namespace Samurai.WebSockets
         private TcpListener? listener; // Stop calls dispose, but dispose does not exist on net472
 
         private bool isDisposed;
-        private readonly ushort port;
         private readonly ILogger<SamuraiServer>? logger;
-        private readonly WebSocketServerOptions options = new WebSocketServerOptions();
+        private readonly WebSocketServerOptions options;
         private readonly Invoke<TcpClient, Stream> OnConnectStreamsAsync;
         private readonly Invoke<WebSocketHttpContext, HttpResponse> OnHandshakeAsync;
         private readonly InvokeOn<SamuraiWebSocket> OnConnectAsync;
@@ -67,19 +55,17 @@ namespace Samurai.WebSockets
         private readonly InvokeOn<SamuraiWebSocket, MessageType, Stream> OnMessageAsync;
 
         public SamuraiServer(
-            ILogger<SamuraiServer>? logger,
-            Interceptors interceptors,
-            ushort port)
+            WebSocketServerOptions options,
+            ILogger<SamuraiServer>? logger = null)
         {
             this.logger = logger;
-            this.port = port;
-
-            this.OnConnectStreamsAsync = Builder.BuildInterceptorChain(this.AcceptStreamCoreAsync, interceptors.OnAcceptStream);
-            this.OnHandshakeAsync = Builder.BuildInterceptorChain(this.HandshakeCoreAsync, interceptors.OnHandshake);
-            this.OnConnectAsync = Builder.BuildOmChain(interceptors.OnConnect);
-            this.OnCloseAsync = Builder.BuildOmChain(interceptors.OnClose);
-            this.OnErrorAsync = Builder.BuildOmChain(interceptors.OnError);
-            this.OnMessageAsync = Builder.BuildOmChain(interceptors.OnMessage);
+            this.options = options;
+            this.OnConnectStreamsAsync = Builder.BuildInterceptorChain(this.AcceptStreamCoreAsync, options.OnAcceptStream);
+            this.OnHandshakeAsync = Builder.BuildInterceptorChain(this.HandshakeCoreAsync, options.OnHandshake);
+            this.OnConnectAsync = Builder.BuildOmChain(options.OnConnect);
+            this.OnCloseAsync = Builder.BuildOmChain(options.OnClose);
+            this.OnErrorAsync = Builder.BuildOmChain(options.OnError);
+            this.OnMessageAsync = Builder.BuildOmChain(options.OnMessage);
         }
 
         private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)
@@ -134,7 +120,7 @@ namespace Samurai.WebSockets
                 return Task.CompletedTask;
 
             this.runToken = new CancellationTokenSource();
-            this.runTask = this.ListenAsync(this.port, this.runToken);
+            this.runTask = this.ListenAsync(this.options.Port, this.runToken);
             return Task.CompletedTask;
         }
         public void Dispose()
@@ -265,7 +251,7 @@ namespace Samurai.WebSockets
                                 this.options.KeepAliveInterval,
                                 usePermessageDeflate, this.options.IncludeExceptionInCloseResponse,
                                 false,
-                                this.options.SubProtocol);
+                                handshakeResponse.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
 
                             await this.OnConnectAsync(webSocket, source.Token);
                             await this.HandleWebSocketAsync(webSocket, source.Token);

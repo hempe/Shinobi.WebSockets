@@ -49,19 +49,25 @@ namespace Samurai.WebSockets.Extensions
         {
             var guid = Guid.NewGuid();
             Events.Log?.AcceptWebSocketStarted(guid);
-            var usePermessageDeflate = await PerformHandshakeAsync(guid, options, context, cancellationToken).ConfigureAwait(false);
+            var response = await PerformHandshakeAsync(guid, options, context, cancellationToken).ConfigureAwait(false);
             Events.Log?.ServerHandshakeSuccess(guid);
-            return new SamuraiWebSocket(context, options.KeepAliveInterval, usePermessageDeflate, options.IncludeExceptionInCloseResponse, false, options.SubProtocol);
+            return new SamuraiWebSocket(
+                context,
+                options.KeepAliveInterval,
+                response.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true,
+                options.IncludeExceptionInCloseResponse,
+                false,
+                response.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
         }
 
-        private static async ValueTask<bool> PerformHandshakeAsync(Guid guid, WebSocketServerOptions options, WebSocketHttpContext context, CancellationToken cancellationToken)
+        private static async ValueTask<HttpResponse> PerformHandshakeAsync(Guid guid, WebSocketServerOptions options, WebSocketHttpContext context, CancellationToken cancellationToken)
         {
             try
             {
                 var response = context.HandshakeResponse(options);
                 Events.Log?.SendingHandshakeResponse(guid, response.StatusCode);
                 await response.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
-                return response.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true;
+                return response;
             }
             catch (WebSocketVersionNotSupportedException ex)
             {
