@@ -47,8 +47,8 @@ namespace Samurai.WebSockets.Extensions
             Events.Log?.ServerHandshakeSuccess(guid);
             return new SamuraiWebSocket(
                 context,
+                response.GetHeaderValue("Sec-WebSocket-Extensions")?.ParseExtensions(),
                 options.KeepAliveInterval,
-                response.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true,
                 options.IncludeExceptionInCloseResponse,
                 false,
                 response.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));

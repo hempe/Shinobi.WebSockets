@@ -247,11 +247,11 @@ namespace Samurai.WebSockets
                         {
                             Events.Log?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
                             await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
-                            var usePermessageDeflate = handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true;
                             webSocket = new SamuraiWebSocket(
                                 context,
+                                handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtensions(),
                                 this.options.KeepAliveInterval,
-                                usePermessageDeflate, this.options.IncludeExceptionInCloseResponse,
+                                this.options.IncludeExceptionInCloseResponse,
                                 false,
                                 handshakeResponse.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
 

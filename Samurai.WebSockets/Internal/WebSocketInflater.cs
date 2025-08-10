@@ -9,16 +9,18 @@ namespace Samurai.WebSockets.Internal
     public sealed class WebSocketInflater : IDisposable
     {
         private readonly ArrayPoolStream compressedStream;
-        private readonly DeflateStream decompressor;
+        private DeflateStream decompressor;
         private bool isDisposed;
 
         // Per RFC 7692, messages end with 0x00 0x00 0xFF 0xFF when using no_context_takeover
         private static readonly byte[] DEFLATE_TRAILER = { 0x00, 0x00, 0xFF, 0xFF };
+        private readonly bool noContextTakeover;
 
-        public WebSocketInflater()
+        public WebSocketInflater(bool noContextTakeover)
         {
             this.compressedStream = new ArrayPoolStream();
-            this.decompressor = new DeflateStream(this.compressedStream, CompressionMode.Decompress);
+            this.decompressor = new DeflateStream(this.compressedStream, CompressionMode.Decompress, leaveOpen: true);
+            this.noContextTakeover = noContextTakeover;
         }
 
         /// <summary>
@@ -37,8 +39,14 @@ namespace Samurai.WebSockets.Internal
             var decompressedStream = new ArrayPoolStream();
             this.compressedStream.Write(DEFLATE_TRAILER, 0, DEFLATE_TRAILER.Length);
             this.compressedStream.Position = 0;
-
+            this.decompressor.Flush();
             this.decompressor.CopyTo(decompressedStream);
+            if (this.noContextTakeover)
+            {
+                this.decompressor.Dispose();
+                this.decompressor = new DeflateStream(this.compressedStream, CompressionMode.Decompress, leaveOpen: true);
+            }
+
             this.compressedStream.SetLength(0);
             return decompressedStream;
         }

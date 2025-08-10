@@ -13,14 +13,17 @@ namespace Samurai.WebSockets.UnitTests
 
     public class PerMessageDeflateHandlerTests
     {
-        [Fact]
-        public void DeflateTest()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void DeflateTest(bool noContextTakeover)
         {
-            var inflater = new WebSocketInflater();
-            var deflater = new WebSocketDeflater();
+            using var inflater = new WebSocketInflater(noContextTakeover);
+            using var deflater = new WebSocketDeflater(noContextTakeover);
             var message = "Hello World";
             deflater.Write(new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)));
-            inflater.Write(deflater.Read());
+            using var deflated = deflater.Read();
+            inflater.Write(deflated.GetDataArraySegment());
 
             using var df = inflater.Read();
             df.Position = 0;
@@ -29,19 +32,23 @@ namespace Samurai.WebSockets.UnitTests
             Assert.Equal(message, result);
         }
 
-        [Fact]
-        public void DeflateHugeMessageReadAllTest()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void DeflateHugeMessageReadAllTest(bool noContextTakeover)
         {
-            var inflater = new WebSocketInflater();
-            var deflater = new WebSocketDeflater();
+            using var inflater = new WebSocketInflater(noContextTakeover);
+            using var deflater = new WebSocketDeflater(noContextTakeover);
             this.DeflateHugeMessageReadAll(inflater, deflater);
         }
 
-        [Fact]
-        public void DeflateMultipleHugeMessageReadAll()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void DeflateMultipleHugeMessageReadAll(bool noContextTakeover)
         {
-            var inflater = new WebSocketInflater();
-            var deflater = new WebSocketDeflater();
+            using var inflater = new WebSocketInflater(noContextTakeover);
+            using var deflater = new WebSocketDeflater(noContextTakeover);
             for (var i = 0; i < 10; i++)
                 this.DeflateHugeMessageReadAll(inflater, deflater);
         }
@@ -64,7 +71,8 @@ namespace Samurai.WebSockets.UnitTests
                 deflater.Write(new ArraySegment<byte>(chunk));
             }
 
-            inflater.Write(deflater.Read());
+            using var deflated = deflater.Read();
+            inflater.Write(deflated.GetDataArraySegment());
 
             using var df = inflater.Read();
             df.Position = 0;

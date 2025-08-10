@@ -80,10 +80,10 @@ namespace Samurai.WebSockets.Extensions
         /// </summary>
         /// <param name="extensionsHeader">Extensions header value</param>
         /// <returns>Array of extension objects with name and parameters</returns>
-        public static WebSocketExtension[] ParseExtensions(this string? extensionsHeader)
+        public static WebSocketExtension[]? ParseExtensions(this string? extensionsHeader)
         {
             if (string.IsNullOrEmpty(extensionsHeader))
-                return new WebSocketExtension[0];
+                return null;
 
             var extensions = new List<WebSocketExtension>();
             foreach (var ext in ParseCommaSeparated(extensionsHeader))

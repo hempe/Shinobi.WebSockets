@@ -42,20 +42,6 @@ namespace Samurai.WebSockets.Extensions
             var buffer = new ArraySegment<byte>(bytes);
 
             await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, cancellationToken);
-            /*
-                        var chunkSize = (int)Math.Ceiling((double)bytes.Length / 4);
-                        var chunks = bytes
-                            .Select((b, i) => new { Byte = b, Index = i })
-                            .GroupBy(x => x.Index / chunkSize)
-                            .Select(g => g.Select(x => x.Byte).ToArray())
-                            .ToArray();
-
-                        for (var i = 0; i < chunks.Length; i++)
-                        {
-                            var endOfMessage = true;
-                            await webSocket.SendAsync(new ArraySegment<byte>(chunks[i]), WebSocketMessageType.Text, i == 1, cancellationToken);
-                        }
-            */
         }
 
         /// <summary>

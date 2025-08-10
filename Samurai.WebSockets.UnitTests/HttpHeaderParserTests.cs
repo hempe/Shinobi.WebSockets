@@ -66,8 +66,8 @@ namespace Samurai.WebSockets.UnitTests
 
             // Test extension parsing
             var extensions = result.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtensions();
-            Assert.Single(extensions);
-            Assert.Equal("permessage-deflate", extensions[0].Name);
+            Assert.Single(extensions!);
+            Assert.Equal("permessage-deflate", extensions![0].Name);
             Assert.Equal("10", extensions[0].Parameters["server_max_window_bits"].ToString());
         }
 

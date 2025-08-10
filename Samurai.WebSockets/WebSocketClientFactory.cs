@@ -125,8 +125,8 @@ namespace Samurai.WebSockets
 
             return new SamuraiWebSocket(
                 new WebSocketHttpContext(response!, responseStream, guid),
+                response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.ParseExtensions(),
                 keepAliveInterval,
-                response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.Contains("permessage-deflate") == true,
                 includeExceptionInCloseResponse,
                 true,
                 response.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));

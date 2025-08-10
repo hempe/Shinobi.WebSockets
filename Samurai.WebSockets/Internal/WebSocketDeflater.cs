@@ -9,12 +9,18 @@ namespace Samurai.WebSockets.Internal
     public sealed class WebSocketDeflater : IDisposable
     {
         private readonly ArrayPoolStream compressBuffer = new ArrayPoolStream();
-        private readonly DeflateStream decompressor;
+        private DeflateStream decompressor;
+        private readonly bool noContextTakeover;
+        private readonly CompressionLevel compressionLevel;
         private bool isDisposed;
 
-        public WebSocketDeflater(CompressionLevel compressionLevel = CompressionLevel.Fastest)
+        public WebSocketDeflater(
+            bool noContextTakeover,
+            CompressionLevel compressionLevel = CompressionLevel.Fastest)
         {
             this.decompressor = new DeflateStream(this.compressBuffer, compressionLevel, leaveOpen: true);
+            this.noContextTakeover = noContextTakeover;
+            this.compressionLevel = compressionLevel;
         }
 
         /// <summary>
@@ -33,7 +39,7 @@ namespace Samurai.WebSockets.Internal
         /// Compresses a message fragment using DEFLATE compression
         /// </summary>
         /// <returns>Compressed data as ArraySegment</returns>
-        public ArraySegment<byte> Read()
+        public ArrayPoolStream Read()
         {
             this.ThrowIfDisposed();
 
@@ -42,13 +48,26 @@ namespace Samurai.WebSockets.Internal
 
             // Partial message - return current compressed data
             var compressedData = this.compressBuffer.GetDataArraySegment();
-            this.compressBuffer.SetLength(0);
-
+            var compressedStream = new ArrayPoolStream();
             // Remove the DEFLATE end marker (last 4 bytes should be 0x00 0x00 0xFF 0xFF)
             if (compressedData.Count >= 4)
-                return new ArraySegment<byte>(compressedData.Array!, compressedData.Offset, compressedData.Count - 4);
+            {
+                compressedStream.Write(compressedData.Array!, compressedData.Offset, compressedData.Count - 4);
+            }
+            else
+            {
+                compressedStream.Write(compressedData.Array!, compressedData.Offset, compressedData.Count);
+            }
 
-            return compressedData;
+            if (this.noContextTakeover)
+            {
+                this.decompressor.Dispose();
+                this.decompressor = new DeflateStream(this.compressBuffer, this.compressionLevel, leaveOpen: true);
+            }
+
+            this.compressBuffer.SetLength(0);
+
+            return compressedStream;
         }
 
         public void Dispose()

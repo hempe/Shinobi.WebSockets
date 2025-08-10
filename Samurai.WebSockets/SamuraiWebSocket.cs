@@ -75,8 +75,8 @@ namespace Samurai.WebSockets
 
         public SamuraiWebSocket(
             WebSocketHttpContext context,
+            WebSocketExtension[]? secWebSocketExtensions,
             TimeSpan keepAliveInterval,
-            bool permessageDeflate,
             bool includeExceptionInCloseResponse,
             bool isClient,
             string? subProtocol)
@@ -87,12 +87,14 @@ namespace Samurai.WebSockets
             this.internalReadCts = new CancellationTokenSource();
             this.state = WebSocketState.Open;
             this.stopwatch = Stopwatch.StartNew();
-            this.PermessageDeflate = permessageDeflate;
+            this.PermessageDeflate = secWebSocketExtensions != null;
 
-            if (permessageDeflate)
+            if (this.PermessageDeflate)
             {
-                this.deflater = new WebSocketDeflater();
-                this.inflater = new WebSocketInflater();
+                var deflaterNoContextTakeover = isClient ? "client_no_context_takeover" : "server_no_context_takeover";
+                var inflaterNoContextTakeover = isClient ? "server_no_context_takeover" : "client_no_context_takeover";
+                this.deflater = new WebSocketDeflater(secWebSocketExtensions?.Any(x => x.Name == deflaterNoContextTakeover) == true);
+                this.inflater = new WebSocketInflater(secWebSocketExtensions?.Any(x => x.Name == inflaterNoContextTakeover) == true);
                 Events.Log?.UsePerMessageDeflate(context.Guid);
             }
             else
@@ -364,7 +366,8 @@ namespace Samurai.WebSockets
                     this.deflater.Write(buffer);
                     if (endOfMessage)
                     {
-                        var frame = this.deflater.Read();
+                        using var deflated = this.deflater.Read();
+                        var frame = deflated.GetDataArraySegment();
 
                         using var stream = new ArrayPoolStream();
                         WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient, true, !this.isContinuationFrame);
@@ -677,9 +680,6 @@ namespace Samurai.WebSockets
         /// </summary>
         private WebSocketOpCode GetOppCode(WebSocketMessageType messageType)
         {
-            if (this.isContinuationFrame)
-                return WebSocketOpCode.ContinuationFrame;
-
             switch (messageType)
             {
                 case WebSocketMessageType.Binary:

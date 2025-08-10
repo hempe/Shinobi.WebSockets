@@ -108,7 +108,7 @@ namespace WebSockets.DemoServer
                 logger.LogInformation("HTTPS WebSocket URL: wss://localhost:8080");
                 logger.LogInformation("Test with the demo client, lauche https://localhost:8080");
 
-                Console.WriteLine("\nPress any key to stop the server...");
+                Console.WriteLine("\nPress [ENTER] key to stop the server...");
 
                 // Keep the server running until a key is pressed
                 Console.ReadLine();
