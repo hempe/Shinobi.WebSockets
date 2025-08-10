@@ -361,12 +361,17 @@ namespace Samurai.WebSockets
                 var msOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
                 if (this.deflater != null && (messageType == WebSocketMessageType.Binary || messageType == WebSocketMessageType.Text))
                 {
-                    var frame = this.deflater.Write(buffer, messageType, endOfMessage);
-                    using var stream = new ArrayPoolStream();
-                    WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient, true, !this.isContinuationFrame);
-                    var arr = stream.GetDataArraySegment();
-                    Events.Log?.SendingFrame(this.Context.Guid, opCode, endOfMessage, frame.Count, true);
-                    await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+                    this.deflater.Write(buffer);
+                    if (endOfMessage)
+                    {
+                        var frame = this.deflater.Read();
+
+                        using var stream = new ArrayPoolStream();
+                        WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient, true, !this.isContinuationFrame);
+                        var arr = stream.GetDataArraySegment();
+                        Events.Log?.SendingFrame(this.Context.Guid, opCode, endOfMessage, frame.Count, true);
+                        await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+                    }
                 }
                 else
                 {

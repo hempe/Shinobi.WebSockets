@@ -380,7 +380,7 @@ public class WebSocketThroughputBenchmarks
                     if (result.MessageType == WebSocketMessageType.Close)
                         return;
 
-                    var message = HandleWebSocketMessage(receiveBuffer, result, this.permessageDeflate);
+                    var message = HandleWebSocketMessage(receiveBuffer, result);
                     if (message.HasValue)
                     {
                         if (message.Value.Count != this.data.Count)
@@ -400,22 +400,14 @@ public class WebSocketThroughputBenchmarks
         }
     }
 
-    private static ArraySegment<byte>? HandleWebSocketMessage(Samurai.WebSockets.ArrayPoolStream messageBuffer, WebSocketReceiveResult result, bool permessageDeflate)
+    private static ArraySegment<byte>? HandleWebSocketMessage(Samurai.WebSockets.ArrayPoolStream messageBuffer, WebSocketReceiveResult result)
     {
         try
         {
             // If this completes the message, process it
             if (result.EndOfMessage)
             {
-                if (!permessageDeflate)
-                    return messageBuffer.GetDataArraySegment();
-
-                messageBuffer.Position = 0;
-                using var deflateStream = new DeflateStream(messageBuffer, CompressionMode.Decompress, leaveOpen: true);
-                using var decompressedStream = new Samurai.WebSockets.ArrayPoolStream();
-                deflateStream.CopyTo(decompressedStream);
-                return decompressedStream.GetDataArraySegment();
-
+                return messageBuffer.GetDataArraySegment();
             }
             return null;
         }
@@ -442,7 +434,7 @@ public class WebSocketThroughputBenchmarks
                     if (result.MessageType == WebSocketMessageType.Close)
                         return;
 
-                    var message = HandleWebSocketMessage(receiveBuffer, result, this.permessageDeflate);
+                    var message = HandleWebSocketMessage(receiveBuffer, result);
                     if (message.HasValue)
                     {
                         if (message.Value.Count != this.data.Count)

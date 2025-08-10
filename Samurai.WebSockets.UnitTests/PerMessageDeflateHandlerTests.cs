@@ -1,4 +1,4 @@
-/*<using System;
+using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -16,13 +16,14 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public void DeflateTest()
         {
-            var sut = new PerMessageDeflateHandler();
+            var inflater = new WebSocketInflater();
+            var deflater = new WebSocketDeflater();
             var message = "Hello World";
-            var ms = new ArrayPoolStream();
-            var frame = sut.Write(Encoding.UTF8.GetBytes(message), System.Net.WebSockets.WebSocketMessageType.Text, true);
-            ms.Write(frame.Array!, frame.Offset, frame.Count);
-            ms.Position = 0;
-            using var df = new DeflateStream(ms, CompressionMode.Decompress);
+            deflater.Write(new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)));
+            inflater.Write(deflater.Read());
+
+            using var df = inflater.Read();
+            df.Position = 0;
             using var reader = new StreamReader(df, Encoding.UTF8);
             var result = reader.ReadToEnd();
             Assert.Equal(message, result);
@@ -31,22 +32,23 @@ namespace Samurai.WebSockets.UnitTests
         [Fact]
         public void DeflateHugeMessageReadAllTest()
         {
-            var sut = new PerMessageDeflateHandler();
-            this.DeflateHugeMessageReadAll(sut);
+            var inflater = new WebSocketInflater();
+            var deflater = new WebSocketDeflater();
+            this.DeflateHugeMessageReadAll(inflater, deflater);
         }
 
         [Fact]
         public void DeflateMultipleHugeMessageReadAll()
         {
-            var sut = new PerMessageDeflateHandler();
+            var inflater = new WebSocketInflater();
+            var deflater = new WebSocketDeflater();
             for (var i = 0; i < 10; i++)
-                this.DeflateHugeMessageReadAll(sut);
+                this.DeflateHugeMessageReadAll(inflater, deflater);
         }
 
-        private void DeflateHugeMessageReadAll(PerMessageDeflateHandler sut)
+        private void DeflateHugeMessageReadAll(WebSocketInflater inflater, WebSocketDeflater deflater)
         {
             var message = string.Join(string.Empty, Enumerable.Range(0, 32 * 1024).Select(_ => 'A'));
-            var ms = new ArrayPoolStream();
             var bytes = Encoding.UTF8.GetBytes(message);
             var chunkSize = (int)Math.Ceiling((double)bytes.Length / 4);
             var chunks = bytes
@@ -59,15 +61,16 @@ namespace Samurai.WebSockets.UnitTests
             foreach (var chunk in chunks)
             {
                 ct++;
-                var frame = sut.Write(chunk, System.Net.WebSockets.WebSocketMessageType.Text, ct == chunks.Length);
-                ms.Write(frame.Array!, frame.Offset, frame.Count);
+                deflater.Write(new ArraySegment<byte>(chunk));
             }
 
-            ms.Position = 0;
-            using var df = new DeflateStream(ms, CompressionMode.Decompress);
+            inflater.Write(deflater.Read());
+
+            using var df = inflater.Read();
+            df.Position = 0;
             using var reader = new StreamReader(df, Encoding.UTF8);
             var result = reader.ReadToEnd();
             Assert.Equal(message, result);
         }
     }
-}*/
+}

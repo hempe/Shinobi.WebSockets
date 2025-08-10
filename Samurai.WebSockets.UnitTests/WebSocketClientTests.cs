@@ -89,8 +89,8 @@ namespace Samurai.WebSockets.UnitTests
             var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
-            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, false, 256, tokenSource.Token);
+            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, tokenSource.Token);
+            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, 256, tokenSource.Token);
 
             var message1 = this.GetBuffer("Hi");
             var message2 = this.GetBuffer("There");
@@ -115,8 +115,8 @@ namespace Samurai.WebSockets.UnitTests
             var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
-            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, false, 256, tokenSource.Token);
+            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, tokenSource.Token);
+            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, 256, tokenSource.Token);
 
             var message = string.Join(string.Empty, Enumerable.Range(0, 32 * 1024).Select(_ => 'A'));
             var message1 = this.GetBuffer(message);
@@ -139,8 +139,8 @@ namespace Samurai.WebSockets.UnitTests
             var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, true, tokenSource.Token);
-            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, true, 256, tokenSource.Token);
+            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, tokenSource.Token);
+            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, 256, tokenSource.Token);
 
             var message1 = this.GetBuffer("Hi");
             var message2 = this.GetBuffer("There");
@@ -163,8 +163,8 @@ namespace Samurai.WebSockets.UnitTests
             var webSocketServer = this.GetWebSocket(Guid.NewGuid(), theInternet.ServerNetworkStream!, TimeSpan.Zero, true, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, true, tokenSource.Token);
-            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, true, 256, tokenSource.Token);
+            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, tokenSource.Token);
+            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, 256, tokenSource.Token);
 
             var message = string.Join(string.Empty, Enumerable.Range(0, 32 * 1024).Select(_ => 'A'));
             var message1 = this.GetBuffer(message);
@@ -194,9 +194,9 @@ namespace Samurai.WebSockets.UnitTests
             var webSocketServer = this.GetWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
+            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, tokenSource.Token);
             // here we use a server with a buffer size of 10 which is smaller than the websocket frame
-            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, false, 10, tokenSource.Token);
+            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, 10, tokenSource.Token);
             var message1 = this.GetBuffer("This is a test message");
 
             await webSocketClient.SendAsync(message1, WebSocketMessageType.Binary, true, tokenSource.Token);
@@ -225,8 +225,8 @@ namespace Samurai.WebSockets.UnitTests
             var webSocketServer = this.GetWebSocket(Guid.NewGuid(), serverPipe, TimeSpan.Zero, false, false, false, null);
             using var tokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, false, tokenSource.Token);
-            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, false, 256, tokenSource.Token);
+            var clientReceiveTask = this.ReceiveClientAsync(webSocketClient, tokenSource.Token);
+            var serverReceiveTask = this.ReceiveServerAsync(webSocketServer, 256, tokenSource.Token);
 
             var message1 = this.GetBuffer("Hi");
             var message2 = this.GetBuffer("There");
@@ -254,7 +254,7 @@ namespace Samurai.WebSockets.UnitTests
             public int Count { get; set; }
         }
 
-        private Task<ReadResult[]> ReceiveClientAsync(WebSocket webSocket, bool permessageDeflate, CancellationToken cancellationToken)
+        private Task<ReadResult[]> ReceiveClientAsync(WebSocket webSocket, CancellationToken cancellationToken)
         {
             return Task.Run(async () =>
             {
@@ -277,19 +277,11 @@ namespace Samurai.WebSockets.UnitTests
 
                     if (result.EndOfMessage)
                     {
-                        if (permessageDeflate)
-                        {
-                            ms.Position = 0;
-                            using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
-                            using var reader = new StreamReader(deflateStream, Encoding.UTF8);
-                            values.Add(new ReadResult { Text = reader.ReadToEnd(), Count = count });
-                        }
-                        else
-                        {
-                            ms.Position = 0;
-                            using var reader = new StreamReader(ms, Encoding.UTF8, bufferSize: 1024, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
-                            values.Add(new ReadResult { Text = reader.ReadToEnd(), Count = count });
-                        }
+
+                        ms.Position = 0;
+                        using var reader = new StreamReader(ms, Encoding.UTF8, bufferSize: 1024, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+                        values.Add(new ReadResult { Text = reader.ReadToEnd(), Count = count });
+
                         count = 0;
                         ms.SetLength(0);
                     }
@@ -299,7 +291,7 @@ namespace Samurai.WebSockets.UnitTests
             });
         }
 
-        private Task ReceiveServerAsync(WebSocket webSocket, bool permessageDeflate, int bufferSize, CancellationToken cancellationToken)
+        private Task ReceiveServerAsync(WebSocket webSocket, int bufferSize, CancellationToken cancellationToken)
         {
             return Task.Run(async () =>
             {
@@ -320,19 +312,9 @@ namespace Samurai.WebSockets.UnitTests
                     {
                         string value;
                         ms.Position = 0;
-                        if (permessageDeflate)
-                        {
 
-                            using var deflateStream = new DeflateStream(ms, CompressionMode.Decompress, leaveOpen: true);
-                            using var reader = new StreamReader(deflateStream, Encoding.UTF8);
-                            value = reader.ReadToEnd();
-
-                        }
-                        else
-                        {
-                            using var reader = new StreamReader(ms, Encoding.UTF8, bufferSize: 1024, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
-                            value = reader.ReadToEnd();
-                        }
+                        using var reader = new StreamReader(ms, Encoding.UTF8, bufferSize: 1024, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+                        value = reader.ReadToEnd();
 
                         ms.SetLength(0);
 

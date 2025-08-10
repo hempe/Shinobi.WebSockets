@@ -365,18 +365,7 @@ namespace Samurai.WebSockets
                     if (result.EndOfMessage)
                     {
                         receiveBuffer.Position = 0;
-                        if (client.PermessageDeflate && false)
-                        {
-                            using var deflateStream = new DeflateStream(receiveBuffer, CompressionMode.Decompress, leaveOpen: true);
-                            using var decompressedStream = new Samurai.WebSockets.ArrayPoolStream();
-                            deflateStream.CopyTo(decompressedStream);
-                            decompressedStream.Position = 0;
-                            await this.OnMessageAsync(client, (MessageType)result.MessageType, decompressedStream, cancellationToken);
-                        }
-                        else
-                        {
-                            await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
-                        }
+                        await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
                         receiveBuffer.SetLength(0);
                         currentMessageType = null; // Reset for next message
                     }
