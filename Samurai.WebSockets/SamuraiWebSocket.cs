@@ -61,11 +61,15 @@ namespace Samurai.WebSockets
         private bool isContinuationFrame;
         private WebSocketMessageType continuationFrameMessageType = WebSocketMessageType.Binary;
         private WebSocketReadCursor? readCursor;
-        private readonly WebSocketCompressionHandler? webSocketCompressionHandler;
+        private readonly WebSocketDeflater? deflater;
+        private readonly WebSocketInflater? inflater;
         private WebSocketCloseStatus? closeStatus;
         private string? closeStatusDescription;
         private long pingSentTicks;
-
+        private ArraySegment<byte>? pendingDecompressedData = null;
+        private int pendingDataOffset;
+        private bool isCollectingCompressedMessage;
+        private WebSocketMessageType collectedMessageType;
         public readonly WebSocketHttpContext Context;
         public readonly bool PermessageDeflate;
 
@@ -87,12 +91,14 @@ namespace Samurai.WebSockets
 
             if (permessageDeflate)
             {
-                this.webSocketCompressionHandler = new WebSocketCompressionHandler();
+                this.deflater = new WebSocketDeflater();
+                this.inflater = new WebSocketInflater();
                 Events.Log?.UsePerMessageDeflate(context.Guid);
             }
             else
             {
-                this.webSocketCompressionHandler = null;
+                this.deflater = null;
+                this.inflater = null;
                 Events.Log?.NoMessageCompression(context.Guid);
             }
 
@@ -133,10 +139,16 @@ namespace Samurai.WebSockets
         {
             try
             {
+                // First, check if we have pending decompressed data from a previous call
+                if (this.pendingDecompressedData.HasValue && this.pendingDecompressedData.Value.Count > 0)
+                {
+                    return this.ReturnPendingData(this.pendingDecompressedData.Value, buffer);
+                }
+
                 // we may receive control frames so reading needs to happen in an infinite loop
                 while (true)
                 {
-                    // allow this operation to be cancelled from iniside OR outside this instance
+                    // allow this operation to be cancelled from inside OR outside this instance
                     using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.internalReadCts.Token, cancellationToken);
 
                     WebSocketFrame frame;
@@ -145,9 +157,6 @@ namespace Samurai.WebSockets
                     {
                         if (this.readCursor.HasValue && this.readCursor.Value.NumBytesLeftToRead > 0)
                         {
-                            // If the buffer used to read the frame was too small to fit the whole frame then we need to "remember" this frame
-                            // and return what we have. Subsequent calls to the read function will simply continue reading off the stream without 
-                            // decoding the first few bytes as a websocket header.
                             this.readCursor = await WebSocketFrameReader.ReadFromCursorAsync(this.Context.Stream, buffer, this.readCursor.Value, linkedCts.Token).ConfigureAwait(false);
                             frame = this.readCursor.Value.WebSocketFrame;
                         }
@@ -185,55 +194,23 @@ namespace Samurai.WebSockets
                     }
 
                     var endOfMessage = frame.IsFinBitSet && this.readCursor.Value.NumBytesLeftToRead == 0;
+                    var framePayload = new ArraySegment<byte>(buffer.Array!, buffer.Offset, this.readCursor.Value.NumBytesRead);
+
                     switch (frame.OpCode)
                     {
                         case WebSocketOpCode.ConnectionClose:
                             return await this.RespondToCloseFrameAsync(frame, linkedCts.Token).ConfigureAwait(false);
                         case WebSocketOpCode.Ping:
-                            ArraySegment<byte> pingPayload = new ArraySegment<byte>(buffer.Array!, buffer.Offset, this.readCursor.Value.NumBytesRead);
-                            await this.SendPongAsync(pingPayload, linkedCts.Token).ConfigureAwait(false);
+                            await this.SendPongAsync(framePayload, linkedCts.Token).ConfigureAwait(false);
                             break;
                         case WebSocketOpCode.Pong:
                             this.pingSentTicks = 0;
                             break;
                         case WebSocketOpCode.TextFrame:
-                            if (!frame.IsFinBitSet)
-                            {
-                                // continuation frames will follow, record the message type Text
-                                this.continuationFrameMessageType = WebSocketMessageType.Text;
-                            }
-
-                            if (this.webSocketCompressionHandler != null)
-                            {
-                                var decompressed = this.webSocketCompressionHandler!.Decompress(
-                                        new ArraySegment<byte>(buffer.Array!, buffer.Offset, this.readCursor.Value.NumBytesRead),
-                                        WebSocketMessageType.Text,
-                                        frame.IsFinBitSet
-                                    );
-
-                                /// I guess I need to handle if this would decompress into something bigger then the buffer.
-                                Buffer.BlockCopy(
-                                    decompressed.Array,      // source array
-                                    decompressed.Offset,     // start index in source (in bytes)
-                                    buffer.Array, // destination array
-                                    buffer.Offset,// start index in destination (in bytes)
-                                    decompressed.Count       // number of bytes to copy
-                                );
-
-                                return new WebSocketReceiveResult(decompressed.Count, WebSocketMessageType.Text, endOfMessage);
-                            }
-
-                            return new WebSocketReceiveResult(this.readCursor.Value.NumBytesRead, WebSocketMessageType.Text, endOfMessage);
-
                         case WebSocketOpCode.BinaryFrame:
-                            if (!frame.IsFinBitSet)
-                            {
-                                // continuation frames will follow, record the message type Binary
-                                this.continuationFrameMessageType = WebSocketMessageType.Binary;
-                            }
-                            return new WebSocketReceiveResult(this.readCursor.Value.NumBytesRead, WebSocketMessageType.Binary, endOfMessage);
+                            return await this.HandleDataFrameAsync(frame, framePayload, endOfMessage, buffer, linkedCts.Token).ConfigureAwait(false);
                         case WebSocketOpCode.ContinuationFrame:
-                            return new WebSocketReceiveResult(this.readCursor.Value.NumBytesRead, this.continuationFrameMessageType, endOfMessage);
+                            return await this.HandleContinuationFrameAsync(framePayload, endOfMessage, buffer, linkedCts.Token).ConfigureAwait(false);
                         default:
                             Exception ex = new NotSupportedException($"Unknown WebSocket opcode {frame.OpCode}");
                             await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
@@ -243,13 +220,129 @@ namespace Samurai.WebSockets
             }
             catch (Exception catchAll)
             {
-                // Most exceptions will be caught closer to their source to send an appropriate close message (and set the WebSocketState)
-                // However, if an unhandled exception is encountered and a close message not sent then send one here
                 if (this.state == WebSocketState.Open)
                     await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Unexpected error reading from WebSocket", catchAll).ConfigureAwait(false);
-
                 throw;
             }
+        }
+
+        private async Task<WebSocketReceiveResult> HandleDataFrameAsync(WebSocketFrame frame, ArraySegment<byte> framePayload, bool endOfMessage, ArraySegment<byte> userBuffer, CancellationToken cancellationToken)
+        {
+            var messageType = frame.OpCode == WebSocketOpCode.TextFrame ? WebSocketMessageType.Text : WebSocketMessageType.Binary;
+
+            //TODO: Check if this message is compressed (RSV1 bit set)?
+            if (this.inflater != null)
+            {
+                if (!frame.IsFinBitSet)
+                {
+                    // Start of a fragmented compressed message - begin collecting
+                    this.isCollectingCompressedMessage = true;
+                    this.collectedMessageType = messageType;
+
+                    // Feed the frame to the inflater (won't return data until endOfMessage)
+                    this.inflater.Write(framePayload);
+
+                    // Continue reading more frames
+                    return await this.ReceiveAsync(userBuffer, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Single compressed frame - decompress and return
+                    this.inflater.Write(framePayload);
+                    return this.HandleDecompressedMessage(messageType, userBuffer);
+                }
+            }
+            else
+            {
+                // Uncompressed message - handle normally
+                if (!frame.IsFinBitSet)
+                {
+                    this.continuationFrameMessageType = messageType;
+                }
+
+                return new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, messageType, endOfMessage);
+            }
+        }
+
+        private async Task<WebSocketReceiveResult> HandleContinuationFrameAsync(ArraySegment<byte> framePayload, bool endOfMessage, ArraySegment<byte> userBuffer, CancellationToken cancellationToken)
+        {
+            if (this.isCollectingCompressedMessage && this.inflater != null)
+            {
+                // Part of a compressed message - feed to inflater
+                this.inflater.Write(framePayload);
+
+                if (endOfMessage)
+                {
+                    // End of compressed message - we now have the full decompressed data
+                    this.isCollectingCompressedMessage = false;
+                    return this.HandleDecompressedMessage(this.collectedMessageType, userBuffer);
+                }
+                else
+                {
+                    // Continue collecting compressed fragments
+                    return await this.ReceiveAsync(userBuffer, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                // Normal uncompressed continuation frame
+                return new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, this.continuationFrameMessageType, endOfMessage);
+            }
+        }
+
+        private WebSocketReceiveResult HandleDecompressedMessage(WebSocketMessageType messageType, ArraySegment<byte> userBuffer)
+        {
+            var decompressed = this.inflater!.Read();
+            var decompressedData = decompressed.GetDataArraySegment();
+
+            if (decompressed.Length <= userBuffer.Count)
+            {
+                Array.Copy(decompressedData.Array!, decompressedData.Offset, userBuffer.Array!, userBuffer.Offset, decompressedData.Count);
+                return new WebSocketReceiveResult(decompressedData.Count, messageType, true);
+            }
+            else
+            {
+                // Decompressed data is larger than user buffer - need to return it in chunks
+                var bytesToCopy = userBuffer.Count;
+
+                Array.Copy(decompressedData.Array!, decompressedData.Offset, userBuffer.Array!, userBuffer.Offset, bytesToCopy);
+
+                // Store the remaining data for subsequent calls
+                var remainingBytes = decompressedData.Count - bytesToCopy;
+                if (this.pendingDecompressedData.HasValue)
+                    Shared.Return(this.pendingDecompressedData.Value);
+
+                this.pendingDecompressedData = new ArraySegment<byte>(decompressedData.Array!, decompressedData.Offset + bytesToCopy, remainingBytes);
+                this.pendingDataOffset = 0;
+
+                return new WebSocketReceiveResult(bytesToCopy, messageType, false); // Not end of message yet
+            }
+        }
+
+        private WebSocketReceiveResult ReturnPendingData(ArraySegment<byte> pendingDecompressedData, ArraySegment<byte> userBuffer)
+        {
+            var availableBytes = pendingDecompressedData.Count - this.pendingDataOffset;
+            var bytesToCopy = Math.Min(availableBytes, userBuffer.Count);
+
+            Array.Copy(
+                pendingDecompressedData.Array!,
+                pendingDecompressedData.Offset + this.pendingDataOffset,
+                userBuffer.Array!,
+                userBuffer.Offset,
+                bytesToCopy);
+
+            this.pendingDataOffset += bytesToCopy;
+
+            bool isEndOfMessage = this.pendingDataOffset >= pendingDecompressedData.Count;
+            if (isEndOfMessage)
+            {
+                // All pending data has been returned
+                Shared.Return(pendingDecompressedData);
+                this.pendingDecompressedData = null;
+                this.pendingDataOffset = 0;
+            }
+
+            return new WebSocketReceiveResult(bytesToCopy, this.collectedMessageType, isEndOfMessage);
         }
 
         /// <summary>
@@ -266,9 +359,9 @@ namespace Samurai.WebSockets
             {
                 var opCode = this.GetOppCode(messageType);
                 var msOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
-                if (this.webSocketCompressionHandler != null && (messageType == WebSocketMessageType.Binary || messageType == WebSocketMessageType.Text))
+                if (this.deflater != null && (messageType == WebSocketMessageType.Binary || messageType == WebSocketMessageType.Text))
                 {
-                    var frame = this.webSocketCompressionHandler.Compress(buffer, messageType, endOfMessage);
+                    var frame = this.deflater.Write(buffer, messageType, endOfMessage);
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient, true, !this.isContinuationFrame);
                     var arr = stream.GetDataArraySegment();
@@ -391,7 +484,8 @@ namespace Samurai.WebSockets
                 // cancel pending reads - usually does nothing
                 this.internalReadCts.Cancel();
                 this.Context.Stream.Close();
-                this.webSocketCompressionHandler?.Dispose();
+                this.inflater?.Dispose();
+                this.deflater?.Dispose();
             }
             catch (Exception ex)
             {

@@ -92,7 +92,6 @@ namespace Samurai.WebSockets.Internal
     /// </summary>
     public sealed class WebSocketInflater : IDisposable
     {
-        private readonly ArrayPoolStream decompressedStream = new ArrayPoolStream();
         private readonly byte[] tempBuffer;
         private readonly ArrayPoolStream compressedStream;
         private readonly DeflateStream decompressor;
@@ -108,67 +107,34 @@ namespace Samurai.WebSockets.Internal
             this.decompressor = new DeflateStream(this.compressedStream, CompressionMode.Decompress);
         }
 
-        private bool reset = false;
 
         /// <summary>
         /// Decompresses a message fragment using DEFLATE decompression
         /// </summary>
         /// <param name="buffer">Compressed buffer to decompress</param>
-        /// <param name="messageType">WebSocket message type</param>
-        /// <param name="endOfMessage">Whether this is the end of the message</param>
         /// <returns>Decompressed data as ArraySegment</returns>
-        public ArraySegment<byte> Read(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage)
+        public void Write(ArraySegment<byte> buffer)
         {
             this.ThrowIfDisposed();
-
-            // Only decompress text and binary messages
-            if (messageType != WebSocketMessageType.Text && messageType != WebSocketMessageType.Binary)
-            {
-                return buffer; // Return original buffer for control frames
-            }
-
-            if (this.reset)
-            {
-
-            }
-            try
-            {
-                // Add this fragment to our partial data
-                this.compressedStream.Write(buffer.Array, buffer.Offset, buffer.Count);
-
-                if (endOfMessage)
-                {
-
-                    this.compressedStream.Write(DEFLATE_TRAILER, 0, DEFLATE_TRAILER.Length);
-                    this.compressedStream.Position = 0;
-                    this.decompressedStream.SetLength(0);
-
-                    this.decompressor.CopyTo(this.decompressedStream);
-                    this.reset = true;
-                    this.compressedStream.SetLength(0);
-                    return this.decompressedStream.GetDataArraySegment();
-                }
-                else
-                {
-                    this.reset = false;
-                    // Partial message - we can't decompress until we have the complete message
-                    // Return empty segment to indicate no data available yet
-                    return new ArraySegment<byte>(new byte[0]);
-                }
-            }
-            catch
-            {
-                // If decompression fails, clean up and return original buffer
-                this.compressedStream.SetLength(0);
-                return buffer;
-            }
+            this.compressedStream.Write(buffer.Array, buffer.Offset, buffer.Count);
         }
+
+        public ArrayPoolStream Read()
+        {
+            var decompressedStream = new ArrayPoolStream();
+            this.compressedStream.Write(DEFLATE_TRAILER, 0, DEFLATE_TRAILER.Length);
+            this.compressedStream.Position = 0;
+
+            this.decompressor.CopyTo(decompressedStream);
+            this.compressedStream.SetLength(0);
+            return decompressedStream;
+        }
+
 
         public void Dispose()
         {
             if (!this.isDisposed)
             {
-                this.decompressedStream.Dispose();
                 this.compressedStream.Dispose();
                 this.decompressor.Dispose();
                 this.isDisposed = true;
@@ -179,44 +145,6 @@ namespace Samurai.WebSockets.Internal
         {
             if (this.isDisposed)
                 throw new ObjectDisposedException(nameof(WebSocketInflater));
-        }
-    }
-
-
-    /// <summary>
-    /// Combined deflater and inflater for full WebSocket per-message-deflate support
-    /// </summary>
-    public sealed class WebSocketCompressionHandler : IDisposable
-    {
-        private readonly WebSocketDeflater deflater;
-        private readonly WebSocketInflater inflater;
-
-        public WebSocketCompressionHandler(CompressionLevel compressionLevel = CompressionLevel.Fastest)
-        {
-            this.deflater = new WebSocketDeflater(compressionLevel);
-            this.inflater = new WebSocketInflater();
-        }
-
-        /// <summary>
-        /// Compresses outgoing message data
-        /// </summary>
-        public ArraySegment<byte> Compress(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage)
-        {
-            return this.deflater.Write(buffer, messageType, endOfMessage);
-        }
-
-        /// <summary>
-        /// Decompresses incoming message data
-        /// </summary>
-        public ArraySegment<byte> Decompress(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage)
-        {
-            return this.inflater.Read(buffer, messageType, endOfMessage);
-        }
-
-        public void Dispose()
-        {
-            this.deflater?.Dispose();
-            this.inflater?.Dispose();
         }
     }
 }
