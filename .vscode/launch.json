@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "coreclr",
+            "request": "launch",
+            "name": "Launch Samurai.WebSockets.Benchmark",
+            "program": "${workspaceFolder}/Samurai.WebSockets.Benchmark/bin/Debug/net9.0/Samurai.WebSockets.Benchmark.dll",
+            "cwd": "${workspaceFolder}/Samurai.WebSockets.Benchmark",
+            "stopAtEntry": false
+        },
+        {
+            "type": "coreclr",
+            "request": "launch",
+            "name": "Launch Samurai.WebSockets.DemoServer",
+            "program": "${workspaceFolder}/Samurai.WebSockets.DemoServer/bin/Debug/net9.0/Samurai.WebSockets.DemoServer.dll",
+            "cwd": "${workspaceFolder}/Samurai.WebSockets.DemoServer",
+            "stopAtEntry": false
+        },
+        {
+            "type": "coreclr",
+            "request": "launch",
+            "name": "Launch Samurai.WebSockets.UnitTests.RunnerLinux",
+            "program": "${workspaceFolder}/Samurai.WebSockets.UnitTests.RunnerLinux/bin/Debug/net9.0/Samurai.WebSockets.UnitTests.RunnerLinux.dll",
+            "cwd": "${workspaceFolder}/Samurai.WebSockets.UnitTests.RunnerLinux",
+            "stopAtEntry": false
+        }
+    ]
+}

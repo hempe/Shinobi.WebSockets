@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -69,36 +70,6 @@ namespace Samurai.WebSockets
             this.OnErrorAsync = Builder.BuildWebSocketErrorChain(options.OnError);
             this.OnMessageAsync = Builder.BuildWebSocketMessageChain(options.OnMessage);
         }
-
-        private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)
-        {
-            if (context.IsWebSocketRequest)
-                return new ValueTask<HttpResponse>(context.HandshakeResponse(this.options));
-
-            var response = HttpResponse.Create(426)
-                .AddHeader("Upgrade", "websocket")
-                .AddHeader("Connection", "close")
-                .AddHeader("Content-Type", "text/plain")
-                .WithBody("WebSocket connection required. Use a WebSocket client.");
-
-            this.logger?.LogInformation("Http header contains no web socket upgrade request. Close");
-            return new ValueTask<HttpResponse>(response);
-        }
-
-        private ValueTask<X509Certificate2?> SelectionCertificateCoreAsync(TcpClient tcpClient, CancellationToken _cancellationToken)
-        {
-            this.ThrowIfDisposed();
-            return new ValueTask<X509Certificate2?>((X509Certificate2?)null);
-        }
-
-
-        private async ValueTask<Stream> AcceptStreamCoreAsync(TcpClient tcpClient, CancellationToken cancellationToken)
-        {
-            this.ThrowIfDisposed();
-            var certificate = await this.SelectionCertificateAsync(tcpClient, cancellationToken);
-            return certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), certificate);
-        }
-
         public async Task StopAsync()
         {
             var task = this.runTask;
@@ -130,12 +101,42 @@ namespace Samurai.WebSockets
             this.runTask = this.ListenAsync(this.options.Port, this.runToken);
             return Task.CompletedTask;
         }
+
         public void Dispose()
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             this.Dispose(disposing: true);
             GC.SuppressFinalize(this);
 
+        }
+
+        private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)
+        {
+            if (context.IsWebSocketRequest)
+                return new ValueTask<HttpResponse>(context.HandshakeResponse(this.options));
+
+            var response = HttpResponse.Create(426)
+                .AddHeader("Upgrade", "websocket")
+                .AddHeader("Connection", "close")
+                .AddHeader("Content-Type", "text/plain")
+                .WithBody("WebSocket connection required. Use a WebSocket client.");
+
+            this.logger?.LogInformation("Http header contains no web socket upgrade request. Close");
+            return new ValueTask<HttpResponse>(response);
+        }
+
+        private ValueTask<X509Certificate2?> SelectionCertificateCoreAsync(TcpClient tcpClient, CancellationToken _cancellationToken)
+        {
+            this.ThrowIfDisposed();
+            return new ValueTask<X509Certificate2?>((X509Certificate2?)null);
+        }
+
+
+        private async ValueTask<Stream> AcceptStreamCoreAsync(TcpClient tcpClient, CancellationToken cancellationToken)
+        {
+            this.ThrowIfDisposed();
+            var certificate = await this.SelectionCertificateAsync(tcpClient, cancellationToken);
+            return certificate is null ? tcpClient.GetStream() : await this.GetStreamAsync(tcpClient.GetStream(), certificate);
         }
 
         /// <summary>
@@ -157,7 +158,7 @@ namespace Samurai.WebSockets
                     while (!cancellationToken.IsCancellationRequested)
                     {
                         TcpClient tcpClient = await this.listener.AcceptTcpClientAsync();
-                        this.ProcessTcpClient(tcpClient, cancellationToken.Token);
+                        _ = Task.Run(() => this.ProcessTcpClientAsync(tcpClient, cancellationToken.Token));
                     }
                 }
                 catch (SocketException ex)
@@ -168,12 +169,6 @@ namespace Samurai.WebSockets
                     this.logger?.LogError(ex, "Error listening on port {Port}. Make sure IIS or another application is not running and consuming your port.", port);
                 }
             }
-        }
-
-
-        private void ProcessTcpClient(TcpClient tcpClient, CancellationToken cancellationToken)
-        {
-            Task.Run(() => this.ProcessTcpClientAsync(tcpClient, cancellationToken));
         }
 
 
@@ -370,7 +365,18 @@ namespace Samurai.WebSockets
                     if (result.EndOfMessage)
                     {
                         receiveBuffer.Position = 0;
-                        await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
+                        if (client.PermessageDeflate && false)
+                        {
+                            using var deflateStream = new DeflateStream(receiveBuffer, CompressionMode.Decompress, leaveOpen: true);
+                            using var decompressedStream = new Samurai.WebSockets.ArrayPoolStream();
+                            deflateStream.CopyTo(decompressedStream);
+                            decompressedStream.Position = 0;
+                            await this.OnMessageAsync(client, (MessageType)result.MessageType, decompressedStream, cancellationToken);
+                        }
+                        else
+                        {
+                            await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
+                        }
                         receiveBuffer.SetLength(0);
                         currentMessageType = null; // Reset for next message
                     }

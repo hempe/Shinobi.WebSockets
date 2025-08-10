@@ -5,8 +5,6 @@ VisualStudioVersion = 15.0.27130.2027
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Samurai.WebSockets", "Samurai.WebSockets\Samurai.WebSockets.csproj", "{03D712A7-61AE-46AC-89EC-6C8756703FDB}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Samurai.WebSockets.DemoClient", "Samurai.WebSockets.DemoClient\Samurai.WebSockets.DemoClient.csproj", "{29F39040-ADCA-4CBB-B36A-9193E427B603}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Samurai.WebSockets.DemoServer", "Samurai.WebSockets.DemoServer\Samurai.WebSockets.DemoServer.csproj", "{BFC6F7F6-93B9-4E7C-AC1E-86517C21A053}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Samurai.WebSockets.UnitTests", "Samurai.WebSockets.UnitTests\Samurai.WebSockets.UnitTests.csproj", "{E292CCA7-0C73-4520-8B86-A614637648A9}"
@@ -36,12 +34,6 @@ Global
 		{03D712A7-61AE-46AC-89EC-6C8756703FDB}.Release|Any CPU.Build.0 = Release|Any CPU
 		{03D712A7-61AE-46AC-89EC-6C8756703FDB}.ReleaseSigned|Any CPU.ActiveCfg = ReleaseSigned|Any CPU
 		{03D712A7-61AE-46AC-89EC-6C8756703FDB}.ReleaseSigned|Any CPU.Build.0 = ReleaseSigned|Any CPU
-		{29F39040-ADCA-4CBB-B36A-9193E427B603}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{29F39040-ADCA-4CBB-B36A-9193E427B603}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{29F39040-ADCA-4CBB-B36A-9193E427B603}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{29F39040-ADCA-4CBB-B36A-9193E427B603}.Release|Any CPU.Build.0 = Release|Any CPU
-		{29F39040-ADCA-4CBB-B36A-9193E427B603}.ReleaseSigned|Any CPU.ActiveCfg = ReleaseSigned|Any CPU
-		{29F39040-ADCA-4CBB-B36A-9193E427B603}.ReleaseSigned|Any CPU.Build.0 = ReleaseSigned|Any CPU
 		{BFC6F7F6-93B9-4E7C-AC1E-86517C21A053}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{BFC6F7F6-93B9-4E7C-AC1E-86517C21A053}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BFC6F7F6-93B9-4E7C-AC1E-86517C21A053}.Release|Any CPU.ActiveCfg = Release|Any CPU

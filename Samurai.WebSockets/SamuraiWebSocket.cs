@@ -24,6 +24,7 @@ using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -60,12 +61,13 @@ namespace Samurai.WebSockets
         private bool isContinuationFrame;
         private WebSocketMessageType continuationFrameMessageType = WebSocketMessageType.Binary;
         private WebSocketReadCursor? readCursor;
-        private readonly PerMessageDeflateHandler? perMessageDeflateHandler;
+        private readonly WebSocketCompressionHandler? webSocketCompressionHandler;
         private WebSocketCloseStatus? closeStatus;
         private string? closeStatusDescription;
         private long pingSentTicks;
 
         public readonly WebSocketHttpContext Context;
+        public readonly bool PermessageDeflate;
 
         public SamuraiWebSocket(
             WebSocketHttpContext context,
@@ -81,15 +83,16 @@ namespace Samurai.WebSockets
             this.internalReadCts = new CancellationTokenSource();
             this.state = WebSocketState.Open;
             this.stopwatch = Stopwatch.StartNew();
+            this.PermessageDeflate = permessageDeflate;
 
             if (permessageDeflate)
             {
-                this.perMessageDeflateHandler = new PerMessageDeflateHandler();
+                this.webSocketCompressionHandler = new WebSocketCompressionHandler();
                 Events.Log?.UsePerMessageDeflate(context.Guid);
             }
             else
             {
-                this.perMessageDeflateHandler = null;
+                this.webSocketCompressionHandler = null;
                 Events.Log?.NoMessageCompression(context.Guid);
             }
 
@@ -199,7 +202,21 @@ namespace Samurai.WebSockets
                                 // continuation frames will follow, record the message type Text
                                 this.continuationFrameMessageType = WebSocketMessageType.Text;
                             }
-                            return new WebSocketReceiveResult(this.readCursor.Value.NumBytesRead, WebSocketMessageType.Text, endOfMessage);
+                            var decompressed = this.webSocketCompressionHandler!.Decompress(
+                                    new ArraySegment<byte>(buffer.Array!, buffer.Offset, this.readCursor.Value.NumBytesRead),
+                                    WebSocketMessageType.Text,
+                                    frame.IsFinBitSet
+                                );
+
+                            Buffer.BlockCopy(
+                                decompressed.Array,      // source array
+                                decompressed.Offset,     // start index in source (in bytes)
+                                buffer.Array, // destination array
+                                buffer.Offset,// start index in destination (in bytes)
+                                decompressed.Count       // number of bytes to copy
+                            );
+
+                            return new WebSocketReceiveResult(decompressed.Count, WebSocketMessageType.Text, endOfMessage);
                         case WebSocketOpCode.BinaryFrame:
                             if (!frame.IsFinBitSet)
                             {
@@ -241,18 +258,19 @@ namespace Samurai.WebSockets
             {
                 var opCode = this.GetOppCode(messageType);
                 var msOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
-                if (this.perMessageDeflateHandler != null && (messageType == WebSocketMessageType.Binary || messageType == WebSocketMessageType.Text))
+                if (this.webSocketCompressionHandler != null && (messageType == WebSocketMessageType.Binary || messageType == WebSocketMessageType.Text))
                 {
-                    var frame = this.perMessageDeflateHandler.Write(buffer, messageType, endOfMessage);
+                    var frame = this.webSocketCompressionHandler.Compress(buffer, messageType, endOfMessage);
                     using var stream = new ArrayPoolStream();
-                    WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient);
+                    WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient, true, !this.isContinuationFrame);
+                    var arr = stream.GetDataArraySegment();
                     Events.Log?.SendingFrame(this.Context.Guid, opCode, endOfMessage, frame.Count, true);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
                     using var stream = new ArrayPoolStream();
-                    WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient);
+                    WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient, false, !this.isContinuationFrame);
                     Events.Log?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
@@ -260,7 +278,6 @@ namespace Samurai.WebSockets
             }
             catch (Exception e)
             {
-                Console.WriteLine("I don't think this is correct then? " + e.Message);
                 await this.CloseAsync(WebSocketCloseStatus.InternalServerError, e.Message, cancellationToken);
                 throw;
             }
@@ -366,7 +383,7 @@ namespace Samurai.WebSockets
                 // cancel pending reads - usually does nothing
                 this.internalReadCts.Cancel();
                 this.Context.Stream.Close();
-                this.perMessageDeflateHandler?.Dispose();
+                this.webSocketCompressionHandler?.Dispose();
             }
             catch (Exception ex)
             {

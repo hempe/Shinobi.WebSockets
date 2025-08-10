@@ -1,5 +1,6 @@
 
 using System;
+using System.Linq;
 
 using Samurai.WebSockets.Exceptions;
 
@@ -25,11 +26,14 @@ namespace Samurai.WebSockets.Extensions
                 throw new SecWebSocketKeyMissingException("Unable to read \"Sec-WebSocket-Key\" from http header");
 
             var setWebSocketAccept = secWebSocketKey!.ComputeSocketAcceptString();
-            var compress = options.AllowPerMessageDeflate && context.WebSocketExtensions?.Contains("permessage-deflate") == true;
+            var usePermessageDeflate =
+                options.AllowPerMessageDeflate
+                && context.HttpRequest!.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtensions().Any(x => x.Name == "permessage-deflate");
+
             return HttpResponse.Create(101)
                     .AddHeader("Connection", "Upgrade")
                     .AddHeader("Upgrade", "websocket")
-                    .AddHeaderIf(compress, "Sec-WebSocket-Extensions", "permessage-deflate")
+                    .AddHeaderIf(usePermessageDeflate, "Sec-WebSocket-Extensions", "permessage-deflate")
                     .AddHeader("Sec-WebSocket-Accept", setWebSocketAccept);
         }
 

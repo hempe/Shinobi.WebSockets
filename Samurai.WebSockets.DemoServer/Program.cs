@@ -32,6 +32,7 @@ namespace WebSockets.DemoServer
             {
                 // Create the WebSocket server with multiple features
                 var server = WebSocketBuilder.Create()
+                    .UsePerMessageDeflate(true)
                     .UsePort(8080)
                     .UseDevCertificate()         // Enable SSL with ASP.NET Core dev cert
                                                  //.UseLogging(loggerFactory)   // Log connections/disconnections/errors
@@ -40,10 +41,12 @@ namespace WebSockets.DemoServer
                     {
                         logger.LogInformation("New client connected: {ConnectionId}", webSocket.Context.Guid);
                         await webSocket.SendTextAsync("Welcome to the WebSocket Demo Server!", cancellationToken);
+                        await webSocket.SendTextAsync("Welcome to the WebSocket Demo Server!", cancellationToken);
                         await webSocket.SendTextAsync("Available commands:", cancellationToken);
                         await webSocket.SendTextAsync("- time: Get server time", cancellationToken);
                         await webSocket.SendTextAsync("- help: Show this help", cancellationToken);
                         await webSocket.SendTextAsync("- Any other text will be echoed back", cancellationToken);
+
                         await next(webSocket, cancellationToken);
                     })
                     .OnClose((webSocket, next, cancellationToken) =>

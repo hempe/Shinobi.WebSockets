@@ -15,6 +15,8 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 
+using Microsoft.Extensions.Logging;
+
 using Samurai.WebSockets;
 using Samurai.WebSockets.Extensions;
 
@@ -46,9 +48,10 @@ public class WebSocketThroughputBenchmarks
 
     //[Params("Ninja", "Samurai", "Samurai.PermessageDeflate")]
     //[Params("Ninja", "Samurai", "Native", "SS")]
-    [Params("Samurai", "SS", "SS.SSL")]
+    //[Params("Samurai", "SS")]
     //[Params("Ninja", "Samurai")]
-    public string Server { get; set; } = "SS";
+    [Params("SS.SSL", "SS")]
+    public string Server { get; set; } = "SS.SSL";
 
     //[Params("Ninja", "Samurai", "Native")]
     //[Params("Ninja", "Samurai")]
@@ -61,7 +64,11 @@ public class WebSocketThroughputBenchmarks
     [GlobalSetup]
     public async Task SetupAsync()
     {
-        this.permessageDeflate = this.Server.EndsWith("PermessageDeflate");
+        var loggerFactory = LoggerFactory.Create(builder => builder
+                .SetMinimumLevel(LogLevel.Trace)
+                .AddConsole());
+
+        this.permessageDeflate = true;  //this.Server.EndsWith("PermessageDeflate");
 
         var random = new Random(42069);
         var bytes = ArrayPool<byte>.Shared.Rent(this.MessageSizeKb * 1024);
@@ -76,6 +83,7 @@ public class WebSocketThroughputBenchmarks
 
 
         var serverReady = new TaskCompletionSource<bool>();
+        var serverStarted = new TaskCompletionSource<bool>();
 
         this.serverTask = Task.Run(async () =>
         {
@@ -88,6 +96,7 @@ public class WebSocketThroughputBenchmarks
                 {
                     var listener = new TcpListener(IPAddress.Loopback, this.port);
                     listener.Start();
+                    serverStarted.SetResult(true);
                     for (var i = 0; i < this.ClientCount; i++)
                     {
                         var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
@@ -114,6 +123,7 @@ public class WebSocketThroughputBenchmarks
                 {
                     var listener = new TcpListener(IPAddress.Loopback, this.port);
                     listener.Start();
+                    serverStarted.SetResult(true);
                     for (var i = 0; i < this.ClientCount; i++)
                     {
                         var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
@@ -140,8 +150,9 @@ public class WebSocketThroughputBenchmarks
                 else if (this.Server == "Native")
                 {
                     var listener = new HttpListener();
-                    listener.Prefixes.Add($"http://localhost:{this.port}/");
+                    listener.Prefixes.Add($"{(ssl ? "https" : "http")}://localhost:{this.port}/");
                     listener.Start();
+                    serverStarted.SetResult(true);
                     for (var i = 0; i < this.ClientCount; i++)
                     {
                         var context = await listener.GetContextAsync();
@@ -179,6 +190,7 @@ public class WebSocketThroughputBenchmarks
                         }).Build();
 
                     await server.StartAsync();
+                    serverStarted.SetResult(true);
                     cleanup = () =>
                     {
                         server.StopAsync().GetAwaiter().GetResult();
@@ -211,6 +223,7 @@ public class WebSocketThroughputBenchmarks
                         }).Build();
 
                     await server.StartAsync();
+                    serverStarted.SetResult(true);
                     cleanup = () =>
                     {
                         server.StopAsync().GetAwaiter().GetResult();
@@ -236,6 +249,8 @@ public class WebSocketThroughputBenchmarks
             }
             return cleanup;
         });
+
+        await serverStarted.Task;
 
         if (this.Client == "Ninja")
         {
