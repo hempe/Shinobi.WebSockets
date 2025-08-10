@@ -202,21 +202,29 @@ namespace Samurai.WebSockets
                                 // continuation frames will follow, record the message type Text
                                 this.continuationFrameMessageType = WebSocketMessageType.Text;
                             }
-                            var decompressed = this.webSocketCompressionHandler!.Decompress(
-                                    new ArraySegment<byte>(buffer.Array!, buffer.Offset, this.readCursor.Value.NumBytesRead),
-                                    WebSocketMessageType.Text,
-                                    frame.IsFinBitSet
+
+                            if (this.webSocketCompressionHandler != null)
+                            {
+                                var decompressed = this.webSocketCompressionHandler!.Decompress(
+                                        new ArraySegment<byte>(buffer.Array!, buffer.Offset, this.readCursor.Value.NumBytesRead),
+                                        WebSocketMessageType.Text,
+                                        frame.IsFinBitSet
+                                    );
+
+                                /// I guess I need to handle if this would decompress into something bigger then the buffer.
+                                Buffer.BlockCopy(
+                                    decompressed.Array,      // source array
+                                    decompressed.Offset,     // start index in source (in bytes)
+                                    buffer.Array, // destination array
+                                    buffer.Offset,// start index in destination (in bytes)
+                                    decompressed.Count       // number of bytes to copy
                                 );
 
-                            Buffer.BlockCopy(
-                                decompressed.Array,      // source array
-                                decompressed.Offset,     // start index in source (in bytes)
-                                buffer.Array, // destination array
-                                buffer.Offset,// start index in destination (in bytes)
-                                decompressed.Count       // number of bytes to copy
-                            );
+                                return new WebSocketReceiveResult(decompressed.Count, WebSocketMessageType.Text, endOfMessage);
+                            }
 
-                            return new WebSocketReceiveResult(decompressed.Count, WebSocketMessageType.Text, endOfMessage);
+                            return new WebSocketReceiveResult(this.readCursor.Value.NumBytesRead, WebSocketMessageType.Text, endOfMessage);
+
                         case WebSocketOpCode.BinaryFrame:
                             if (!frame.IsFinBitSet)
                             {

@@ -92,9 +92,10 @@ namespace Samurai.WebSockets.Internal
     /// </summary>
     public sealed class WebSocketInflater : IDisposable
     {
-        private readonly ArrayPoolStream decompressBuffer = new ArrayPoolStream();
-        private readonly ArrayPoolStream partialCompressedData = new ArrayPoolStream();
+        private readonly ArrayPoolStream decompressedStream = new ArrayPoolStream();
         private readonly byte[] tempBuffer;
+        private readonly ArrayPoolStream compressedStream;
+        private readonly DeflateStream decompressor;
         private bool isDisposed;
 
         // Per RFC 7692, messages end with 0x00 0x00 0xFF 0xFF when using no_context_takeover
@@ -103,7 +104,11 @@ namespace Samurai.WebSockets.Internal
         public WebSocketInflater()
         {
             this.tempBuffer = new byte[8192];
+            this.compressedStream = new ArrayPoolStream();
+            this.decompressor = new DeflateStream(this.compressedStream, CompressionMode.Decompress);
         }
+
+        private bool reset = false;
 
         /// <summary>
         /// Decompresses a message fragment using DEFLATE decompression
@@ -122,40 +127,30 @@ namespace Samurai.WebSockets.Internal
                 return buffer; // Return original buffer for control frames
             }
 
+            if (this.reset)
+            {
+
+            }
             try
             {
                 // Add this fragment to our partial data
-                this.partialCompressedData.Write(buffer.Array, buffer.Offset, buffer.Count);
+                this.compressedStream.Write(buffer.Array, buffer.Offset, buffer.Count);
 
                 if (endOfMessage)
                 {
-                    // End of message - decompress the complete message
-                    var completeCompressedData = this.partialCompressedData.GetDataArraySegment();
-                    this.partialCompressedData.SetLength(0);
 
-                    // Add DEFLATE trailer for proper decompression
-                    var dataWithTrailer = new byte[completeCompressedData.Count + DEFLATE_TRAILER.Length];
-                    Array.Copy(completeCompressedData.Array, completeCompressedData.Offset, dataWithTrailer, 0, completeCompressedData.Count);
-                    Array.Copy(DEFLATE_TRAILER, 0, dataWithTrailer, completeCompressedData.Count, DEFLATE_TRAILER.Length);
+                    this.compressedStream.Write(DEFLATE_TRAILER, 0, DEFLATE_TRAILER.Length);
+                    this.compressedStream.Position = 0;
+                    this.decompressedStream.SetLength(0);
 
-                    // Reset decompression buffer
-                    this.decompressBuffer.SetLength(0);
-
-                    // Decompress the complete message
-                    using (var compressedStream = new MemoryStream(dataWithTrailer))
-                    using (var decompressor = new DeflateStream(compressedStream, CompressionMode.Decompress))
-                    {
-                        int bytesRead;
-                        while ((bytesRead = decompressor.Read(this.tempBuffer, 0, this.tempBuffer.Length)) > 0)
-                        {
-                            this.decompressBuffer.Write(this.tempBuffer, 0, bytesRead);
-                        }
-                    }
-
-                    return this.decompressBuffer.GetDataArraySegment();
+                    this.decompressor.CopyTo(this.decompressedStream);
+                    this.reset = true;
+                    this.compressedStream.SetLength(0);
+                    return this.decompressedStream.GetDataArraySegment();
                 }
                 else
                 {
+                    this.reset = false;
                     // Partial message - we can't decompress until we have the complete message
                     // Return empty segment to indicate no data available yet
                     return new ArraySegment<byte>(new byte[0]);
@@ -164,7 +159,7 @@ namespace Samurai.WebSockets.Internal
             catch
             {
                 // If decompression fails, clean up and return original buffer
-                this.partialCompressedData.SetLength(0);
+                this.compressedStream.SetLength(0);
                 return buffer;
             }
         }
@@ -173,8 +168,9 @@ namespace Samurai.WebSockets.Internal
         {
             if (!this.isDisposed)
             {
-                this.decompressBuffer?.Dispose();
-                this.partialCompressedData?.Dispose();
+                this.decompressedStream.Dispose();
+                this.compressedStream.Dispose();
+                this.decompressor.Dispose();
                 this.isDisposed = true;
             }
         }
