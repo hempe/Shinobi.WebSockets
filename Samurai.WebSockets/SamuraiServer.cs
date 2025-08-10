@@ -249,7 +249,7 @@ namespace Samurai.WebSockets
                             await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
                             webSocket = new SamuraiWebSocket(
                                 context,
-                                handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtensions(),
+                                handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtension(),
                                 this.options.KeepAliveInterval,
                                 this.options.IncludeExceptionInCloseResponse,
                                 false,

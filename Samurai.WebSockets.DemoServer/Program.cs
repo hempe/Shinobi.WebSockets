@@ -32,10 +32,14 @@ namespace WebSockets.DemoServer
             {
                 // Create the WebSocket server with multiple features
                 var server = WebSocketBuilder.Create()
-                    .UsePerMessageDeflate(true)
+                    .UsePerMessageDeflate(x =>
+                    {
+                        x.ServerContextTakeover = ContextTakeoverMode.ForceDisabled;
+                        x.ClientContextTakeover = ContextTakeoverMode.ForceDisabled;
+                    })
                     .UsePort(8080)
                     .UseDevCertificate()         // Enable SSL with ASP.NET Core dev cert
-                                                 //.UseLogging(loggerFactory)   // Log connections/disconnections/errors
+                    .UseLogging(loggerFactory)   // Log connections/disconnections/errors
                     .UseCors("*")                // Allow all origins
                     .OnConnect(async (webSocket, next, cancellationToken) =>
                     {

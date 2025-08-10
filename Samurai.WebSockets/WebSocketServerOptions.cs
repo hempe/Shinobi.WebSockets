@@ -45,6 +45,48 @@ namespace Samurai.WebSockets
     public delegate bool WebSocketAuthenticator(WebSocketHttpContext context);
 
     /// <summary>
+    /// Configuration for WebSocket per-message deflate compression (RFC 7692)
+    /// </summary>
+    public class PerMessageDeflateOptions
+    {
+        /// <summary>
+        /// Gets or sets whether per-message deflate compression is enabled.
+        /// </summary>
+        public bool Enabled { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets the server's context takeover behavior.
+        /// </summary>
+        public ContextTakeoverMode ServerContextTakeover { get; set; } = ContextTakeoverMode.Allow;
+
+        /// <summary>
+        /// Gets or sets the client's context takeover behavior.
+        /// </summary>
+        public ContextTakeoverMode ClientContextTakeover { get; set; } = ContextTakeoverMode.Allow;
+    }
+
+    /// <summary>
+    /// Defines context takeover behavior for per-message deflate compression
+    /// </summary>
+    public enum ContextTakeoverMode
+    {
+        /// <summary>
+        /// Allow context takeover (better compression, more memory usage)
+        /// </summary>
+        Allow,
+
+        /// <summary>
+        /// Don't allow context takeover - reject if client requests it
+        /// </summary>
+        DontAllow,
+
+        /// <summary>
+        /// Force no context takeover (add the parameter even if client doesn't request it)
+        /// </summary>
+        ForceDisabled
+    }
+
+    /// <summary>
     /// Comprehensive WebSocket server configuration including interceptors and options
     /// </summary>
     public class WebSocketServerOptions
@@ -81,15 +123,15 @@ namespace Samurai.WebSockets
         public HashSet<string>? SupportedSubProtocols { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether per-message deflate compression is allowed.
-        /// When enabled, this option allows the WebSocket server to negotiate and use per-message
+        /// Gets or sets the per-message deflate compression configuration.
+        /// When enabled, this allows the WebSocket server to negotiate and use per-message
         /// deflate compression for WebSocket messages, which can reduce bandwidth usage.
         /// </summary>
         /// <remark>
-        /// This is an experimental feature, and in general per message deflate comes with a high cpu and memory usage cost.
-        /// Apply only after verifying its useful for your usecase.
+        /// This is an experimental feature. Per-message deflate comes with CPU and memory costs.
+        /// Context takeover provides better compression but uses more memory. Consider your use case carefully.
         /// </remark>
-        public bool AllowPerMessageDeflate { get; set; }
+        public PerMessageDeflateOptions PerMessageDeflate { get; set; } = new PerMessageDeflateOptions();
 
         /// <summary>
         /// SSL X509Certificate2 interceptors.
@@ -135,7 +177,6 @@ namespace Samurai.WebSockets
             this.KeepAliveInterval = TimeSpan.FromSeconds(60);
             this.IncludeExceptionInCloseResponse = false;
             this.SupportedSubProtocols = null;
-            this.AllowPerMessageDeflate = false;
         }
     }
 }

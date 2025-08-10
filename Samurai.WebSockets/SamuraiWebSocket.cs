@@ -75,7 +75,7 @@ namespace Samurai.WebSockets
 
         public SamuraiWebSocket(
             WebSocketHttpContext context,
-            WebSocketExtension[]? secWebSocketExtensions,
+            WebSocketExtension? secWebSocketExtensions,
             TimeSpan keepAliveInterval,
             bool includeExceptionInCloseResponse,
             bool isClient,
@@ -93,8 +93,8 @@ namespace Samurai.WebSockets
             {
                 var deflaterNoContextTakeover = isClient ? "client_no_context_takeover" : "server_no_context_takeover";
                 var inflaterNoContextTakeover = isClient ? "server_no_context_takeover" : "client_no_context_takeover";
-                this.deflater = new WebSocketDeflater(secWebSocketExtensions?.Any(x => x.Name == deflaterNoContextTakeover) == true);
-                this.inflater = new WebSocketInflater(secWebSocketExtensions?.Any(x => x.Name == inflaterNoContextTakeover) == true);
+                this.deflater = new WebSocketDeflater(secWebSocketExtensions?.Parameters.ContainsKey(deflaterNoContextTakeover) == true);
+                this.inflater = new WebSocketInflater(secWebSocketExtensions?.Parameters.ContainsKey(inflaterNoContextTakeover) == true);
                 Events.Log?.UsePerMessageDeflate(context.Guid);
             }
             else

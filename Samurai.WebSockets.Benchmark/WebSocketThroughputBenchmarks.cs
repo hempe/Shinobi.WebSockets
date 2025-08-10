@@ -130,7 +130,7 @@ public class WebSocketThroughputBenchmarks
                         var stream = tcpClient.GetStream();
                         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-                        var options = new Samurai.WebSockets.WebSocketServerOptions { AllowPerMessageDeflate = true };
+                        var options = new Samurai.WebSockets.WebSocketServerOptions { PerMessageDeflate = new PerMessageDeflateOptions { Enabled = true } };
                         var context = await stream.ReadHttpHeaderFromStreamAsync(connectCts.Token).ConfigureAwait(false);
                         if (context.IsWebSocketRequest)
                         {

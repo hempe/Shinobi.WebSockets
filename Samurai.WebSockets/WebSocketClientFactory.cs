@@ -125,7 +125,7 @@ namespace Samurai.WebSockets
 
             return new SamuraiWebSocket(
                 new WebSocketHttpContext(response!, responseStream, guid),
-                response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.ParseExtensions(),
+                response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.ParseExtension(),
                 keepAliveInterval,
                 includeExceptionInCloseResponse,
                 true,

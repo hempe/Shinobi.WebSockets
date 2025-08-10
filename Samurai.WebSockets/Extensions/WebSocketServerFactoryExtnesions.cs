@@ -47,7 +47,7 @@ namespace Samurai.WebSockets.Extensions
             Events.Log?.ServerHandshakeSuccess(guid);
             return new SamuraiWebSocket(
                 context,
-                response.GetHeaderValue("Sec-WebSocket-Extensions")?.ParseExtensions(),
+                response.GetHeaderValue("Sec-WebSocket-Extensions")?.ParseExtension(),
                 options.KeepAliveInterval,
                 options.IncludeExceptionInCloseResponse,
                 false,

@@ -234,7 +234,7 @@ namespace Samurai.WebSockets.UnitTests
 
             return new SamuraiWebSocket(
                 new WebSocketHttpContext(HttpResponse.Create(101), mockNetworkStream, guid),
-                permessageDeflate ? new WebSocketExtension[0] : null,
+                permessageDeflate ? new WebSocketExtension() : null,
                 keepAliveInterval,
                 includeExceptionInCloseResponse,
                 isClient,

@@ -117,12 +117,22 @@ namespace Samurai.WebSockets
         }
 
         /// <summary>
-        /// Enables or disables per-message deflate compression
+        /// Enables per-message deflate compression with default settings
         /// </summary>
-        /// <param name="allow">True to allow per-message deflate compression</param>
-        public WebSocketBuilder UsePerMessageDeflate(bool allow = true)
+        public WebSocketBuilder UsePerMessageDeflate()
         {
-            this.configuration.AllowPerMessageDeflate = allow;
+            this.configuration.PerMessageDeflate.Enabled = true;
+            return this;
+        }
+
+        /// <summary>
+        /// Configures per-message deflate compression
+        /// </summary>
+        /// <param name="configure">Action to configure per-message deflate options</param>
+        public WebSocketBuilder UsePerMessageDeflate(Action<PerMessageDeflateOptions> configure)
+        {
+            this.configuration.PerMessageDeflate.Enabled = true;
+            configure(this.configuration.PerMessageDeflate);
             return this;
         }
 

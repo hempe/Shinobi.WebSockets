@@ -17,11 +17,14 @@ namespace Samurai.WebSockets.Internal
 
         public readonly ArraySegment<byte> MaskKey;
 
+        public readonly bool IsCompressed;
+
         public WebSocketFrame(
             bool isFinBitSet,
             WebSocketOpCode webSocketOpCode,
             int count,
             ArraySegment<byte> maskKey,
+            bool isCompressed = false,
             WebSocketCloseStatus? closeStatus = null,
             string? closeStatusDescription = null)
         {
@@ -29,6 +32,7 @@ namespace Samurai.WebSockets.Internal
             this.OpCode = webSocketOpCode;
             this.Count = count;
             this.MaskKey = maskKey;
+            this.IsCompressed = isCompressed;
             this.CloseStatus = closeStatus;
             this.CloseStatusDescription = closeStatusDescription;
         }

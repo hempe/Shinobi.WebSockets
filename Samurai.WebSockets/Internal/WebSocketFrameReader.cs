@@ -1,5 +1,6 @@
 ﻿// ---------------------------------------------------------------------
 // Copyright 2018 David Haig - Micro-optimized version (Careful)
+// Copyright 2025 Hempe - Added per-message deflate compression support, and some Micro-Op :D
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy 
 // of this software and associated documentation files (the "Software"), to deal 
@@ -42,6 +43,7 @@ namespace Samurai.WebSockets.Internal
     {
         // Cache constants to avoid repeated calculations
         private const byte FinBitFlag = 0x80;
+        private const byte Rsv1BitFlag = 0x40; // Compression bit (RSV1)
         private const byte OpCodeFlag = 0x0F;
         private const byte MaskFlag = 0x80;
         private const byte PayloadLenFlag = 0x7F;
@@ -101,6 +103,7 @@ namespace Samurai.WebSockets.Internal
 
             // process first byte - use cached constants
             var isFinBitSet = (byte1 & FinBitFlag) == FinBitFlag;
+            var isRsv1BitSet = (byte1 & Rsv1BitFlag) == Rsv1BitFlag; // Compression bit
             var opCode = (WebSocketOpCode)(byte1 & OpCodeFlag);
 
             // read and process second byte
@@ -133,9 +136,9 @@ namespace Samurai.WebSockets.Internal
             }
 
             var frame = (opCode == WebSocketOpCode.ConnectionClose)
-                ? DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer, maskKey)
+                ? DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer, maskKey, isRsv1BitSet)
                 // note that by this point the payload will be populated
-                : new WebSocketFrame(isFinBitSet, opCode, count, maskKey);
+                : new WebSocketFrame(isFinBitSet, opCode, count, maskKey, isRsv1BitSet);
 
             return new WebSocketReadCursor(frame, minCount, count - minCount);
         }
@@ -143,7 +146,7 @@ namespace Samurai.WebSockets.Internal
         /// <summary>
         /// Extracts close status and close description information from the web socket frame
         /// </summary>
-        private static WebSocketFrame DecodeCloseFrame(bool isFinBitSet, WebSocketOpCode opCode, int count, ArraySegment<byte> buffer, ArraySegment<byte> maskKey)
+        private static WebSocketFrame DecodeCloseFrame(bool isFinBitSet, WebSocketOpCode opCode, int count, ArraySegment<byte> buffer, ArraySegment<byte> maskKey, bool isCompressed)
         {
             if (count < 2)
                 return new WebSocketFrame(
@@ -151,6 +154,7 @@ namespace Samurai.WebSockets.Internal
                     opCode,
                     count,
                     maskKey,
+                    isCompressed,
                     WebSocketCloseStatus.Empty);
 
             // IMPORTANT: Keep the original behavior - reverse then use BitConverter
@@ -167,7 +171,7 @@ namespace Samurai.WebSockets.Internal
                 ? Encoding.UTF8.GetString(buffer.Array!, buffer.Offset + 2, descCount) :
                 null;
 
-            return new WebSocketFrame(isFinBitSet, opCode, count, maskKey, closeStatus, closeStatusDescription);
+            return new WebSocketFrame(isFinBitSet, opCode, count, maskKey, isCompressed, closeStatus, closeStatusDescription);
         }
 
         /// <summary>

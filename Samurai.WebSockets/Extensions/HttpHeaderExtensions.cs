@@ -88,38 +88,55 @@ namespace Samurai.WebSockets.Extensions
             var extensions = new List<WebSocketExtension>();
             foreach (var ext in ParseCommaSeparated(extensionsHeader))
             {
-                var parts = ext.Split(';');
-                var extension = new WebSocketExtension
-                {
-                    Name = parts[0].Trim()
-                };
-
-                for (var i = 1; i < parts.Length; i++)
-                {
-                    var param = parts[i].Trim();
-                    var eqPos = param.IndexOf('=');
-
-                    if (eqPos != -1)
-                    {
-                        var key = param.Substring(0, eqPos).Trim();
-                        var value = param.Substring(eqPos + 1).Trim();
-
-                        // Remove quotes if present
-                        if (value.StartsWith("\"") && value.EndsWith("\""))
-                            value = value.Substring(1, value.Length - 2);
-
-                        extension.Parameters[key] = value;
-                    }
-                    else
-                    {
-                        extension.Parameters[param] = true;
-                    }
-                }
-
-                extensions.Add(extension);
+                var extension = ext.ParseExtension();
+                if (extension != null)
+                    extensions.Add(extension);
             }
 
             return extensions.ToArray();
+        }
+
+        /// <summary>
+        /// Parse Sec-WebSocket-Extensions header
+        /// </summary>
+        /// <param name="extensionsHeader">Extensions header value</param>
+        /// <returns>Array of extension objects with name and parameters</returns>
+        public static WebSocketExtension? ParseExtension(this string? extensionsHeader)
+        {
+
+            if (string.IsNullOrEmpty(extensionsHeader))
+                return null;
+
+
+            var parts = extensionsHeader.Split(';');
+            var extension = new WebSocketExtension
+            {
+                Name = parts[0].Trim()
+            };
+
+            for (var i = 1; i < parts.Length; i++)
+            {
+                var param = parts[i].Trim();
+                var eqPos = param.IndexOf('=');
+
+                if (eqPos != -1)
+                {
+                    var key = param.Substring(0, eqPos).Trim();
+                    var value = param.Substring(eqPos + 1).Trim();
+
+                    // Remove quotes if present
+                    if (value.StartsWith("\"") && value.EndsWith("\""))
+                        value = value.Substring(1, value.Length - 2);
+
+                    extension.Parameters[key] = value;
+                }
+                else
+                {
+                    extension.Parameters[param] = true;
+                }
+            }
+
+            return extension;
         }
 
         /// <summary>
