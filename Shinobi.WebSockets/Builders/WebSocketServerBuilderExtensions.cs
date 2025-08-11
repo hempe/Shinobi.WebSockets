@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 using Shinobi.WebSockets.Builders;
 
 // Extension methods for easier usage
-namespace Shinobi.WebSockets.Extensions
+namespace Shinobi.WebSockets.Builders
 {
-    public static class WebSocketBuilderExtensions
+    public static class WebSocketServerBuilderExtensions
     {
         // Cache for certificates to avoid repeated store access
         private static readonly ConcurrentDictionary<string, CachedCertificate> certificateCache = new ConcurrentDictionary<string, CachedCertificate>();
@@ -28,9 +28,9 @@ namespace Shinobi.WebSockets.Extensions
         /// <summary>
         /// Uses the ASP.NET Core development certificate for SSL/TLS
         /// </summary>
-        /// <param name="builder">The WebSocketBuilder instance</param>
-        /// <returns>The WebSocketBuilder for method chaining</returns>
-        public static WebSocketBuilder UseDevCertificate(this WebSocketBuilder builder)
+        /// <param name="builder">The WebSocketServerBuilder instance</param>
+        /// <returns>The WebSocketServerBuilder for method chaining</returns>
+        public static WebSocketServerBuilder UseDevCertificate(this WebSocketServerBuilder builder)
         {
             var certificate = GetAspNetCoreDevelopmentCertificate();
             if (certificate is null)
@@ -42,14 +42,14 @@ namespace Shinobi.WebSockets.Extensions
         /// <summary>
         /// Uses a certificate from the specified store and subject name with caching
         /// </summary>
-        /// <param name="builder">The WebSocketBuilder instance</param>
+        /// <param name="builder">The WebSocketServerBuilder instance</param>
         /// <param name="storeName">The certificate store name</param>
         /// <param name="storeLocation">The certificate store location</param>
         /// <param name="subjectName">The certificate subject name to search for</param>
         /// <param name="cacheExpiration">How long to cache the certificate (default: 5 minutes)</param>
-        /// <returns>The WebSocketBuilder for method chaining</returns>
-        public static WebSocketBuilder UseCertificate(
-            this WebSocketBuilder builder,
+        /// <returns>The WebSocketServerBuilder for method chaining</returns>
+        public static WebSocketServerBuilder UseCertificate(
+            this WebSocketServerBuilder builder,
             StoreName storeName,
             StoreLocation storeLocation,
             string subjectName,
@@ -70,14 +70,14 @@ namespace Shinobi.WebSockets.Extensions
         /// <summary>
         /// Uses a certificate from the specified store and thumbprint with caching
         /// </summary>
-        /// <param name="builder">The WebSocketBuilder instance</param>
+        /// <param name="builder">The WebSocketServerBuilder instance</param>
         /// <param name="storeName">The certificate store name</param>
         /// <param name="storeLocation">The certificate store location</param>
         /// <param name="thumbprint">The certificate thumbprint</param>
         /// <param name="cacheExpiration">How long to cache the certificate (default: 5 minutes)</param>
-        /// <returns>The WebSocketBuilder for method chaining</returns>
-        public static WebSocketBuilder UseCertificateByThumbprint(
-            this WebSocketBuilder builder,
+        /// <returns>The WebSocketServerBuilder for method chaining</returns>
+        public static WebSocketServerBuilder UseCertificateByThumbprint(
+            this WebSocketServerBuilder builder,
             StoreName storeName,
             StoreLocation storeLocation,
             string thumbprint,

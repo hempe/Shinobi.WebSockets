@@ -19,7 +19,7 @@ Shinobi.WebSockets lets you build WebSocket servers with a fluent builder API, o
 ## Features
 
 - Fully asynchronous WebSocket server implementation
-- Fluent `WebSocketBuilder` configuration API
+- Fluent `WebSocketServerBuilder` configuration API
 - Per-message Deflate compression (RFC 7692)
 - SSL/TLS support (including ASP.NET Core dev certs)
 - CORS support
@@ -42,7 +42,7 @@ var loggerFactory = LoggerFactory.Create(builder => builder
     .SetMinimumLevel(LogLevel.Information)
     .AddConsole());
 
-var server = WebSocketBuilder.Create()
+var server = WebSocketServerBuilder.Create()
     .UsePort(8080)
     .UseDevCertificate()
     .UseLogging(loggerFactory)

@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using Shinobi.WebSockets.Internal;
 
 
-namespace Shinobi.WebSockets.Extensions
+namespace Shinobi.WebSockets.Http
 {
     public static class HttpHeaderExtensions
     {
@@ -87,7 +87,7 @@ namespace Shinobi.WebSockets.Extensions
                 return null;
 
 
-            var parts = extensionsHeader.Split(';');
+            var parts = extensionsHeader!.Split(';');
             var extension = new WebSocketExtension
             {
                 Name = parts[0].Trim()

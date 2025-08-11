@@ -38,25 +38,6 @@ namespace Shinobi.WebSockets.Extensions
     /// </summary>
     public static class WebSocketServerFactoryExtnesions
     {
-
-        /// <summary>
-        /// Reads a http header information from a stream and decodes the parts relating to the WebSocket protocot upgrade
-        /// </summary>
-        /// <param name="stream">The network stream</param>
-        /// <param name="cancellationToken">The optional cancellation token</param>
-        /// <returns>Http data read from the stream</returns>
-        public static async ValueTask<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(this Stream stream, CancellationToken cancellationToken = default(CancellationToken))
-            => new WebSocketHttpContext(await HttpRequest.ReadAsync(stream, cancellationToken).ConfigureAwait(false) ?? throw new Exception("Invalid request"), stream, Guid.NewGuid());
-
-        /// <summary>
-        /// Accept web socket with default options
-        /// </summary>
-        /// <param name="context">The http context used to initiate this web socket request</param>
-        /// <param name="cancellationToken">The optional cancellation token</param>
-        /// <returns>A connected web socket</returns>
-        public static ValueTask<ShinobiWebSocket> AcceptWebSocketAsync(this WebSocketHttpContext context, CancellationToken cancellationToken = default(CancellationToken))
-            => AcceptWebSocketAsync(context, new WebSocketServerOptions(), cancellationToken);
-
         /// <summary>
         /// Accept web socket with options specified
         /// </summary>

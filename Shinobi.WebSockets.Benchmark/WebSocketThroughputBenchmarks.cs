@@ -37,31 +37,19 @@ public class WebSocketThroughputBenchmarks
     private CancellationTokenSource serverCts;
     private Task<Action> serverTask;
 
-
-    //[Params(1_000, 10_000)]
     public int MessageCount { get; set; } = 1_000;
 
-    //[Params(16, 64)]
-    [Params(1, 17)]
     public int MessageSizeKb { get; set; } = 4;
 
-    //[Params(1000)]
-    public int ClientCount { get; set; } = 1_00;
+    public int ClientCount { get; set; } = 10;
 
-    //[Params("Ninja", "Shinobi", "Shinobi.PermessageDeflate")]
-    //[Params("Ninja", "Shinobi", "Native", "SS")]
-    //[Params("Shinobi", "SS")]
-    //[Params("Ninja", "Shinobi")]
-    [Params("SS.SSL", "SS")]
-    public string Server { get; set; } = "SS.SSL";
+    [Params("Ninja", "Shinobi", "Native")]
+    public string Server { get; set; }
 
-    //[Params("Ninja", "Shinobi", "Native")]
-    //[Params("Ninja", "Shinobi")]
-    public string Client { get; set; } = "Native";
+    [Params("Ninja", "Shinobi", "Native")]
+    public string Client { get; set; }
 
     private ArraySegment<byte> data;
-
-    private bool permessageDeflate;
 
     [GlobalSetup]
     public async Task SetupAsync()
@@ -69,8 +57,6 @@ public class WebSocketThroughputBenchmarks
         var loggerFactory = LoggerFactory.Create(builder => builder
                 .SetMinimumLevel(LogLevel.Trace)
                 .AddConsole());
-
-        this.permessageDeflate = true;  //this.Server.EndsWith("PermessageDeflate");
 
         var random = new Random(42069);
         var bytes = ArrayPool<byte>.Shared.Rent(this.MessageSizeKb * 1024);
@@ -121,34 +107,6 @@ public class WebSocketThroughputBenchmarks
                     serverReady.SetResult(true);
                     listener.Stop();
                 }
-                else if (this.Server.StartsWith("Shinobi"))
-                {
-                    var listener = new TcpListener(IPAddress.Loopback, this.port);
-                    listener.Start();
-                    serverStarted.SetResult(true);
-                    for (var i = 0; i < this.ClientCount; i++)
-                    {
-                        var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
-                        var stream = tcpClient.GetStream();
-                        using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-
-                        var options = new Shinobi.WebSockets.WebSocketServerOptions { PerMessageDeflate = new PerMessageDeflateOptions { Enabled = true } };
-                        var context = await stream.ReadHttpHeaderFromStreamAsync(connectCts.Token).ConfigureAwait(false);
-                        if (context.IsWebSocketRequest)
-                        {
-                            var webSocket = await context.AcceptWebSocketAsync(options, connectCts.Token).ConfigureAwait(false);
-                            tasks.Add(this.EchoLoopAsync(webSocket, this.serverCts.Token, new IDisposable[] { tcpClient, stream }));
-                        }
-                        else
-                        {
-                            stream.Dispose();
-                            tcpClient.Dispose();
-                        }
-                    }
-                    Console.WriteLine($"All {this.ClientCount} clients connected and ready for WebSocket communication.");
-                    serverReady.SetResult(true);
-                    listener.Stop();
-                }
                 else if (this.Server == "Native")
                 {
                     var listener = new HttpListener();
@@ -168,44 +126,11 @@ public class WebSocketThroughputBenchmarks
                     serverReady.SetResult(true);
                     cleanup = () => listener.Stop();
                 }
-                else if (this.Server == "SS")
+                else if (this.Server == "Shinobi")
                 {
                     var clients = 0;
-                    var server = WebSocketBuilder.Create()
+                    var server = WebSocketServerBuilder.Create()
                         .UsePort((ushort)this.port)
-                        .OnConnect((client, next, cancellationToken) =>
-                        {
-                            Interlocked.Increment(ref clients);
-                            if (clients == this.ClientCount)
-                                serverReady.SetResult(true);
-
-                            return next(client, cancellationToken);
-                        })
-                        .OnMessage(async (client, type, stream, next, cancellationToken) =>
-                        {
-                            if (type == Shinobi.WebSockets.MessageType.Binary && stream is ArrayPoolStream aps)
-                            {
-                                aps.Position = aps.Length;
-                                var seg = aps.GetDataArraySegment();
-                                await client.SendAsync(seg, WebSocketMessageType.Binary, true, cancellationToken);
-                            }
-                        }).Build();
-
-                    await server.StartAsync();
-                    serverStarted.SetResult(true);
-                    cleanup = () =>
-                    {
-                        server.StopAsync().GetAwaiter().GetResult();
-                        server.Dispose();
-                    };
-                }
-
-                else if (this.Server == "SS.SSL")
-                {
-                    var clients = 0;
-                    var server = WebSocketBuilder.Create()
-                        .UsePort((ushort)this.port)
-                        .UseDevCertificate()
                         .OnConnect((client, next, cancellationToken) =>
                         {
                             Interlocked.Increment(ref clients);
@@ -233,7 +158,6 @@ public class WebSocketThroughputBenchmarks
                     };
                 }
                 else
-
                 {
                     throw new NotSupportedException($"{this.Server} is not supported");
                 }
@@ -262,10 +186,7 @@ public class WebSocketThroughputBenchmarks
             {
                 return await client.ConnectAsync(
                     new Uri(this.serverUrl),
-                    new Ninja.WebSockets.WebSocketClientOptions
-                    {
-                        SecWebSocketExtensions = this.permessageDeflate ? "permessage-deflate" : null
-                    },
+                    new Ninja.WebSockets.WebSocketClientOptions(),
                     this.serverCts.Token).ConfigureAwait(false);
             }));
 
@@ -277,10 +198,7 @@ public class WebSocketThroughputBenchmarks
             {
                 return await client.ConnectAsync(
                     new Uri(this.serverUrl),
-                    new Shinobi.WebSockets.WebSocketClientOptions
-                    {
-                        SecWebSocketExtensions = this.permessageDeflate ? "permessage-deflate" : null
-                    },
+                    new Shinobi.WebSockets.WebSocketClientOptions(),
                     this.serverCts.Token).ConfigureAwait(false);
             }));
         }
@@ -386,7 +304,7 @@ public class WebSocketThroughputBenchmarks
                     if (message.HasValue)
                     {
                         if (message.Value.Count != this.data.Count)
-                            throw new Exception($"[Server] Expected {this.permessageDeflate}: {this.data.Count} got {message.Value.Count}");
+                            throw new Exception($"[Server] Expected: {this.data.Count} got {message.Value.Count}");
                         break;
                     }
                 }
@@ -441,7 +359,7 @@ public class WebSocketThroughputBenchmarks
                     {
                         if (message.Value.Count != this.data.Count)
                         {
-                            throw new Exception($"[Server] Expected {this.permessageDeflate}: {this.data.Count} got {message.Value.Count}");
+                            throw new Exception($"[Server] Expected: {this.data.Count} got {message.Value.Count}");
                         }
 
                         await webSocket.SendAsync(message.Value, WebSocketMessageType.Binary, result.EndOfMessage, cancellationToken);

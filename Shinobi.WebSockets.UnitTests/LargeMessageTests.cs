@@ -188,7 +188,7 @@ namespace Shinobi.WebSockets.UnitTests
 
                 var port = (ushort)GetAvailablePort();
                 this.Address = new Uri($"ws://localhost:{port}/");
-                
+
                 this.builder = WebSocketServerBuilder.Create()
                     .UsePort(port)
                     .OnConnect(async (webSocket, next, cancellationToken) =>
@@ -197,10 +197,11 @@ namespace Shinobi.WebSockets.UnitTests
                         this.webSocket = webSocket;
                         await next(webSocket, cancellationToken);
                     })
-                    .OnBinaryMessage(async (webSocket, data, cancellationToken) =>
+                    .OnBinaryMessage((webSocket, data, cancellationToken) =>
                     {
                         this.logger.LogDebug($"[Server] Received {data.Length} bytes");
                         this.ReceivedMessages.Add(data);
+                        return new ValueTask();
                     })
                     .OnClose(async (webSocket, next, cancellationToken) =>
                     {

@@ -14,7 +14,7 @@ using Shinobi.WebSockets.Http;
 namespace Shinobi.WebSockets.Builders
 {
 
-    public class WebSocketBuilder
+    public class WebSocketServerBuilder
     {
         private readonly List<AcceptStreamInterceptor> onAcceptStream = new List<AcceptStreamInterceptor>();
         private readonly List<CertificateSelectionInterceptor> onSelectionCertificate = new List<CertificateSelectionInterceptor>();
@@ -30,7 +30,7 @@ namespace Shinobi.WebSockets.Builders
         /// Sets the port for the WebSocket server
         /// </summary>
         /// <param name="port">Port number (default: 8080)</param>
-        public WebSocketBuilder UsePort(ushort port)
+        public WebSocketServerBuilder UsePort(ushort port)
         {
             this.configuration.Port = port;
             return this;
@@ -40,7 +40,7 @@ namespace Shinobi.WebSockets.Builders
         /// Configures SSL/TLS support with the provided certificate
         /// </summary>
         /// <param name="certificate">X509 certificate for SSL/TLS</param>
-        public WebSocketBuilder UseSsl(X509Certificate2? certificate)
+        public WebSocketServerBuilder UseSsl(X509Certificate2? certificate)
         {
             this.onSelectionCertificate.Add((tcpClient, next, cancellationToken) => new ValueTask<X509Certificate2?>(certificate));
             return this;
@@ -50,7 +50,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds an interceptor for selecting the certificate.
         /// </summary>
         /// <param name="interceptor">Certificate selection interceptor</param>
-        public WebSocketBuilder UseSsl(CertificateSelectionInterceptor interceptor)
+        public WebSocketServerBuilder UseSsl(CertificateSelectionInterceptor interceptor)
         {
             this.onSelectionCertificate.Add(interceptor ?? throw new ArgumentNullException(nameof(interceptor)));
             return this;
@@ -60,7 +60,7 @@ namespace Shinobi.WebSockets.Builders
         /// Configures WebSocket server configuration
         /// </summary>
         /// <param name="configureOptions">Action to configure the configuration</param>
-        public WebSocketBuilder UseConfiguration(Action<WebSocketServerOptions> configureOptions)
+        public WebSocketServerBuilder UseConfiguration(Action<WebSocketServerOptions> configureOptions)
         {
             if (configureOptions == null) throw new ArgumentNullException(nameof(configureOptions));
             configureOptions(this.configuration);
@@ -71,7 +71,7 @@ namespace Shinobi.WebSockets.Builders
         /// Sets the keep-alive interval for ping/pong messages
         /// </summary>
         /// <param name="interval">Keep-alive interval (TimeSpan.Zero to disable)</param>
-        public WebSocketBuilder UseKeepAlive(TimeSpan interval)
+        public WebSocketServerBuilder UseKeepAlive(TimeSpan interval)
         {
             this.configuration.KeepAliveInterval = interval;
             return this;
@@ -81,7 +81,7 @@ namespace Shinobi.WebSockets.Builders
         /// Configures whether to include full exception details in close responses
         /// </summary>
         /// <param name="includeException">True to include exception details</param>
-        public WebSocketBuilder IncludeExceptionInCloseResponse(bool includeException = true)
+        public WebSocketServerBuilder IncludeExceptionInCloseResponse(bool includeException = true)
         {
             this.configuration.IncludeExceptionInCloseResponse = includeException;
             return this;
@@ -91,7 +91,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds supported sub protocols for WebSocket negotiation
         /// </summary>
         /// <param name="subProtocols">Supported sub protocols</param>
-        public WebSocketBuilder UseSupportedSubProtocols(params string[] subProtocols)
+        public WebSocketServerBuilder UseSupportedSubProtocols(params string[] subProtocols)
         {
             if (subProtocols == null || subProtocols.Length == 0)
             {
@@ -107,7 +107,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds a single supported sub protocol
         /// </summary>
         /// <param name="subProtocol">Sub protocol to add</param>
-        public WebSocketBuilder AddSupportedSubProtocol(string subProtocol)
+        public WebSocketServerBuilder AddSupportedSubProtocol(string subProtocol)
         {
             if (string.IsNullOrWhiteSpace(subProtocol)) throw new ArgumentException("Sub protocol cannot be null or whitespace", nameof(subProtocol));
 
@@ -121,7 +121,7 @@ namespace Shinobi.WebSockets.Builders
         /// <summary>
         /// Enables per-message deflate compression with default settings
         /// </summary>
-        public WebSocketBuilder UsePerMessageDeflate()
+        public WebSocketServerBuilder UsePerMessageDeflate()
         {
             this.configuration.PerMessageDeflate.Enabled = true;
             return this;
@@ -131,7 +131,7 @@ namespace Shinobi.WebSockets.Builders
         /// Configures per-message deflate compression
         /// </summary>
         /// <param name="configure">Action to configure per-message deflate options</param>
-        public WebSocketBuilder UsePerMessageDeflate(Action<PerMessageDeflateOptions> configure)
+        public WebSocketServerBuilder UsePerMessageDeflate(Action<PerMessageDeflateOptions> configure)
         {
             this.configuration.PerMessageDeflate.Enabled = true;
             configure(this.configuration.PerMessageDeflate);
@@ -142,7 +142,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds an interceptor for stream acceptance (e.g., for SSL/TLS, logging, etc.)
         /// </summary>
         /// <param name="interceptor">Stream acceptance interceptor</param>
-        public WebSocketBuilder OnAcceptStream(AcceptStreamInterceptor interceptor)
+        public WebSocketServerBuilder OnAcceptStream(AcceptStreamInterceptor interceptor)
         {
             this.onAcceptStream.Add(interceptor ?? throw new ArgumentNullException(nameof(interceptor)));
             return this;
@@ -152,7 +152,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds an interceptor for WebSocket handshake (e.g., for authentication, custom headers, etc.)
         /// </summary>
         /// <param name="interceptor">Handshake interceptor</param>
-        public WebSocketBuilder OnHandshake(HandshakeInterceptor interceptor)
+        public WebSocketServerBuilder OnHandshake(HandshakeInterceptor interceptor)
         {
             this.onHandshake.Add(interceptor ?? throw new ArgumentNullException(nameof(interceptor)));
             return this;
@@ -162,7 +162,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds a handler for when a WebSocket connection is established
         /// </summary>
         /// <param name="handler">Connection handler</param>
-        public WebSocketBuilder OnConnect(WebSocketConnectInterceptor handler)
+        public WebSocketServerBuilder OnConnect(WebSocketConnectInterceptor handler)
         {
             this.onConnect.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
@@ -172,7 +172,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds a handler for when a WebSocket connection is closed
         /// </summary>
         /// <param name="handler">Close handler</param>
-        public WebSocketBuilder OnClose(WebSocketCloseInterceptor handler)
+        public WebSocketServerBuilder OnClose(WebSocketCloseInterceptor handler)
         {
             this.onClose.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
@@ -182,7 +182,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds a handler for WebSocket errors
         /// </summary>
         /// <param name="handler">Error handler</param>
-        public WebSocketBuilder OnError(WebSocketErrorInterceptor handler)
+        public WebSocketServerBuilder OnError(WebSocketErrorInterceptor handler)
         {
             this.onError.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
@@ -192,7 +192,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds a handler for incoming WebSocket messages
         /// </summary>
         /// <param name="handler">Message handler</param>
-        public WebSocketBuilder OnMessage(WebSocketMessageInterceptor handler)
+        public WebSocketServerBuilder OnMessage(WebSocketMessageInterceptor handler)
         {
             this.onMessage.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
@@ -202,7 +202,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds a handler specifically for text messages
         /// </summary>
         /// <param name="handler">Text message handler</param>
-        public WebSocketBuilder OnTextMessage(WebSocketTextMessageHandler handler)
+        public WebSocketServerBuilder OnTextMessage(WebSocketTextMessageHandler handler)
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
 
@@ -228,7 +228,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds a handler specifically for binary messages
         /// </summary>
         /// <param name="handler">Binary message handler</param>
-        public WebSocketBuilder OnBinaryMessage(WebSocketBinaryMessageHandler handler)
+        public WebSocketServerBuilder OnBinaryMessage(WebSocketBinaryMessageHandler handler)
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
 
@@ -253,7 +253,7 @@ namespace Shinobi.WebSockets.Builders
         /// </summary>
         /// <param name="loggerFactory">The logger factory.</param>
         /// <returns></returns>
-        public WebSocketBuilder UseLogging(ILoggerFactory loggerFactory)
+        public WebSocketServerBuilder UseLogging(ILoggerFactory loggerFactory)
         {
             Internal.Events.Log = new Internal.Events(loggerFactory.CreateLogger<Internal.Events>());
             this.logger = loggerFactory.CreateLogger<ShinobiServer>();
@@ -289,7 +289,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds basic authentication to the WebSocket handshake
         /// </summary>
         /// <param name="authenticator">Authentication function that returns true if authentication succeeds</param>
-        public WebSocketBuilder UseAuthentication(WebSocketAuthenticator authenticator)
+        public WebSocketServerBuilder UseAuthentication(WebSocketAuthenticator authenticator)
         {
             if (authenticator == null) throw new ArgumentNullException(nameof(authenticator));
 
@@ -310,7 +310,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds CORS headers to the handshake response
         /// </summary>
         /// <param name="allowedOrigins">Allowed origins (use "*" for all origins)</param>
-        public WebSocketBuilder UseCors(params string[] allowedOrigins)
+        public WebSocketServerBuilder UseCors(params string[] allowedOrigins)
         {
             if (allowedOrigins == null || allowedOrigins.Length == 0)
                 allowedOrigins = new[] { "*" };
@@ -335,7 +335,7 @@ namespace Shinobi.WebSockets.Builders
         /// Adds automatic sub protocol negotiation based on supported protocols
         /// </summary>
         /// <returns></returns>
-        private WebSocketBuilder AddSubProtocolNegotiation()
+        private WebSocketServerBuilder AddSubProtocolNegotiation()
         {
             if (this.configuration.SupportedSubProtocols == null || this.configuration.SupportedSubProtocols.Count == 0)
                 return this;
@@ -399,9 +399,9 @@ namespace Shinobi.WebSockets.Builders
         /// Creates a new WebSocketBuilder instance
         /// </summary>
         /// <returns>New WebSocketBuilder</returns>
-        public static WebSocketBuilder Create()
+        public static WebSocketServerBuilder Create()
         {
-            return new WebSocketBuilder();
+            return new WebSocketServerBuilder();
         }
     }
 }

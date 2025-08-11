@@ -33,7 +33,7 @@ namespace WebSockets.DemoServer
             try
             {
                 // Create the WebSocket server with multiple features
-                var server = WebSocketBuilder.Create()
+                var server = WebSocketServerBuilder.Create()
                     .UsePerMessageDeflate(x =>
                     {
                         x.ServerContextTakeover = ContextTakeoverMode.ForceDisabled;
