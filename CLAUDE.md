@@ -52,9 +52,6 @@ dotnet run --project Shinobi.WebSockets.Benchmark/Shinobi.WebSockets.Benchmark.c
 ```bash
 # Run demo server (serves WebSocket endpoint and test client)
 dotnet run --project Shinobi.WebSockets.DemoServer/Shinobi.WebSockets.DemoServer.csproj
-
-# Run demo client (connects to server)
-dotnet run --project c/Shinobi.WebSockets.DemoClient.csproj
 ```
 
 ## Code Architecture

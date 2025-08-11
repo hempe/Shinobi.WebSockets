@@ -4,8 +4,16 @@
         {
             "type": "coreclr",
             "request": "launch",
-            "name": "Launch Shinobi.WebSockets.Benchmark",
+            "name": "Launch Shinobi.WebSockets.Benchmark (.NET 9)",
             "program": "${workspaceFolder}/Shinobi.WebSockets.Benchmark/bin/Debug/net9.0/Shinobi.WebSockets.Benchmark.dll",
+            "cwd": "${workspaceFolder}/Shinobi.WebSockets.Benchmark",
+            "stopAtEntry": false
+        },
+        {
+            "type": "mono",
+            "request": "launch",
+            "name": "Launch Shinobi.WebSockets.Benchmark (.NET 4.7.2)",
+            "program": "${workspaceFolder}/Shinobi.WebSockets.Benchmark/bin/Debug/net472/Shinobi.WebSockets.Benchmark.exe",
             "cwd": "${workspaceFolder}/Shinobi.WebSockets.Benchmark",
             "stopAtEntry": false
         },
@@ -20,10 +28,18 @@
         {
             "type": "coreclr",
             "request": "launch",
-            "name": "Launch Shinobi.WebSockets.UnitTests.RunnerLinux",
+            "name": "Launch Shinobi.WebSockets.UnitTests.RunnerLinux (.NET 9)",
             "program": "${workspaceFolder}/Shinobi.WebSockets.UnitTests.RunnerLinux/bin/Debug/net9.0/Shinobi.WebSockets.UnitTests.RunnerLinux.dll",
             "cwd": "${workspaceFolder}/Shinobi.WebSockets.UnitTests.RunnerLinux",
             "stopAtEntry": false
-        }
+        },
+        {
+            "type": "mono",
+            "request": "launch",
+            "name": "Launch Shinobi.WebSockets.UnitTests.RunnerLinux (.NET 4.7.2)",
+            "program": "${workspaceFolder}/Shinobi.WebSockets.UnitTests.RunnerLinux/bin/Debug/net472/Shinobi.WebSockets.UnitTests.RunnerLinux.exe",
+            "cwd": "${workspaceFolder}/Shinobi.WebSockets.UnitTests.RunnerLinux",
+            "stopAtEntry": false
+        },
     ]
 }
