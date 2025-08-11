@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Samurai.WebSockets;
+using Shinobi.WebSockets;
 
 namespace WebSockets.DemoClient.Simple
 {

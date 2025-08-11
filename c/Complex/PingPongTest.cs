@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Samurai.WebSockets.DemoClient.Complex
+namespace Shinobi.WebSockets.DemoClient.Complex
 {
     internal class PingPongTest
     {

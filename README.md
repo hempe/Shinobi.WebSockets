@@ -1,4 +1,4 @@
-﻿# Samurai WebSockets
+﻿# Shinobi WebSockets
 
 A concrete implementation of the .Net Standard 2.0 System.Net.WebSockets.WebSocket abstract class
 

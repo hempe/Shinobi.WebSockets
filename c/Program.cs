@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-using Samurai.WebSockets.DemoClient.Complex;
+using Shinobi.WebSockets.DemoClient.Complex;
 
 using WebSockets.DemoClient.Complex;
 using WebSockets.DemoClient.Simple;

@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Samurai.WebSockets.DemoClient.Complex
+namespace Shinobi.WebSockets.DemoClient.Complex
 {
     // This test sends a large buffer
     // NOTE: you would never normally do this. In order to send a large amount of data use a small buffer and make multiple calls
