@@ -74,18 +74,20 @@ namespace Shinobi.WebSockets.UnitTests
                 })
                 .Build();
 
-            // Act
-            var webSocket = await client.ConnectAsync(this.serverUri, this.cts.Token);
+            // Act - Use new API
+            await client.StartAsync(this.serverUri, this.cts.Token);
             
-            var messageBytes = Encoding.UTF8.GetBytes(messageToSend);
-            await webSocket.SendAsync(new ArraySegment<byte>(messageBytes), WebSocketMessageType.Text, true, this.cts.Token);
+            await client.SendTextAsync(messageToSend, this.cts.Token);
 
             // Wait for response
             await messageReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
             // Assert
             Assert.Equal($"Echo: {messageToSend}", receivedMessage);
-            Assert.Equal(WebSocketState.Open, webSocket.State);
+            Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
+
+            // Cleanup
+            await client.StopAsync();
         }
 
         [Fact]
@@ -105,10 +107,10 @@ namespace Shinobi.WebSockets.UnitTests
                 })
                 .Build();
 
-            // Act
-            var webSocket = await client.ConnectAsync(this.serverUri, this.cts.Token);
+            // Act - Use new API
+            await client.StartAsync(this.serverUri, this.cts.Token);
             
-            await webSocket.SendAsync(new ArraySegment<byte>(messageToSend), WebSocketMessageType.Binary, true, this.cts.Token);
+            await client.SendBinaryAsync(messageToSend, this.cts.Token);
 
             // Wait for response
             await messageReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -117,17 +119,20 @@ namespace Shinobi.WebSockets.UnitTests
             Assert.True(messageReceived.Task.IsCompletedSuccessfully, "Message should have been received");
             Assert.NotNull(receivedMessage);
             Assert.True(receivedMessage.Length > 0, "Should have received data");
-            Assert.Equal(WebSocketState.Open, webSocket.State);
+            Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
             
             // The key integration test is that we can send binary data and get a response
             // The exact echo behavior can vary based on server implementation
+            
+            // Cleanup
+            await client.StopAsync();
         }
 
         [Fact]
-        public async Task WebSocketClient_WithComplexConfiguration_ShouldWork()
+        public async Task WebSocketClient_WithAutoReconnect_ShouldWork()
         {
             // Arrange
-            var messageToSend = "Complex config test";
+            var messageToSend = "Auto-reconnect test";
             var receivedMessage = "";
             var messageReceived = new TaskCompletionSource<bool>();
             var connectionEstablished = new TaskCompletionSource<bool>();
@@ -142,6 +147,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .UsePerMessageDeflate()
                 .AddHeader("Custom-Header", "test-value")
                 .UseLogging(loggerFactory)
+                .UseReliableConnection() // Enable auto-reconnect with sensible defaults
                 .OnConnect(async (ws, next, ct) =>
                 {
                     connectionEstablished.SetResult(true);
@@ -155,21 +161,69 @@ namespace Shinobi.WebSockets.UnitTests
                 })
                 .Build();
 
-            // Act
-            var webSocket = await client.ConnectAsync(this.serverUri, this.cts.Token);
+            // Act - Use new API
+            await client.StartAsync(this.serverUri, this.cts.Token);
             
             // Wait for connection
             await connectionEstablished.Task.WaitAsync(TimeSpan.FromSeconds(5));
             
-            var messageBytes = Encoding.UTF8.GetBytes(messageToSend);
-            await webSocket.SendAsync(new ArraySegment<byte>(messageBytes), WebSocketMessageType.Text, true, this.cts.Token);
+            await client.SendTextAsync(messageToSend, this.cts.Token);
 
             // Wait for response
             await messageReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
             // Assert
             Assert.Equal($"Echo: {messageToSend}", receivedMessage);
-            Assert.Equal(WebSocketState.Open, webSocket.State);
+            Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
+            
+            // Cleanup
+            await client.StopAsync();
+        }
+
+        [Fact]
+        public async Task WebSocketClient_WithCustomReconnectOptions_ShouldWork()
+        {
+            // Arrange
+            var messageToSend = "Custom reconnect test";
+            var receivedMessage = "";
+            var messageReceived = new TaskCompletionSource<bool>();
+
+            using var client = WebSocketClientBuilder.Create()
+                .UseAutoReconnect(options =>
+                {
+                    options.InitialDelay = TimeSpan.FromMilliseconds(500);
+                    options.MaxDelay = TimeSpan.FromSeconds(5);
+                    options.BackoffMultiplier = 1.5;
+                    options.MaxAttempts = 3;
+                    options.Jitter = 0.2;
+                })
+                .OnReconnecting(async (uri, attemptNumber, ct) =>
+                {
+                    // Could modify URI here for failover
+                    return uri;
+                })
+                .OnTextMessage((ws, message, ct) =>
+                {
+                    receivedMessage = message;
+                    messageReceived.SetResult(true);
+                    return new ValueTask();
+                })
+                .Build();
+
+            // Act
+            await client.StartAsync(this.serverUri, this.cts.Token);
+            
+            await client.SendTextAsync(messageToSend, this.cts.Token);
+
+            // Wait for response
+            await messageReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            // Assert
+            Assert.Equal($"Echo: {messageToSend}", receivedMessage);
+            Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
+            
+            // Cleanup
+            await client.StopAsync();
         }
 
         public async Task DisposeAsync()
