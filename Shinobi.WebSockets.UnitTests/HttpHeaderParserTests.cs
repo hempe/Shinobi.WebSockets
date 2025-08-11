@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Xunit;
 using Shinobi.WebSockets.Extensions;
+using Shinobi.WebSockets.Http;
 
 namespace Shinobi.WebSockets.UnitTests
 {

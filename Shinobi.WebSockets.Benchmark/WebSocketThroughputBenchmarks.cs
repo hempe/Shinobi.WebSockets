@@ -18,7 +18,9 @@ using BenchmarkDotNet.Order;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets;
+using Shinobi.WebSockets.Builders;
 using Shinobi.WebSockets.Extensions;
+using Shinobi.WebSockets.Internal;
 
 
 [SimpleJob(RuntimeMoniker.Net90)]
@@ -169,7 +171,7 @@ public class WebSocketThroughputBenchmarks
                 else if (this.Server == "SS")
                 {
                     var clients = 0;
-                    var server = Shinobi.WebSockets.WebSocketBuilder.Create()
+                    var server = WebSocketBuilder.Create()
                         .UsePort((ushort)this.port)
                         .OnConnect((client, next, cancellationToken) =>
                         {
@@ -201,7 +203,7 @@ public class WebSocketThroughputBenchmarks
                 else if (this.Server == "SS.SSL")
                 {
                     var clients = 0;
-                    var server = Shinobi.WebSockets.WebSocketBuilder.Create()
+                    var server = WebSocketBuilder.Create()
                         .UsePort((ushort)this.port)
                         .UseDevCertificate()
                         .OnConnect((client, next, cancellationToken) =>
@@ -363,7 +365,7 @@ public class WebSocketThroughputBenchmarks
 
     private async Task RunBenchmarkAsync(WebSocket client, int messageCount, CancellationToken cancellationToken)
     {
-        using var receiveBuffer = new Shinobi.WebSockets.ArrayPoolStream();
+        using var receiveBuffer = new ArrayPoolStream();
 
         try
         {
@@ -400,7 +402,7 @@ public class WebSocketThroughputBenchmarks
         }
     }
 
-    private static ArraySegment<byte>? HandleWebSocketMessage(Shinobi.WebSockets.ArrayPoolStream messageBuffer, WebSocketReceiveResult result)
+    private static ArraySegment<byte>? HandleWebSocketMessage(ArrayPoolStream messageBuffer, WebSocketReceiveResult result)
     {
         try
         {
@@ -422,7 +424,7 @@ public class WebSocketThroughputBenchmarks
     {
         using (webSocket)
         {
-            using var receiveBuffer = new Shinobi.WebSockets.ArrayPoolStream();
+            using var receiveBuffer = new ArrayPoolStream();
 
             try
             {

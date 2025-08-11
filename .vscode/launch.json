@@ -10,7 +10,7 @@
             "stopAtEntry": false
         },
         {
-            "type": "mono",
+            "type": "coreclr",
             "request": "launch",
             "name": "Launch Shinobi.WebSockets.Benchmark (.NET 4.7.2)",
             "program": "${workspaceFolder}/Shinobi.WebSockets.Benchmark/bin/Debug/net472/Shinobi.WebSockets.Benchmark.exe",

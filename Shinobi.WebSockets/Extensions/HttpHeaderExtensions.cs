@@ -1,6 +1,5 @@
 ﻿// ---------------------------------------------------------------------
 // Copyright 2018 David Haig
-// Copyright 2023 Hempe
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy 
 // of this software and associated documentation files (the "Software"), to deal 
@@ -28,6 +27,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
+using Shinobi.WebSockets.Internal;
 
 
 namespace Shinobi.WebSockets.Extensions

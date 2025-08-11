@@ -1,6 +1,5 @@
 ﻿// ---------------------------------------------------------------------
-// Copyright 2018 David Haig - Micro-optimized version (Careful)
-// Copyright 2025 Hempe - Added per-message deflate compression support, and some Micro-Op :D
+// Copyright 2018 David Haig
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy 
 // of this software and associated documentation files (the "Software"), to deal 

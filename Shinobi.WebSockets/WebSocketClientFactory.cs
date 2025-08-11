@@ -1,6 +1,5 @@
 ﻿// ---------------------------------------------------------------------
 // Copyright 2018 David Haig
-// Copyright 2025 Hempe
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy 
 // of this software and associated documentation files (the "Software"), to deal 
@@ -38,6 +37,7 @@ using System.Threading.Tasks;
 
 using Shinobi.WebSockets.Exceptions;
 using Shinobi.WebSockets.Extensions;
+using Shinobi.WebSockets.Http;
 using Shinobi.WebSockets.Internal;
 
 namespace Shinobi.WebSockets

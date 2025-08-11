@@ -25,7 +25,7 @@ dotnet build -c ReleaseSigned
 ## Test Commands
 
 ```bash
-# Run all unit tests
+# Run all unit tests (MUST specify --framework net9.0 on Linux)
 dotnet test Shinobi.WebSockets.UnitTests/Shinobi.WebSockets.UnitTests.csproj --framework net9.0
 
 # Run tests with verbosity
@@ -34,8 +34,11 @@ dotnet test -v normal --framework net9.0
 # Run specific test class
 dotnet test --filter "FullyQualifiedName~HttpHeaderParserTests" --framework net9.0
 
-# Run tests on Linux runner (alternative)
+# Run .NET Framework 4.7.2 tests (dotnet test doesn't work for net472 on Linux)
+# Use the Linux runner instead:
 dotnet run --project Shinobi.WebSockets.UnitTests.RunnerLinux/Shinobi.WebSockets.UnitTests.RunnerLinux.csproj
+
+# Alternative: Use VS Code launch configuration "Launch Shinobi.WebSockets.UnitTests.RunnerLinux (.NET 4.7.2)"
 ```
 
 ## Benchmarking

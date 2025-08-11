@@ -7,7 +7,9 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets;
+using Shinobi.WebSockets.Builders;
 using Shinobi.WebSockets.Extensions;
+using Shinobi.WebSockets.Http;
 
 namespace WebSockets.DemoServer
 {
