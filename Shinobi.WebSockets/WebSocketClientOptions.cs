@@ -55,11 +55,34 @@ namespace Shinobi.WebSockets
     /// </summary>
     public enum WebSocketConnectionState
     {
+        /// <summary>
+        /// The WebSocket is not connected
+        /// </summary>
         Disconnected,
+        
+        /// <summary>
+        /// The WebSocket is in the process of establishing a connection
+        /// </summary>
         Connecting,
+        
+        /// <summary>
+        /// The WebSocket is successfully connected and ready for communication
+        /// </summary>
         Connected,
+        
+        /// <summary>
+        /// The WebSocket is attempting to reconnect after a connection failure
+        /// </summary>
         Reconnecting,
+        
+        /// <summary>
+        /// The WebSocket is in the process of closing the connection
+        /// </summary>
         Disconnecting,
+        
+        /// <summary>
+        /// The WebSocket connection failed and will not attempt to reconnect
+        /// </summary>
         Failed
     }
 

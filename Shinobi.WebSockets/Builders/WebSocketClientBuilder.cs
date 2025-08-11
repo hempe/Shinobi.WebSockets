@@ -9,6 +9,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Shinobi.WebSockets.Builders
 {
+    /// <summary>
+    /// A fluent builder for configuring and creating WebSocket clients with various options
+    /// including message handlers, logging, keep-alive settings, and HTTP headers.
+    /// </summary>
     public class WebSocketClientBuilder
     {
         private readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();

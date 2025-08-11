@@ -20,6 +20,11 @@ using Shinobi.WebSockets.Http;
 
 namespace Shinobi.WebSockets
 {
+    /// <summary>
+    /// A high-level WebSocket client that provides connection management, auto-reconnect capabilities,
+    /// and convenient methods for sending messages. This class manages the WebSocket connection 
+    /// internally and provides events for connection state changes and reconnection attempts.
+    /// </summary>
     public class WebSocketClient : IDisposable
     {
         internal WebSocket? webSocket;
@@ -35,8 +40,14 @@ namespace Shinobi.WebSockets
         private WebSocketConnectionState connectionState = WebSocketConnectionState.Disconnected;
         private readonly object stateLock = new object();
 
-        // Events
+        /// <summary>
+        /// Occurs when the WebSocket connection state changes (e.g., Connected, Disconnected, Reconnecting).
+        /// </summary>
         public event WebSocketConnectionStateChangedHandler? ConnectionStateChanged;
+        
+        /// <summary>
+        /// Occurs when the client is about to attempt a reconnection. Allows modification of the target URI.
+        /// </summary>
         public event WebSocketReconnectingEventHandler? Reconnecting;
 
         // Chain handlers built from interceptor lists
@@ -59,6 +70,11 @@ namespace Shinobi.WebSockets
             }
         }
 
+        /// <summary>
+        /// Initializes a new instance of the WebSocketClient class.
+        /// </summary>
+        /// <param name="options">Configuration options for the WebSocket client</param>
+        /// <param name="logger">Optional logger for client operations</param>
         public WebSocketClient(
             WebSocketClientOptions options,
             ILogger<WebSocketClient>? logger = null)
@@ -144,8 +160,11 @@ namespace Shinobi.WebSockets
         }
 
         /// <summary>
-        /// Sends a text message asynchronously
+        /// Sends a text message asynchronously to the connected WebSocket server.
         /// </summary>
+        /// <param name="message">The text message to send</param>
+        /// <param name="cancellationToken">Cancellation token to cancel the operation</param>
+        /// <exception cref="InvalidOperationException">Thrown when the WebSocket is not connected</exception>
         public async Task SendTextAsync(string message, CancellationToken cancellationToken = default)
         {
             if (this.webSocket?.State != WebSocketState.Open)
@@ -156,8 +175,11 @@ namespace Shinobi.WebSockets
         }
 
         /// <summary>
-        /// Sends a binary message asynchronously
+        /// Sends a binary message asynchronously to the connected WebSocket server.
         /// </summary>
+        /// <param name="data">The binary data to send</param>
+        /// <param name="cancellationToken">Cancellation token to cancel the operation</param>
+        /// <exception cref="InvalidOperationException">Thrown when the WebSocket is not connected</exception>
         public async Task SendBinaryAsync(byte[] data, CancellationToken cancellationToken = default)
         {
             if (this.webSocket?.State != WebSocketState.Open)

@@ -23,19 +23,26 @@ using Shinobi.WebSockets.Http;
 
 namespace Shinobi.WebSockets
 {
+    /// <summary>
+    /// Represents the type of WebSocket message received
+    /// </summary>
     public enum MessageType
     {
         /// <summary>
-        /// The message is clear text.
+        /// The message is clear text
         /// </summary>
         Text = 0,
 
         /// <summary>
-        /// The message is clear text.
+        /// The message is binary data
         /// </summary>
         Binary = 1,
     }
 
+    /// <summary>
+    /// A high-level WebSocket server that accepts incoming connections and manages WebSocket communication.
+    /// Supports SSL/TLS, compression, authentication, CORS, and customizable message handling through interceptors.
+    /// </summary>
     public class WebSocketServer : IDisposable
     {
         private Task? runTask;
