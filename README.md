@@ -300,23 +300,25 @@ await client.StopAsync();
 // Disposal is handled by using statement
 ```
 
-### Key Changes from Old API
+### Key API Changes
 
-#### Before (Old API)
+#### Before (WebSocketClientFactory Pattern)
 ```csharp
-var client = WebSocketClientBuilder.Create().Build();
-var webSocket = await client.ConnectAsync(uri); // Returns WebSocket
-await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, ct);
+var factory = new WebSocketClientFactory();
+var webSocket = await factory.ConnectAsync(uri, options);
+var buffer = Encoding.UTF8.GetBytes("Hello");
+await webSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, ct);
+webSocket.Dispose();
 ```
 
-#### After (New API)
+#### After (New WebSocketClient Pattern)
 ```csharp
 var client = WebSocketClientBuilder.Create().Build();
-await client.StartAsync(uri); // No return value
-await client.SendTextAsync(message, ct); // Dedicated methods
+await client.StartAsync(uri);
+await client.SendTextAsync("Hello", ct);
 // client.ConnectionState property available
 // Auto-reconnect support built-in
-await client.StopAsync(); // Clean shutdown
+await client.StopAsync(); // or dispose client
 ```
 
 ---
