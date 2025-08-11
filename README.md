@@ -1,129 +1,101 @@
-﻿# Shinobi WebSockets
+﻿# Shinobi.WebSockets
 
-A concrete implementation of the .Net Standard 2.0 System.Net.WebSockets.WebSocket abstract class
+## Background
 
-A WebSocket library that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server.
-You can safely pass around a general purpose WebSocket instance throughout your codebase without tying yourself strongly to this library. This is the same WebSocket abstract class used by .net core 2.0 and it allows for asynchronous Websocket communication for improved performance and scalability.
+This project originated from using **Ninja WebSocket** for local communication scenarios rather than server deployments. For server-side websocket communication, I recommend using **ASP.NET Core WebSockets** or **SignalR** instead.
 
-### Dependencies
+The typical use case is a small Windows service that local user interfaces or lightweight tools connect to.
 
-No dependencies.
+While working with Ninja WebSocket, I found a bug, fixed it, and took the opportunity to update and refactor the project. The goal was to simplify its usage, add better logging capabilities, and improve expandability and performance.
 
-## Getting Started
+## Introduction
 
-As a client, use the WebSocketClientFactory
-TODO: Rewrite everyting.
+A modern, flexible, and extensible WebSocket server library for .NET, built on top of `System.Net.WebSockets` and designed for high-performance, feature-rich test or local applications.
 
-```csharp
-var factory = new WebSocketClientFactory();
-WebSocket webSocket = await factory.ConnectAsync(new Uri("wss://example.com"));
-```
+Shinobi.WebSockets lets you build WebSocket servers with a fluent builder API, optional compression, CORS, SSL/TLS, authentication, and custom event hooks.
 
-As a server, use the WebSocketServerFactory
+> **Origin:** This library is a **complete refactor and extension** of [Ninja.WebSockets](https://github.com/ninjasource/Ninja.WebSockets) by David Haig, updated with modern APIs (`ValueTask`, `CancellationToken`, `Shared Buffers`), improved extensibility, and new features.
 
-```csharp
-Stream stream = tcpClient.GetStream();
-var factory = new WebSocketServerFactory();
-WebSocketHttpContext context = await factory.ReadHttpHeaderFromStreamAsync(stream);
+## Features
 
-if (context.IsWebSocketRequest)
-{
-    WebSocket webSocket = await factory.AcceptWebSocketAsync(context);
-}
-```
+- Fully asynchronous WebSocket server implementation
+- Fluent `WebSocketBuilder` configuration API
+- Per-message Deflate compression (RFC 7692)
+- SSL/TLS support (including ASP.NET Core dev certs)
+- CORS support
+- Authentication hooks
+- Connection, message, and error event interceptors
+- Built-in logging integration with `Microsoft.Extensions.Logging`
+- `CancellationToken` and `ValueTask` support
 
-## Using the WebSocket class
+---
 
-Client and Server send and receive data the same way.
-
-Receiving Data:
+## Quick Start – Server Example
 
 ```csharp
-private async Task Receive(WebSocket webSocket)
-{
-    var buffer = new ArraySegment<byte>(new byte[1024]);
-    while (true)
+using Microsoft.Extensions.Logging;
+using Shinobi.WebSockets;
+using Shinobi.WebSockets.Builders;
+using Shinobi.WebSockets.Extensions;
+
+var loggerFactory = LoggerFactory.Create(builder => builder
+    .SetMinimumLevel(LogLevel.Information)
+    .AddConsole());
+
+var server = WebSocketBuilder.Create()
+    .UsePort(8080)
+    .UseDevCertificate()
+    .UseLogging(loggerFactory)
+    .UsePerMessageDeflate(x =>
     {
-        WebSocketReceiveResult result = await webSocket.ReceiveAsync(buffer, CancellationToken.None);
-        switch (result.MessageType)
-        {
-            case WebSocketMessageType.Close:
-                return;
-            case WebSocketMessageType.Text:
-            case WebSocketMessageType.Binary:
-                string value = Encoding.UTF8.GetString(buffer.Array, 0, result.Count);
-                Console.WriteLine(value);
-                break;
-        }
-    }
-}
-```
-
-Receive data in an infinite loop until we receive a close frame from the server.
-
-Sending Data:
-
-```csharp
-private async Task Send(WebSocket webSocket)
-{
-    var array = Encoding.UTF8.GetBytes("Hello World");
-    var buffer = new ArraySegment<byte>(array);
-    await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
-}
-```
-
-Simple client Request / Response:
-The best approach to communicating using a web socket is to send and receive data on different worker threads as shown below.
-
-```csharp
-public async Task Run()
-{
-    var factory = new WebSocketClientFactory();
-    var uri = new Uri("ws://localhost:27416/chat");
-    using (WebSocket webSocket = await factory.ConnectAsync(uri))
+        x.ServerContextTakeover = ContextTakeoverMode.ForceDisabled;
+        x.ClientContextTakeover = ContextTakeoverMode.ForceDisabled;
+    })
+    .OnConnect(async (webSocket, next, token) =>
     {
-        // receive loop
-        Task readTask = Receive(webSocket);
+        var logger = loggerFactory.CreateLogger("Server");
+        logger.LogInformation("Client connected: {Id}", webSocket.Context.Guid);
+        await webSocket.SendTextAsync("Welcome to Shinobi.WebSockets!", token);
+        await next(webSocket, token);
+    })
+    .OnTextMessage((webSocket, message, token) =>
+    {
+        return webSocket.SendTextAsync($"ECHO: {message}", token);
+    })
+    .Build();
 
-        // send a message
-        await Send(webSocket);
+await server.StartAsync();
 
-        // initiate the close handshake
-        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
-
-        // wait for server to respond with a close frame
-        await readTask;
-    }
-}
+Console.WriteLine("Server running on wss://localhost:8080");
+Console.ReadLine();
+await server.StopAsync();
 ```
 
-## WebSocket Extensions
+## Installation
 
-Websocket extensions like compression (per message deflate) is currently work in progress.
+(NuGet publishing instructions go here if you publish it)
 
-## Running the tests
+## Demo Server
 
-Tests are written for xUnit
+A full example is included in the WebSockets.DemoServer project:
 
-## Authors
+- Echoes text messages
+- Supports time and help commands
+- Logs connections and disconnections
+- Supports SSL/TLS with dev certificate
+- Demonstrates per-message deflate compression
 
-David Haig
+Run it with:
+
+```bash
+dotnet run --project WebSockets.DemoServer
+```
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE.md file for details
+This project is licensed under the MIT License – see the [LICENSE.md](LICENSE.md) file for details.
 
-## Acknowledgments
+## Credits
 
-- Step by step guide:
-  https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers
-
-- The official WebSocket spec:
-  http://tools.ietf.org/html/rfc6455
-
-## Further Reading
-
-This library is based on all the amazing feedback I got after writing this article (thanks all):
-https://www.codeproject.com/articles/1063910/websocket-server-in-csharp
-
-The code in the article above was written before Microsoft made System.Net.WebSockets.WebSocket generally available with .NetStandard 2.0 but the concepts remain the same. Take a look if you are interested in the inner workings of the websocket protocol.
+- Original work: [Ninja.WebSockets](https://github.com/ninjasource/Ninja.WebSockets) by David Haig
+- Refactor, new features, and maintenance: Hempe
