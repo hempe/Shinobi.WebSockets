@@ -321,9 +321,11 @@ await client.StopAsync(); // Clean shutdown
 
 ---
 
-## Demo Server
+## Demo Applications
 
-A full example is included in the WebSockets.DemoServer project:
+### Demo Server
+
+A full server example is included in the Shinobi.WebSockets.DemoServer project:
 
 - Echoes text messages
 - Supports time and help commands
@@ -334,8 +336,66 @@ A full example is included in the WebSockets.DemoServer project:
 Run it with:
 
 ```bash
-dotnet run --project WebSockets.DemoServer
+dotnet run --project Shinobi.WebSockets.DemoServer
 ```
+
+### Demo Client
+
+A comprehensive console-based client demo is included in the Shinobi.WebSockets.DemoClient project that showcases all WebSocket client features:
+
+- Interactive command-line interface
+- Connection management (connect/disconnect)
+- Text and binary message sending
+- Built-in stress testing capabilities
+- Auto-reconnect demonstration
+- Real-time connection state monitoring
+- Connection statistics and timing
+
+Run it with:
+
+```bash
+dotnet run --project Shinobi.WebSockets.DemoClient
+```
+
+#### Demo Client Commands
+
+Once running, the demo client supports these interactive commands:
+
+```
+connect [url]     - Connect to WebSocket server (default: wss://localhost:8080)
+disconnect        - Disconnect from server
+send <message>    - Send a text message
+binary <message>  - Send a binary message
+ping              - Send ping command
+time              - Send time command  
+serverhelp        - Send help command to server
+stress [count]    - Run stress test (default: 1000 messages)
+stopstress        - Stop running stress test
+reconnect         - Enable auto-reconnect features
+stats             - Show connection statistics
+status            - Show connection status
+clear             - Clear the console
+help/?            - Show command help
+quit/exit         - Exit the application
+```
+
+#### Running Both Demo Applications
+
+1. Start the server in one terminal:
+   ```bash
+   dotnet run --project Shinobi.WebSockets.DemoServer
+   ```
+
+2. Start the client in another terminal:
+   ```bash
+   dotnet run --project Shinobi.WebSockets.DemoClient
+   ```
+
+3. In the client, type `connect` to connect to the demo server, then try various commands like:
+   - `send Hello World!`
+   - `time`
+   - `stress 100`
+   - `reconnect`
 
 ## License
 
