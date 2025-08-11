@@ -100,12 +100,12 @@ namespace Shinobi.WebSockets
     /// <summary>
     /// Delegate for connection state change events
     /// </summary>
-    public delegate void WebSocketConnectionStateChangedHandler(object sender, WebSocketConnectionStateChangedEventArgs e);
+    public delegate void WebSocketConnectionStateChangedHandler(WebSocketClient sender, WebSocketConnectionStateChangedEventArgs e);
 
     /// <summary>
     /// Delegate for reconnecting events
     /// </summary>
-    public delegate void WebSocketReconnectingEventHandler(object sender, WebSocketReconnectingEventArgs e);
+    public delegate void WebSocketReconnectingEventHandler(WebSocketClient sender, WebSocketReconnectingEventArgs e);
     /// <summary>
     /// Options for configuring the WebSocket client.
     /// These options can be used to control various aspects of the WebSocket connection,

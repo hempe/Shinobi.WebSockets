@@ -291,7 +291,7 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static void OnConnectionStateChanged(object? sender, WebSocketConnectionStateChangedEventArgs e)
+        private static void OnConnectionStateChanged(WebSocketClient sender, WebSocketConnectionStateChangedEventArgs e)
         {
             var color = e.NewState switch
             {
@@ -311,7 +311,7 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static void OnReconnecting(object? sender, WebSocketReconnectingEventArgs e)
+        private static void OnReconnecting(WebSocketClient sender, WebSocketReconnectingEventArgs e)
         {
             WriteColored($"[RECONNECT] Attempting reconnection to {e.CurrentUri} in {e.Delay.TotalMilliseconds}ms (attempt {e.AttemptNumber})", ConsoleColor.Magenta);
         }

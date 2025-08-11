@@ -166,7 +166,7 @@ using var client = WebSocketClientBuilder.Create()
     .UseReliableConnection()
     .Build();
 
-client.ConnectionStateChanged += (sender, e) =>
+client.ConnectionStateChanged += (client, e) =>
 {
     Console.WriteLine($"Connection state changed: {e.PreviousState} -> {e.NewState}");
     if (e.Exception != null)
@@ -175,7 +175,7 @@ client.ConnectionStateChanged += (sender, e) =>
     }
 };
 
-client.Reconnecting += (sender, e) =>
+client.Reconnecting += (client, e) =>
 {
     Console.WriteLine($"Reconnecting to {e.CurrentUri} in {e.Delay} (attempt {e.AttemptNumber})");
 };
