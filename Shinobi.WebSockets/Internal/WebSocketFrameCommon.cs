@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------
 // Copyright 2018 David Haig
+// Copyright 2025 Hansueli Burri
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy 
 // of this software and associated documentation files (the "Software"), to deal 
@@ -21,7 +22,7 @@
 // ---------------------------------------------------------------------
 
 
-﻿using System;
+using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
