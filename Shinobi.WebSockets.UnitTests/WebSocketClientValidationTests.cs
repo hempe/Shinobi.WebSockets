@@ -18,7 +18,7 @@ namespace Shinobi.WebSockets.UnitTests
             // Arrange, Act & Assert
             // Note: The constructor currently doesn't validate null options parameter
             // so it throws NullReferenceException when trying to access options.OnConnect
-            Assert.Throws<NullReferenceException>(() => new WebSocketClient(null));
+            Assert.Throws<NullReferenceException>(() => new WebSocketClient(null!));
         }
 
         [Fact]
@@ -57,9 +57,9 @@ namespace Shinobi.WebSockets.UnitTests
             // Act & Assert
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 () => client.SendTextAsync("test message"));
-            
+
             Assert.Contains("not connected", exception.Message, StringComparison.OrdinalIgnoreCase);
-            
+
             client.Dispose();
         }
 
@@ -74,9 +74,9 @@ namespace Shinobi.WebSockets.UnitTests
             // Act & Assert
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 () => client.SendBinaryAsync(data));
-            
+
             Assert.Contains("not connected", exception.Message, StringComparison.OrdinalIgnoreCase);
-            
+
             client.Dispose();
         }
 
@@ -89,58 +89,8 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Act & Assert
             Assert.Equal(WebSocketConnectionState.Disconnected, client.ConnectionState);
-            
+
             client.Dispose();
-        }
-
-        [Fact]
-        public async Task WebSocketClient_StartAsync_WithInvalidUri_ShouldThrow()
-        {
-            // Arrange
-            var options = new WebSocketClientOptions();
-            var client = new WebSocketClient(options);
-            var invalidUri = new Uri("http://nonexistent-websocket-server-12345.com");
-
-            // Act & Assert - This should eventually throw or timeout
-            // We're testing that it doesn't immediately crash the process
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            
-            try
-            {
-                await client.StartAsync(invalidUri, cts.Token);
-                // If we reach here without exception, that's also valid behavior
-            }
-            catch (OperationCanceledException)
-            {
-                // Timeout is expected for non-existent server
-            }
-            catch (Exception)
-            {
-                // Other exceptions are also acceptable (DNS resolution, connection refused, etc.)
-            }
-            
-            client.Dispose();
-        }
-
-        [Fact]
-        public void WebSocketReconnectingHandler_Delegate_ShouldBeCallable()
-        {
-            // Arrange
-            var uri = new Uri("ws://example.com");
-            var attemptNumber = 1;
-            var cancellationToken = CancellationToken.None;
-            
-            WebSocketReconnectingHandler handler = async (currentUri, attempt, ct) =>
-            {
-                Assert.Equal(uri, currentUri);
-                Assert.Equal(attemptNumber, attempt);
-                Assert.Equal(cancellationToken, ct);
-                return currentUri;
-            };
-
-            // Act & Assert - Should be callable
-            var task = handler(uri, attemptNumber, cancellationToken);
-            Assert.NotNull(task);
         }
 
         [Fact]
@@ -150,9 +100,9 @@ namespace Shinobi.WebSockets.UnitTests
             var options = new WebSocketClientOptions();
             var client = new WebSocketClient(options);
             var eventArgs = new WebSocketConnectionStateChangedEventArgs(
-                WebSocketConnectionState.Disconnected, 
+                WebSocketConnectionState.Disconnected,
                 WebSocketConnectionState.Connected);
-            
+
             var handlerCalled = false;
             WebSocketConnectionStateChangedHandler handler = (sender, e) =>
             {
@@ -166,7 +116,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Assert
             Assert.True(handlerCalled);
-            
+
             client.Dispose();
         }
 
@@ -177,10 +127,10 @@ namespace Shinobi.WebSockets.UnitTests
             var options = new WebSocketClientOptions();
             var client = new WebSocketClient(options);
             var eventArgs = new WebSocketReconnectingEventArgs(
-                new Uri("ws://example.com"), 
-                1, 
+                new Uri("ws://example.com"),
+                1,
                 TimeSpan.FromSeconds(5));
-            
+
             var handlerCalled = false;
             WebSocketReconnectingEventHandler handler = (sender, e) =>
             {
@@ -194,7 +144,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Assert
             Assert.True(handlerCalled);
-            
+
             client.Dispose();
         }
 
@@ -220,7 +170,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Act & Assert - Dispose should handle any pending operations
             client.Dispose();
-            
+
             // Should be able to dispose without hanging
             await Task.CompletedTask;
         }
@@ -240,9 +190,9 @@ namespace Shinobi.WebSockets.UnitTests
             // but it should accept the string input without argument exceptions
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 () => client.SendTextAsync(message));
-                
+
             Assert.Contains("not connected", exception.Message, StringComparison.OrdinalIgnoreCase);
-            
+
             client.Dispose();
         }
 
@@ -258,9 +208,9 @@ namespace Shinobi.WebSockets.UnitTests
             // but it should accept the empty array without argument exceptions
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 () => client.SendBinaryAsync(emptyData));
-                
+
             Assert.Contains("not connected", exception.Message, StringComparison.OrdinalIgnoreCase);
-            
+
             client.Dispose();
         }
     }

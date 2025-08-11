@@ -9,7 +9,10 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Builders;
-
+#if NET9_0_OR_GREATER
+#else 
+using Shinobi.WebSockets.Extensions;
+#endif
 using Xunit;
 
 namespace Shinobi.WebSockets.UnitTests
@@ -76,7 +79,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Act - Use new API
             await client.StartAsync(this.serverUri, this.cts.Token);
-            
+
             await client.SendTextAsync(messageToSend, this.cts.Token);
 
             // Wait for response
@@ -109,21 +112,21 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Act - Use new API
             await client.StartAsync(this.serverUri, this.cts.Token);
-            
+
             await client.SendBinaryAsync(messageToSend, this.cts.Token);
 
             // Wait for response
             await messageReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
             // Assert - verify binary communication works
-            Assert.True(messageReceived.Task.IsCompletedSuccessfully, "Message should have been received");
+            Assert.True(messageReceived.Task.IsCompleted && !messageReceived.Task.IsFaulted && !messageReceived.Task.IsCanceled, "Message should have been received");
             Assert.NotNull(receivedMessage);
             Assert.True(receivedMessage.Length > 0, "Should have received data");
             Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
-            
+
             // The key integration test is that we can send binary data and get a response
             // The exact echo behavior can vary based on server implementation
-            
+
             // Cleanup
             await client.StopAsync();
         }
@@ -163,10 +166,10 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Act - Use new API
             await client.StartAsync(this.serverUri, this.cts.Token);
-            
+
             // Wait for connection
             await connectionEstablished.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            
+
             await client.SendTextAsync(messageToSend, this.cts.Token);
 
             // Wait for response
@@ -175,7 +178,7 @@ namespace Shinobi.WebSockets.UnitTests
             // Assert
             Assert.Equal($"Echo: {messageToSend}", receivedMessage);
             Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
-            
+
             // Cleanup
             await client.StopAsync();
         }
@@ -197,10 +200,10 @@ namespace Shinobi.WebSockets.UnitTests
                     options.MaxAttempts = 3;
                     options.Jitter = 0.2;
                 })
-                .OnReconnecting(async (uri, attemptNumber, ct) =>
+                .OnReconnecting((uri, attemptNumber, ct) =>
                 {
                     // Could modify URI here for failover
-                    return uri;
+                    return new ValueTask<Uri>(uri);
                 })
                 .OnTextMessage((ws, message, ct) =>
                 {
@@ -212,7 +215,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Act
             await client.StartAsync(this.serverUri, this.cts.Token);
-            
+
             await client.SendTextAsync(messageToSend, this.cts.Token);
 
             // Wait for response
@@ -221,7 +224,7 @@ namespace Shinobi.WebSockets.UnitTests
             // Assert
             Assert.Equal($"Echo: {messageToSend}", receivedMessage);
             Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
-            
+
             // Cleanup
             await client.StopAsync();
         }

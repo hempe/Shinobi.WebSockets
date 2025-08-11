@@ -24,7 +24,7 @@ namespace Shinobi.WebSockets.Builders
         /// </summary>
         public static WebSocketClientBuilder EnableAutoReconnect(this WebSocketClientBuilder builder)
         {
-            return builder.UseConfiguration(options => 
+            return builder.UseConfiguration(options =>
             {
                 options.ReconnectOptions.Enabled = true;
             });
@@ -37,7 +37,7 @@ namespace Shinobi.WebSockets.Builders
         {
             if (configure == null) throw new ArgumentNullException(nameof(configure));
 
-            return builder.UseConfiguration(options => 
+            return builder.UseConfiguration(options =>
             {
                 options.ReconnectOptions.Enabled = true;
                 configure(options.ReconnectOptions);
@@ -51,7 +51,7 @@ namespace Shinobi.WebSockets.Builders
         {
             if (handler == null) throw new ArgumentNullException(nameof(handler));
 
-            return builder.UseConfiguration(options => 
+            return builder.UseConfiguration(options =>
             {
                 options.OnReconnecting = handler;
             });
@@ -66,8 +66,8 @@ namespace Shinobi.WebSockets.Builders
         {
             if (urlSelector == null) throw new ArgumentNullException(nameof(urlSelector));
 
-            return builder.OnReconnecting((currentUri, attemptNumber, cancellationToken) => 
-                Task.FromResult(urlSelector(currentUri, attemptNumber)));
+            return builder.OnReconnecting((currentUri, attemptNumber, cancellationToken) =>
+               new ValueTask<Uri>(urlSelector(currentUri, attemptNumber)));
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace Shinobi.WebSockets.Builders
 
             // We'll need to add this after Build() is called since the client handles events
             // For now, we can store it in configuration and wire it up later
-            return builder.UseConfiguration(options => 
+            return builder.UseConfiguration(options =>
             {
                 // Store the handler in a custom property that we can retrieve after building
                 options.AdditionalHttpHeaders["__ConnectionStateHandler"] = handler.Method.Name;
