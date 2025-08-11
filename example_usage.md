@@ -100,6 +100,16 @@ client.Reconnecting += (sender, e) =>
 {
     Console.WriteLine($"Reconnecting to {e.CurrentUri} in {e.Delay} (attempt {e.AttemptNumber})");
 };
+
+// Comprehensive logging is automatically included when you configure a logger
+using var loggerFactory = LoggerFactory.Create(builder => builder
+    .SetMinimumLevel(LogLevel.Information) // Set to Debug for more detailed logs
+    .AddConsole());
+
+using var client = WebSocketClientBuilder.Create()
+    .UseLogging(loggerFactory) // This enables all reconnect logging
+    .UseReliableConnection()
+    .Build();
 ```
 
 ## Advanced Configuration
@@ -195,3 +205,35 @@ The `ConnectionState` property provides real-time connection status:
 - `Reconnecting` - Attempting to reconnect
 - `Disconnecting` - Shutting down connection
 - `Failed` - Connection failed (after max attempts if configured)
+
+## Reconnect Logging
+
+When you configure logging with `UseLogging()`, the WebSocketClient automatically logs comprehensive information about reconnection attempts:
+
+### Information Level Logs:
+- **Connection closed**: "WebSocket connection closed, checking reconnect options"
+- **Auto-reconnect disabled**: "Auto-reconnect is disabled, staying disconnected"  
+- **Starting reconnect**: "Starting auto-reconnect sequence (attempt N)"
+- **Reconnect attempt**: "Reconnecting to ws://example.com in 2000ms (attempt 3)"
+- **Successful reconnect**: "Successfully reconnected to ws://example.com after 3 attempts"
+- **Reconnection cancelled**: "WebSocket reconnection cancelled"
+
+### Warning Level Logs:
+- **Max attempts exceeded**: "Maximum reconnect attempts (5) exceeded"
+
+### Error Level Logs:
+- **Connection errors**: "Connection error (attempt 2)" with full exception details
+
+### Debug Level Logs:
+- **State changes**: "WebSocket connection state changed from Connected to Reconnecting"
+- **OnReconnecting handler**: "Calling OnReconnecting handler for attempt 2"
+- **URI changes**: "OnReconnecting handler changed URI from ws://primary.com to ws://backup.com"
+
+### Example Log Output:
+```
+info: WebSocket connection closed, checking reconnect options
+info: Starting auto-reconnect sequence (attempt 1)
+info: Reconnecting to ws://localhost:8080 in 1000ms (attempt 1)
+dbug: WebSocket connection state changed from Reconnecting to Connecting
+info: Successfully reconnected to ws://localhost:8080 after 1 attempts
+```

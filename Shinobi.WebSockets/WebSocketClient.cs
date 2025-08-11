@@ -202,7 +202,11 @@ namespace Shinobi.WebSockets
                     // Try to establish connection
                     await this.ConnectAsync(cancellationToken);
                     
-                    // Connection successful, reset attempt counter
+                    // Connection successful, reset attempt counter and log success
+                    if (attemptNumber > 1)
+                    {
+                        this.logger?.LogInformation("Successfully reconnected to {Uri} after {AttemptNumber} attempts", this.currentUri, attemptNumber);
+                    }
                     attemptNumber = 0;
                     
                     // Handle messages until disconnection
@@ -212,14 +216,18 @@ namespace Shinobi.WebSockets
                     if (cancellationToken.IsCancellationRequested)
                         break;
                         
+                    this.logger?.LogInformation("WebSocket connection closed, checking reconnect options");
+                        
                     // Check if we should reconnect
                     if (!this.options.ReconnectOptions.Enabled)
                     {
+                        this.logger?.LogInformation("Auto-reconnect is disabled, staying disconnected");
                         this.ChangeConnectionState(WebSocketConnectionState.Disconnected);
                         break;
                     }
                     
                     // Prepare for reconnect
+                    this.logger?.LogInformation("Starting auto-reconnect sequence (attempt {AttemptNumber})", attemptNumber + 1);
                     this.ChangeConnectionState(WebSocketConnectionState.Reconnecting);
                     
                     // Check max attempts
@@ -237,7 +245,12 @@ namespace Shinobi.WebSockets
                     var reconnectUri = this.currentUri!;
                     if (this.options.OnReconnecting != null)
                     {
+                        this.logger?.LogDebug("Calling OnReconnecting handler for attempt {AttemptNumber}", attemptNumber);
                         reconnectUri = await this.options.OnReconnecting(this.currentUri!, attemptNumber, cancellationToken);
+                        if (!reconnectUri.Equals(this.currentUri))
+                        {
+                            this.logger?.LogInformation("OnReconnecting handler changed URI from {OldUri} to {NewUri}", this.currentUri, reconnectUri);
+                        }
                         this.currentUri = reconnectUri;
                     }
                     
@@ -252,6 +265,7 @@ namespace Shinobi.WebSockets
                 }
                 catch (OperationCanceledException)
                 {
+                    this.logger?.LogInformation("WebSocket reconnection cancelled");
                     break;
                 }
                 catch (Exception ex)
