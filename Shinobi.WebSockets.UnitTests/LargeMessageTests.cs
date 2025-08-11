@@ -13,6 +13,8 @@ using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Extensions;
 using Shinobi.WebSockets.Internal;
+using Shinobi.WebSockets.Builders;
+using Shinobi.WebSockets.Http;
 
 using Xunit;
 
@@ -156,7 +158,8 @@ namespace Shinobi.WebSockets.UnitTests
 
         private class ShinobiServer : IServer
         {
-            private TcpListener? listener;
+            private WebSocketServerBuilder? builder;
+            private Shinobi.WebSockets.ShinobiServer? server;
             private Task? connectionPointTask;
             private WebSocket? webSocket;
             private ILogger logger;
@@ -180,82 +183,39 @@ namespace Shinobi.WebSockets.UnitTests
             public Task WaitAsync() => this.connectionPointTask!;
             public void StartListener()
             {
-                if (this.listener != null)
+                if (this.server != null)
                     throw new InvalidOperationException("Listener already started.");
 
-                var port = GetAvailablePort();
+                var port = (ushort)GetAvailablePort();
                 this.Address = new Uri($"ws://localhost:{port}/");
-                this.listener = new TcpListener(IPAddress.Loopback, port);
-                this.listener.Start();
-                this.connectionPointTask = Task.Run(() => this.ConnectionPointAsync(this.listener, this.cancellationTokenSource.Token), this.cancellationTokenSource.Token);
-            }
-
-            private async Task ConnectionPointAsync(
-                TcpListener listener,
-                CancellationToken cancellationToken)
-            {
-                try
-                {
-                    this.logger.LogDebug("[Server] Waiting for connection...");
-                    using var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
-                    using var str = tcpClient.GetStream();
-                    var context = await str.ReadHttpHeaderFromStreamAsync(cancellationToken);
-
-                    this.logger.LogDebug("[Server] Connection established.");
-                    if (context.IsWebSocketRequest)
+                
+                this.builder = WebSocketServerBuilder.Create()
+                    .UsePort(port)
+                    .OnConnect(async (webSocket, next, cancellationToken) =>
                     {
-                        this.logger.LogDebug("[Server] WebSocket request received.");
-                        this.webSocket = await context.AcceptWebSocketAsync(cancellationToken);
                         this.logger.LogDebug("[Server] WebSocket accepted.");
-                        var receiveBuffer = new byte[4096];
-                        var stream = new MemoryStream();
+                        this.webSocket = webSocket;
+                        await next(webSocket, cancellationToken);
+                    })
+                    .OnBinaryMessage(async (webSocket, data, cancellationToken) =>
+                    {
+                        this.logger.LogDebug($"[Server] Received {data.Length} bytes");
+                        this.ReceivedMessages.Add(data);
+                    })
+                    .OnClose(async (webSocket, next, cancellationToken) =>
+                    {
+                        this.logger.LogDebug("[Server] WebSocket connection closed");
+                        await next(webSocket, cancellationToken);
+                    });
 
-                        while (this.webSocket.State == WebSocketState.Open)
-                        {
-                            var arraySegment = new ArraySegment<byte>(receiveBuffer);
-                            this.logger.LogDebug("[Server] Waiting for message...");
-                            var received = await this.webSocket.ReceiveAsync(arraySegment, cancellationToken);
-                            this.logger.LogDebug($"[Server] Received {received.Count} bytes, EndOfMessage: {received.EndOfMessage}, MessageType: {received.MessageType}");
-                            switch (received.MessageType)
-                            {
-                                case WebSocketMessageType.Close:
-                                    {
-                                        if (this.webSocket.State == WebSocketState.CloseReceived)
-                                            await this.webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Ok", cancellationToken);
-
-                                        break;
-                                    }
-
-                                case WebSocketMessageType.Binary:
-                                    {
-                                        stream.Write(arraySegment.Array!, arraySegment.Offset, received.Count);
-                                        if (received.EndOfMessage)
-                                        {
-                                            this.ReceivedMessages.Add(stream.ToArray());
-                                            stream = new MemoryStream();
-                                        }
-
-                                        break;
-                                    }
-                            }
-                        }
-                    }
-                }
-                catch (HttpListenerException)
-                {
-                    // This would happen when the server was stopped for instance.
-                }
-                catch when (cancellationToken.IsCancellationRequested)
-                {
-                    // Server was stopped
-                }
+                this.server = this.builder.Build();
+                this.connectionPointTask = this.server.StartAsync();
             }
 
             public void Dispose()
             {
-                this.listener?.Stop();
+                this.server?.Dispose();
                 this.cancellationTokenSource.Cancel();
-                this.connectionPointTask?.Wait();
                 this.cancellationTokenSource.Dispose();
             }
         }
@@ -306,13 +266,15 @@ namespace Shinobi.WebSockets.UnitTests
                     using var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
                     using var str = tcpClient.GetStream();
 
-                    var context = await str.ReadHttpHeaderFromStreamAsync(cancellationToken);
+                    var httpRequest = await HttpRequest.ReadAsync(str, cancellationToken);
+                    if (httpRequest == null) return;
+                    var context = new WebSocketHttpContext(httpRequest, str, Guid.NewGuid());
 
                     this.logger.LogDebug("[Server] Connection established.");
                     if (context.IsWebSocketRequest)
                     {
                         this.logger.LogDebug("[Server] WebSocket request received.");
-                        this.webSocket = await context.AcceptWebSocketAsync(cancellationToken);
+                        this.webSocket = await context.AcceptWebSocketAsync(new WebSocketServerOptions(), cancellationToken);
                         this.logger.LogDebug("[Server] WebSocket accepted.");
                         var receiveBuffer = new byte[4096];
                         var stream = new MemoryStream();
