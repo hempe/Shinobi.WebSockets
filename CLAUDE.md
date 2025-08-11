@@ -60,32 +60,38 @@ dotnet run --project Shinobi.WebSockets.DemoServer/Shinobi.WebSockets.DemoServer
 ## Code Architecture
 
 ### Core Library Structure
+
 - **Shinobi.WebSockets/** - Main library implementing .NET Standard 2.0 WebSocket abstract class
 - **ShinobiWebSocket** - Primary WebSocket implementation extending System.Net.WebSockets.WebSocket
-- **ShinobiServer** - High-level server for accepting WebSocket connections with TLS support
+- **WebSocketServer** - High-level server for accepting WebSocket connections with TLS support
 - **WebSocketClientFactory** - Factory for creating client WebSocket connections
 
 ### Key Components
-- **Internal/WebSocketFrame*** - Low-level frame handling (reader, writer, common operations)
+
+- **Internal/WebSocketFrame\*** - Low-level frame handling (reader, writer, common operations)
 - **Internal/WebSocketDeflater/Inflater** - Per-message deflate compression support
 - **Extensions/** - Extension methods for HTTP headers, WebSocket operations
 - **HttpRequest/Response builders** - HTTP handshake handling
 - **WebSocketHttpContext** - Context object for WebSocket upgrade requests
 
 ### Multi-Target Support
+
 The library targets both .NET Standard 2.0 and .NET 9, with compatibility back to .NET Framework 4.7.2. Uses conditional compilation for signed releases via RELEASESIGNED define.
 
 ### Testing Structure
+
 - **Shinobi.WebSockets.UnitTests/** - xUnit test suite with comprehensive WebSocket protocol tests
 - **TheInternet.cs/TheInternetTests.cs** - Integration tests against real WebSocket endpoints
 - **MockNetworkStream.cs** - Test infrastructure for network stream mocking
 
 ### Performance Focus
+
 Extensive benchmarking infrastructure using BenchmarkDotNet to measure throughput and performance across different scenarios. Results are automatically generated in multiple formats (HTML, CSV, Markdown).
 
 ## Project Dependencies
 
 The main library has minimal dependencies:
+
 - System.Buffers (for high-performance buffer management)
 - Microsoft.Extensions.Logging.Abstractions (for logging)
 - Uses ArrayPool&lt;byte&gt; extensively for memory efficiency

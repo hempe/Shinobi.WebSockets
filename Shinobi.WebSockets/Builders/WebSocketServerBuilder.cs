@@ -23,7 +23,7 @@ namespace Shinobi.WebSockets.Builders
         private readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
         private readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
         private readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
-        private ILogger<ShinobiServer>? logger;
+        private ILogger<WebSocketServer>? logger;
         private WebSocketServerOptions configuration = new WebSocketServerOptions();
 
         /// <summary>
@@ -256,7 +256,7 @@ namespace Shinobi.WebSockets.Builders
         public WebSocketServerBuilder UseLogging(ILoggerFactory loggerFactory)
         {
             Internal.Events.Log = new Internal.Events(loggerFactory.CreateLogger<Internal.Events>());
-            this.logger = loggerFactory.CreateLogger<ShinobiServer>();
+            this.logger = loggerFactory.CreateLogger<WebSocketServer>();
 
             this.OnAcceptStream((tcpClient, next, cancellationToken) =>
             {
@@ -372,10 +372,10 @@ namespace Shinobi.WebSockets.Builders
         }
 
         /// <summary>
-        /// Builds and returns the configured ShinobiServer instance
+        /// Builds and returns the configured WebSocketServer instance
         /// </summary>
-        /// <returns>Configured ShinobiServer</returns>
-        public ShinobiServer Build()
+        /// <returns>Configured WebSocketServer</returns>
+        public WebSocketServer Build()
         {
             // Add sub protocol negotiation if we have supported protocols
             if (this.configuration.SupportedSubProtocols != null && this.configuration.SupportedSubProtocols.Count > 0)
@@ -392,7 +392,7 @@ namespace Shinobi.WebSockets.Builders
             this.configuration.OnError = this.onError.Count > 0 ? this.onError : null;
             this.configuration.OnMessage = this.onMessage.Count > 0 ? this.onMessage : null;
 
-            return new ShinobiServer(this.configuration, this.logger);
+            return new WebSocketServer(this.configuration, this.logger);
         }
 
         /// <summary>

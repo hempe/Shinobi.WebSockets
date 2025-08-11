@@ -21,6 +21,7 @@ using Shinobi.WebSockets;
 using Shinobi.WebSockets.Builders;
 using Shinobi.WebSockets.Extensions;
 using Shinobi.WebSockets.Internal;
+using Shinobi.WebSockets.Http;
 
 
 [SimpleJob(RuntimeMoniker.Net90)]
@@ -91,10 +92,13 @@ public class WebSocketThroughputBenchmarks
                         var stream = tcpClient.GetStream();
                         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-                        var context = await stream.ReadHttpHeaderFromStreamAsync(connectCts.Token).ConfigureAwait(false);
+                        var httpRequest = await HttpRequest.ReadAsync(stream, connectCts.Token);
+                        if (httpRequest == null) continue;
+                        var context = new WebSocketHttpContext(httpRequest, stream, Guid.NewGuid());
+
                         if (context.IsWebSocketRequest)
                         {
-                            var webSocket = await context.AcceptWebSocketAsync(connectCts.Token).ConfigureAwait(false);
+                            var webSocket = await context.AcceptWebSocketAsync(new WebSocketServerOptions(), connectCts.Token).ConfigureAwait(false);
                             tasks.Add(this.EchoLoopAsync(webSocket, this.serverCts.Token, new IDisposable[] { tcpClient, stream }));
                         }
                         else

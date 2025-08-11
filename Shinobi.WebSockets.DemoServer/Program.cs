@@ -21,7 +21,7 @@ namespace WebSockets.DemoServer
                 .SetMinimumLevel(LogLevel.Warning)
                 .AddConsole());
 
-            var logger = loggerFactory.CreateLogger<ShinobiServer>();
+            var logger = loggerFactory.CreateLogger<WebSocketServer>();
 
             logger.LogInformation("Starting WebSocket Demo Server...");
             logger.LogInformation("Features included:");

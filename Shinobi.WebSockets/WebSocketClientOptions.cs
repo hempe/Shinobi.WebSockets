@@ -53,6 +53,26 @@ namespace Shinobi.WebSockets
         public string? SecWebSocketProtocol { get; set; }
 
         /// <summary>
+        /// Interceptors for when a WebSocket connection is established
+        /// </summary>
+        public IList<WebSocketConnectInterceptor>? OnConnect { get; set; }
+
+        /// <summary>
+        /// Interceptors for when a WebSocket connection is closed
+        /// </summary>
+        public IList<WebSocketCloseInterceptor>? OnClose { get; set; }
+
+        /// <summary>
+        /// Interceptors for WebSocket errors
+        /// </summary>
+        public IList<WebSocketErrorInterceptor>? OnError { get; set; }
+
+        /// <summary>
+        /// Interceptors for incoming WebSocket messages
+        /// </summary>
+        public IList<WebSocketMessageInterceptor>? OnMessage { get; set; }
+
+        /// <summary>
         /// Initialises a new instance of the WebSocketClientOptions class
         /// </summary>
         public WebSocketClientOptions()

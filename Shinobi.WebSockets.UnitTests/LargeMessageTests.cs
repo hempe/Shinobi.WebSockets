@@ -159,7 +159,7 @@ namespace Shinobi.WebSockets.UnitTests
         private class ShinobiServer : IServer
         {
             private WebSocketServerBuilder? builder;
-            private Shinobi.WebSockets.ShinobiServer? server;
+            private Shinobi.WebSockets.WebSocketServer? server;
             private Task? connectionPointTask;
             private WebSocket? webSocket;
             private ILogger logger;
@@ -268,7 +268,7 @@ namespace Shinobi.WebSockets.UnitTests
                     using var str = tcpClient.GetStream();
 
                     var httpRequest = await HttpRequest.ReadAsync(str, cancellationToken);
-                    if (httpRequest == null) return;
+                    if (httpRequest == null) throw new System.Exception("This should not happen");
                     var context = new WebSocketHttpContext(httpRequest, str, Guid.NewGuid());
 
                     this.logger.LogDebug("[Server] Connection established.");

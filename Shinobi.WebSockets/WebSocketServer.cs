@@ -36,14 +36,14 @@ namespace Shinobi.WebSockets
         Binary = 1,
     }
 
-    public class ShinobiServer : IDisposable
+    public class WebSocketServer : IDisposable
     {
         private Task? runTask;
         private CancellationTokenSource? runToken;
         private TcpListener? listener; // Stop calls dispose, but dispose does not exist on net472
 
         private bool isDisposed;
-        private readonly ILogger<ShinobiServer>? logger;
+        private readonly ILogger<WebSocketServer>? logger;
         private readonly WebSocketServerOptions options;
 
         private readonly AcceptStreamHandler OnConnectStreamsAsync;
@@ -54,9 +54,9 @@ namespace Shinobi.WebSockets
         private readonly WebSocketErrorHandler OnErrorAsync;
         private readonly WebSocketMessageHandler OnMessageAsync;
 
-        public ShinobiServer(
+        public WebSocketServer(
             WebSocketServerOptions options,
-            ILogger<ShinobiServer>? logger = null)
+            ILogger<WebSocketServer>? logger = null)
         {
             this.logger = logger;
             this.options = options;
@@ -206,7 +206,7 @@ namespace Shinobi.WebSockets
         private void ThrowIfDisposed()
         {
             if (this.isDisposed)
-                throw new ObjectDisposedException(nameof(ShinobiServer));
+                throw new ObjectDisposedException(nameof(WebSocketServer));
         }
 
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)

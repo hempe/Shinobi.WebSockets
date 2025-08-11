@@ -15,9 +15,9 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 
-using Ninja.WebSockets;
-
+using Shinobi.WebSockets;
 using Shinobi.WebSockets.Extensions;
+using Shinobi.WebSockets.Http;
 
 [SimpleJob(RuntimeMoniker.Net90)]
 //[SimpleJob(RuntimeMoniker.Net472)]
@@ -217,11 +217,14 @@ public class WebSocketServerClientBenchmarks
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            var context = await stream.ReadHttpHeaderFromStreamAsync().ConfigureAwait(false);
+            var httpRequest = await HttpRequest.ReadAsync(stream, cancellationToken);
+            if (httpRequest == null) return;
+            var context = new WebSocketHttpContext(httpRequest, stream, Guid.NewGuid());
+
 
             if (context.IsWebSocketRequest)
             {
-                webSocket = await context.AcceptWebSocketAsync().ConfigureAwait(false);
+                webSocket = await context.AcceptWebSocketAsync(new WebSocketServerOptions()).ConfigureAwait(false);
 
                 // Register this client for disconnect tracking
                 var disconnectTcs = new TaskCompletionSource<bool>();
