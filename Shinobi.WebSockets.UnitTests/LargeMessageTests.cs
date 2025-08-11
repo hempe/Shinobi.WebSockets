@@ -395,9 +395,10 @@ namespace Shinobi.WebSockets.UnitTests
                 WebSocket webSocket;
                 if (clientImpl == Implementation.Shinobi)
                 {
-                    var factory = new WebSocketClientFactory();
+                    var client = WebSocketClientBuilder.Create().Build();
                     this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:Shinobi");
-                    webSocket = await factory.ConnectAsync(server.Address!, new WebSocketClientOptions(), cts.Token);
+                    await client.StartAsync(server.Address!, cts.Token);
+                    webSocket = client.webSocket!; // Access the internal websocket for compatibility
                 }
                 else if (clientImpl == Implementation.Ninja)
                 {

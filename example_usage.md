@@ -1,4 +1,6 @@
-# Refactored WebSocketClient Usage Examples
+# WebSocketClient Usage Examples
+
+> **Note:** WebSocketClientFactory has been removed. All connection logic is now integrated directly into WebSocketClient/WebSocketClientBuilder.
 
 ## Basic Usage
 
@@ -143,6 +145,25 @@ using var client = WebSocketClientBuilder.Create()
         return new ValueTask();
     })
     .Build();
+```
+
+## Migration from WebSocketClientFactory
+
+### Before (Old Factory Pattern)
+```csharp
+var factory = new WebSocketClientFactory();
+var webSocket = await factory.ConnectAsync(uri, options);
+await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, ct);
+webSocket.Dispose();
+```
+
+### After (New Builder Pattern)
+```csharp
+using var client = WebSocketClientBuilder.Create().Build();
+await client.StartAsync(uri);
+await client.SendTextAsync(message, ct);
+await client.StopAsync();
+// Disposal is handled by using statement
 ```
 
 ## Key Changes from Old API

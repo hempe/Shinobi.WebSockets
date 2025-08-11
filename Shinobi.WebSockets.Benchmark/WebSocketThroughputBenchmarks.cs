@@ -197,13 +197,11 @@ public class WebSocketThroughputBenchmarks
         }
         else if (this.Client.StartsWith("Shinobi"))
         {
-            var client = new Shinobi.WebSockets.WebSocketClientFactory();
             this.clients = await Task.WhenAll(Enumerable.Range(0, this.ClientCount).Select(async _ =>
             {
-                return await client.ConnectAsync(
-                    new Uri(this.serverUrl),
-                    new Shinobi.WebSockets.WebSocketClientOptions(),
-                    this.serverCts.Token).ConfigureAwait(false);
+                var client = Shinobi.WebSockets.Builders.WebSocketClientBuilder.Create().Build();
+                await client.StartAsync(new Uri(this.serverUrl), this.serverCts.Token);
+                return client.webSocket!;
             }));
         }
         else if (this.Client.StartsWith("Native"))

@@ -119,7 +119,7 @@ namespace Shinobi.WebSockets
         /// The default is TimeSpan.Zero meaning that it is disabled.
         /// WebSocket servers usually send ping messages so it is not normally necessary for the client to send them (hence the TimeSpan.Zero default)
         /// You can manually control ping pong messages using the PingPongManager class.
-        /// If you do that it is advisible to set this KeepAliveInterval to zero for the WebSocketClientFactory
+        /// If you do that it is advisible to set this KeepAliveInterval to zero for the WebSocketClient
         /// </summary>
         public TimeSpan KeepAliveInterval { get; set; }
 

@@ -1,12 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
+using Shinobi.WebSockets.Exceptions;
+using Shinobi.WebSockets.Extensions;
 using Shinobi.WebSockets.Internal;
 using Shinobi.WebSockets.Http;
 
@@ -14,7 +22,7 @@ namespace Shinobi.WebSockets
 {
     public class WebSocketClient : IDisposable
     {
-        private WebSocket? webSocket;
+        internal WebSocket? webSocket;
         private bool isDisposed;
         private readonly ILogger<WebSocketClient>? logger;
         private readonly WebSocketClientOptions options;
@@ -269,10 +277,9 @@ namespace Shinobi.WebSockets
         {
             this.ChangeConnectionState(WebSocketConnectionState.Connecting);
             
-            var factory = new WebSocketClientFactory();
-            this.webSocket = await factory.ConnectAsync(this.currentUri!, this.options, cancellationToken);
+            this.webSocket = await this.PerformWebSocketConnectionAsync(this.currentUri!, this.options, cancellationToken);
             
-            // Cast to ShinobiWebSocket since we know the factory returns ShinobiWebSocket
+            // Cast to ShinobiWebSocket since we know we return ShinobiWebSocket
             var shinobiWebSocket = (ShinobiWebSocket)this.webSocket;
             
             this.ChangeConnectionState(WebSocketConnectionState.Connected);
@@ -370,6 +377,180 @@ namespace Shinobi.WebSockets
                 throw; // Re-throw to trigger reconnect logic
             }
         }
+
+        #region WebSocket Connection Logic (moved from WebSocketClientFactory)
+
+        private const string NewLine = "\r\n";
+
+        /// <summary>
+        /// Performs the complete WebSocket connection process
+        /// </summary>
+        private async ValueTask<WebSocket> PerformWebSocketConnectionAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken)
+        {
+            var guid = Guid.NewGuid();
+            var uriScheme = uri.Scheme.ToLower();
+
+            return await this.PerformHandshakeAsync(
+                guid,
+                uri,
+                await this.GetStreamAsync(
+                    guid,
+                    uriScheme == "wss" || uriScheme == "https",
+                    options.NoDelay,
+                    uri.Host,
+                    uri.Port,
+                    cancellationToken).ConfigureAwait(false),
+                options,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Connects with a stream that has already been opened and HTTP websocket upgrade request sent
+        /// This function will check the handshake response from the server and proceed if successful
+        /// </summary>
+        private async ValueTask<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string? secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
+        {
+            Events.Log?.ReadingHttpResponse(guid);
+            HttpResponse? response;
+
+            try
+            {
+                response = await HttpResponse.ReadAsync(responseStream, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Events.Log?.ReadHttpResponseError(guid, ex);
+                throw new WebSocketHandshakeFailedException("Handshake unexpected failure", ex);
+            }
+
+            this.ThrowIfInvalidResponseCode(response);
+            this.ThrowIfInvalidAcceptString(guid, response!, secWebSocketKey);
+
+            return new ShinobiWebSocket(
+                new WebSocketHttpContext(response!, responseStream, guid),
+                response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.ParseExtension(),
+                keepAliveInterval,
+                includeExceptionInCloseResponse,
+                true,
+                response.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
+        }
+
+        private void ThrowIfInvalidAcceptString(Guid guid, HttpHeader response, string secWebSocketKey)
+        {
+            // make sure we escape the accept string which could contain special regex characters
+            var actualAcceptString = response.GetHeaderValue("Sec-WebSocket-Accept");
+
+            // check the accept string
+            var expectedAcceptString = secWebSocketKey.ComputeSocketAcceptString();
+            if (expectedAcceptString != actualAcceptString)
+            {
+                var warning = $"Handshake failed because the accept string from the server '{expectedAcceptString}' was not the expected string '{actualAcceptString}'";
+                Events.Log?.HandshakeFailure(guid, warning);
+                throw new WebSocketHandshakeFailedException(warning);
+            }
+
+            Events.Log?.ClientHandshakeSuccess(guid);
+        }
+
+        private void ThrowIfInvalidResponseCode(HttpResponse? repsonse)
+        {
+            if (repsonse?.StatusCode != 101)
+                throw new InvalidHttpResponseCodeException(repsonse?.StatusCode);
+        }
+
+        /// <summary>
+        /// Override this if you need more fine grained control over the TLS handshake like setting the SslProtocol or adding a client certificate
+        /// </summary>
+        protected virtual void TlsAuthenticateAsClient(SslStream sslStream, string host)
+            => sslStream.AuthenticateAsClient(host, null, SslProtocols.Tls12, true);
+
+        /// <summary>
+        /// Creates the underlying stream for WebSocket connection
+        /// </summary>
+        protected async virtual ValueTask<Stream> GetStreamAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
+        {
+            var tcpClient = new TcpClient { NoDelay = noDelay };
+            if (IPAddress.TryParse(host, out var ipAddress))
+            {
+                Events.Log?.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
+                await tcpClient.ConnectAsync(ipAddress, port).ConfigureAwait(false);
+            }
+            else
+            {
+                Events.Log?.ClientConnectingToHost(loggingGuid, host, port);
+                await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var stream = tcpClient.GetStream();
+
+            if (isSecure)
+            {
+                var sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
+                Events.Log?.AttemtingToSecureSslConnection(loggingGuid);
+
+                // This will throw an AuthenticationException if the certificate is not valid
+                this.TlsAuthenticateAsClient(sslStream, host);
+                Events.Log?.ConnectionSecured(loggingGuid);
+                return sslStream;
+            }
+
+            Events.Log?.ConnectionNotSecure(loggingGuid);
+            return stream;
+        }
+
+        /// <summary>
+        /// Invoked by the RemoteCertificateValidationDelegate
+        /// If you want to ignore certificate errors (for debugging) then return true
+        /// </summary>
+        private static bool ValidateServerCertificate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+        {
+            if (sslPolicyErrors == SslPolicyErrors.None)
+                return true;
+
+            Events.Log?.SslCertificateError(sslPolicyErrors);
+            // TODO: Add option on new server to "ignore certificate errors"
+
+            // Do not allow this client to communicate with unauthenticated servers.
+            return false;
+        }
+
+        private ValueTask<WebSocket> PerformHandshakeAsync(Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
+        {
+            var secWebSocketKey = Shared.SecWebSocketKey();
+            var handshakeHttpRequest = HttpRequest.Create("GET", uri.PathAndQuery)
+                .AddHeader("Host", $"{uri.Host}:{uri.Port}")
+                .AddHeader("Upgrade", "websocket")
+                .AddHeader("Connection", "Upgrade")
+                .AddHeader("Sec-WebSocket-Key", secWebSocketKey)
+                .AddHeader("Origin", $"http://{uri.Host}:{uri.Port}")
+                .AddHeaderIf(!string.IsNullOrEmpty(options.SecWebSocketProtocol),
+                            "Sec-WebSocket-Protocol", options.SecWebSocketProtocol!)
+                .AddHeaderIf(!string.IsNullOrEmpty(options.SecWebSocketExtensions),
+                            "Sec-WebSocket-Extensions", options.SecWebSocketExtensions!)
+                .AddHeaders(options.AdditionalHttpHeaders)
+                .AddHeader("Sec-WebSocket-Version", "13")
+                .ToHttpRequest();
+
+            var httpRequest = Encoding.UTF8.GetBytes(handshakeHttpRequest);
+            stream.Write(httpRequest, 0, httpRequest.Length);
+            Events.Log?.HandshakeSent(guid, handshakeHttpRequest);
+            return this.ConnectAsync(stream, secWebSocketKey, options, cancellationToken);
+        }
+
+        /// <summary>
+        /// Connects with a stream and performs handshake validation
+        /// </summary>
+        private ValueTask<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken)
+            => this.ConnectAsync(Guid.NewGuid(),
+                responseStream,
+                secWebSocketKey,
+                options.KeepAliveInterval,
+                options.SecWebSocketExtensions,
+                options.IncludeExceptionInCloseResponse,
+                cancellationToken);
+
+        #endregion
 
         public void Dispose()
         {

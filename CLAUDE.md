@@ -64,7 +64,6 @@ dotnet run --project Shinobi.WebSockets.DemoServer/Shinobi.WebSockets.DemoServer
 - **Shinobi.WebSockets/** - Main library implementing .NET Standard 2.0 WebSocket abstract class
 - **ShinobiWebSocket** - Primary WebSocket implementation extending System.Net.WebSockets.WebSocket
 - **WebSocketServer** - High-level server for accepting WebSocket connections with TLS support
-- **WebSocketClientFactory** - Factory for creating client WebSocket connections
 
 ### Key Components
 
