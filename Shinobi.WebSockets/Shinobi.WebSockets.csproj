@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net9</TargetFrameworks>
+    <!--<TargetFrameworks>netstandard2.0;net45</TargetFrameworks>-->
+    <!-- Version will be set by GitHub Actions on release -->
+    <Version>1.0.0</Version>
+    <Authors>David Haig, Hansueli Burri</Authors>
+    <Company>Hansueli Burri</Company>
+    <Copyright>David Haig, Hansueli Burri</Copyright>
+    <RepositoryUrl>https://github.com/hempe/Shinobi.WebSockets</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/hempe/Shinobi.WebSockets</PackageProjectUrl>
+    <Description>A modern, flexible WebSocket library for .NET that makes it easy to build robust
+      servers and clients.
+      Built on System.Net.WebSockets.WebSocket abstract class with extensive additional features.
+      Targets .NET Standard 2.0 and .NET 9, with compatibility back to .NET Framework 4.7.2
+      Works cross-platform (Windows, Linux, macOS) without HTTP.sys dependencies.
+
+      Features fluent builder APIs for both server and client, auto-reconnect with exponential
+      backoff,
+      per-message deflate compression, SSL/TLS support, CORS, authentication hooks, comprehensive
+      logging,
+      and connection state monitoring. Includes demo applications and extensive documentation for
+      easy adoption.</Description>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageReleaseNotes>Complete refactor and modernization of Ninja.WebSockets with fluent builders, auto-reconnect, and comprehensive interceptor model</PackageReleaseNotes>
+    <PackageTags>WebSockets, WebSocket, .NET, .NET Standard, Shinobi, Server, Client, Async, Real-time, Networking</PackageTags>
+    <SignAssembly>false</SignAssembly>
+    <Configurations>Debug;Release</Configurations>
+    <PackageLicenseFile>LICENCE.md</PackageLicenseFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <LangVersion>8.0</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup
+    Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
+    <DefineConstants>TRACE</DefineConstants>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <None Include="..\icon.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+    <None Include="..\LICENCE.md">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+    <PackageReference Include="System.Buffers" Version="4.6.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.7" />
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0"
+      PrivateAssets="all" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.14.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

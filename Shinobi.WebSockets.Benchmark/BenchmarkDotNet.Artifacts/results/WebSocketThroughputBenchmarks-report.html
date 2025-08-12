@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>WebSocketThroughputBenchmarks-20250725-211234</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.2, Linux Manjaro Linux
+Intel Core i7-8565U CPU 1.80GHz (Whiskey Lake), 1 CPU, 8 logical and 4 physical cores
+.NET SDK 9.0.105
+  [Host]   : .NET 9.0.4 (9.0.425.16305), X64 RyuJIT AVX2
+  .NET 9.0 : .NET 9.0.4 (9.0.425.16305), X64 RyuJIT AVX2
+</code></pre>
+<pre><code>Job=.NET 9.0  Runtime=.NET 9.0  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                 </th><th>MessageCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Gen0</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>ClientToServer_MediumMessages</td><td>50</td><td>291.7 &mu;s</td><td>4.84 &mu;s</td><td>7.09 &mu;s</td><td>14.6484</td><td>59.69 KB</td>
+</tr><tr><td>ClientToServer_SmallMessages</td><td>50</td><td>432.4 &mu;s</td><td>10.51 &mu;s</td><td>30.32 &mu;s</td><td>14.6484</td><td>60.59 KB</td>
+</tr><tr><td>ClientToServer_MediumMessages</td><td>100</td><td>577.1 &mu;s</td><td>10.99 &mu;s</td><td>10.79 &mu;s</td><td>28.3203</td><td>118.46 KB</td>
+</tr><tr><td>ClientToServer_SmallMessages</td><td>100</td><td>837.2 &mu;s</td><td>16.63 &mu;s</td><td>43.81 &mu;s</td><td>29.2969</td><td>121.32 KB</td>
+</tr><tr><td>ClientToServer_MediumMessages</td><td>250</td><td>1,462.3 &mu;s</td><td>23.46 &mu;s</td><td>19.59 &mu;s</td><td>72.2656</td><td>295.07 KB</td>
+</tr><tr><td>ClientToServer_SmallMessages</td><td>250</td><td>2,254.4 &mu;s</td><td>44.95 &mu;s</td><td>131.82 &mu;s</td><td>70.3125</td><td>294.74 KB</td>
+</tr></tbody></table>
+</body>
+</html>

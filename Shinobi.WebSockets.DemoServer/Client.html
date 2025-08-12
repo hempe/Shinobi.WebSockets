@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Demo Client</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        .connection-panel {
+            padding: 1.5rem;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #10b981;
+        }
+
+        .status-dot.connecting {
+            background: #f59e0b;
+        }
+
+        .status-dot.disconnected {
+            background: #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .connection-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 0.5rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .btn {
+            padding: 0.5rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-connect {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-connect:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .btn-disconnect {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-disconnect:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        .btn-send {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .btn-send:hover:not(:disabled) {
+            background: #4338ca;
+        }
+
+        .chat-panel {
+            padding: 1.5rem;
+        }
+
+        .log-container {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            height: 300px;
+            overflow-y: auto;
+            background: #ffffff;
+            margin-bottom: 1rem;
+            padding: 1rem;
+        }
+
+        .log-entry {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f1f5f9;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry.sent {
+            color: #4f46e5;
+        }
+
+        .log-entry.received {
+            color: #059669;
+        }
+
+        .log-entry.system {
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .log-entry.error {
+            color: #ef4444;
+            font-weight: 500;
+        }
+
+        .timestamp {
+            color: #94a3b8;
+            font-size: 0.8rem;
+            margin-right: 0.5rem;
+        }
+
+        .message-panel {
+            display: flex;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .message-input:disabled {
+            background: #f1f5f9;
+            color: #94a3b8;
+        }
+
+        .quick-commands {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .quick-cmd {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-cmd:hover:not(:disabled) {
+            background: #e2e8f0;
+        }
+
+        .quick-cmd.stress-test {
+            background: #fbbf24;
+            border-color: #f59e0b;
+            color: #92400e;
+            font-weight: 600;
+        }
+
+        .quick-cmd.stress-test:hover:not(:disabled) {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .quick-cmd.stress-test.running {
+            background: #ef4444;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-title {
+            margin: 0 0 1rem 0;
+            color: #1f2937;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+            line-height: 1.5;
+        }
+
+        .modal-footer {
+            text-align: right;
+        }
+
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #1f2937;
+        }
+
+        .quick-cmd:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Progress bar styles */
+        .progress-container {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #059669);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 1rem;
+            }
+
+            .connection-status {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .connection-controls {
+                flex-direction: column;
+            }
+
+            .url-input {
+                margin-bottom: 0.5rem;
+            }
+
+            .stats {
+                justify-content: space-around;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WebSocket Demo Client</h1>
+        </div>
+
+        <div class="connection-panel">
+            <div class="connection-status">
+                <div class="status-indicator">
+                    <div class="status-dot disconnected" id="statusDot"></div>
+                    <span id="statusText">Disconnected</span>
+                </div>
+                <div class="connection-controls">
+                    <input type="text" id="urlInput" class="url-input" value="wss://localhost:8080"
+                        placeholder="WebSocket URL">
+                    <button id="connectBtn" class="btn btn-connect">Connect</button>
+                    <button id="disconnectBtn" class="btn btn-disconnect" disabled>Disconnect</button>
+                </div>
+            </div>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="messagesSent">0</div>
+                    <div>Sent</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="messagesReceived">0</div>
+                    <div>Received</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="connectionTime">--</div>
+                    <div>Connected</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-panel">
+            <div class="log-container" id="logContainer">
+                <div class="log-entry system">
+                    <span class="timestamp" id="initialTimestamp"></span>
+                    Ready to connect. Enter WebSocket URL and click Connect.
+                </div>
+            </div>
+
+            <div class="message-panel">
+                <input type="text" id="messageInput" class="message-input" placeholder="Type a message..." disabled>
+                <button id="sendBtn" class="btn btn-send" disabled>Send</button>
+            </div>
+
+            <div class="quick-commands">
+                <button class="quick-cmd" id="timeCmd" disabled>time</button>
+                <button class="quick-cmd" id="helpCmd" disabled>help</button>
+                <button class="quick-cmd" id="pingCmd" disabled>ping</button>
+                <button class="quick-cmd stress-test" id="stressTestBtn" disabled>Stress Test</button>
+            </div>
+
+            <!-- Progress bar for stress test -->
+            <div class="progress-container" id="progressContainer" style="display: none;">
+                <div class="progress-header">
+                    <span id="progressText">Progress: 0/1000</span>
+                    <span id="progressRate">0 req/sec</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-stats">
+                    <span id="progressMessages">0 msg/sec</span>
+                    <span id="progressLatency">0ms avg</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for connection close details -->
+    <div class="modal" id="closeModal">
+        <div class="modal-content">
+            <h3 class="modal-title">Connection Closed</h3>
+            <div class="modal-body" id="closeModalBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-connect" onclick="closeModal()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class WebSocketClient {
+            constructor() {
+                this.ws = null;
+                this.messagesSent = 0;
+                this.messagesReceived = 0;
+                this.connectTime = null;
+                this.connectionTimer = null;
+                this.stressTestRunning = false;
+                this.stressTestInterval = null;
+                this.stressTestCount = 0;
+                this.stressTestTotal = 10_000;
+                this.stressTestStartTime = null;
+                this.awaitingStressResponse = false;
+                this.stressTestSendTime = null;
+                this.totalLatency = 0;
+                this.stressTestTimeout = undefined;
+
+                this.initializeElements();
+                this.attachEventListeners();
+                this.updateTimestamp();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    statusDot: document.getElementById('statusDot'),
+                    statusText: document.getElementById('statusText'),
+                    urlInput: document.getElementById('urlInput'),
+                    connectBtn: document.getElementById('connectBtn'),
+                    disconnectBtn: document.getElementById('disconnectBtn'),
+                    logContainer: document.getElementById('logContainer'),
+                    messageInput: document.getElementById('messageInput'),
+                    sendBtn: document.getElementById('sendBtn'),
+                    messagesSent: document.getElementById('messagesSent'),
+                    messagesReceived: document.getElementById('messagesReceived'),
+                    connectionTime: document.getElementById('connectionTime'),
+                    timeCmd: document.getElementById('timeCmd'),
+                    helpCmd: document.getElementById('helpCmd'),
+                    pingCmd: document.getElementById('pingCmd'),
+                    stressTestBtn: document.getElementById('stressTestBtn'),
+                    progressContainer: document.getElementById('progressContainer'),
+                    progressFill: document.getElementById('progressFill'),
+                    progressText: document.getElementById('progressText'),
+                    progressRate: document.getElementById('progressRate'),
+                    progressMessages: document.getElementById('progressMessages'),
+                    progressLatency: document.getElementById('progressLatency'),
+                    closeModal: document.getElementById('closeModal')
+                };
+            }
+
+            attachEventListeners() {
+                this.elements.connectBtn.addEventListener('click', () => this.connect());
+                this.elements.disconnectBtn.addEventListener('click', () => this.disconnect());
+                this.elements.sendBtn.addEventListener('click', () => this.sendMessage());
+
+                this.elements.messageInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+
+                this.elements.timeCmd.addEventListener('click', () => this.sendQuickCommand('time'));
+                this.elements.helpCmd.addEventListener('click', () => this.sendQuickCommand('help'));
+                this.elements.pingCmd.addEventListener('click', () => this.sendQuickCommand('ping'));
+                this.elements.stressTestBtn.addEventListener('click', () => this.toggleStressTest());
+
+                // Close modal when clicking outside
+                this.elements.closeModal.addEventListener('click', (e) => {
+                    if (e.target === this.elements.closeModal) {
+                        this.closeModal();
+                    }
+                });
+            }
+
+            updateTimestamp() {
+                const now = new Date().toLocaleTimeString();
+                const timestamp = document.getElementById('initialTimestamp');
+                if (timestamp) {
+                    timestamp.textContent = now;
+                }
+            }
+
+            connect() {
+                const url = this.elements.urlInput.value.trim();
+                if (!url) {
+                    this.addLog('Please enter a WebSocket URL', 'error');
+                    return;
+                }
+
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.addLog('Already connected!', 'system');
+                    return;
+                }
+
+                this.updateStatus('connecting', 'Connecting...');
+                this.addLog(`Connecting to ${url}...`, 'system');
+
+                try {
+                    this.ws = new WebSocket(url);
+                    this.setupWebSocketHandlers();
+                } catch (error) {
+                    this.addLog(`Failed to create WebSocket: ${error.message}`, 'error');
+                    this.updateStatus('disconnected', 'Disconnected');
+                }
+            }
+
+            setupWebSocketHandlers() {
+                this.ws.onopen = () => {
+                    this.connectTime = Date.now();
+                    this.updateStatus('connected', 'Connected');
+                    this.addLog('√ Connected to server', 'system');
+                    this.startConnectionTimer();
+                    this.updateControls(true);
+                };
+
+                this.ws.onmessage = (event) => {
+                    this.messagesReceived++;
+                    this.updateStats();
+
+                    let messageData;
+                    let isStressTestResponse = false;
+
+                    // Handle both text and binary messages
+                    if (event.data instanceof ArrayBuffer) {
+                        // Binary message - decode it
+                        const decoder = new TextDecoder();
+                        messageData = decoder.decode(event.data);
+                        isStressTestResponse = messageData.startsWith('STRESS_');
+
+                        // Handle stress test response
+                        if (isStressTestResponse && this.stressTestRunning && this.awaitingStressResponse) {
+                            this.handleStressTestResponse();
+                            // Don't log binary stress test responses at all
+                        } else if (!isStressTestResponse) {
+                            this.addLog(`▼ [BINARY] ${messageData}`, 'received');
+                        }
+                    } else if (event.data instanceof Blob) {
+                        // Handle blob data
+                        event.data.arrayBuffer().then(buffer => {
+                            const decoder = new TextDecoder();
+                            messageData = decoder.decode(buffer);
+                            isStressTestResponse = messageData.startsWith('STRESS_');
+
+                            if (isStressTestResponse && this.stressTestRunning && this.awaitingStressResponse) {
+                                this.handleStressTestResponse();
+                                // Don't log binary stress test responses at all
+                            } else if (!isStressTestResponse) {
+                                this.addLog(`▼ [BLOB] ${messageData}`, 'received');
+                            }
+                        });
+                        return;
+                    } else {
+                        // Text message
+                        messageData = event.data;
+                        if (typeof messageData === 'string') {
+                            // Remove any problematic characters and normalize whitespace
+                            messageData = messageData.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+                                .replace(/\s+/g, ' ')
+                                .trim();
+                        }
+
+                        // Don't log empty messages
+                        if (messageData) {
+                            this.addLog(`▼ ${messageData}`, 'received');
+                        } else {
+                            this.addLog(`▼ [Empty message received]`, 'received');
+                        }
+                    }
+                };
+
+                this.ws.onclose = (event) => {
+                    this.stopConnectionTimer();
+                    this.updateStatus('disconnected', 'Disconnected');
+                    this.updateControls(false);
+
+                    let closeReason = this.getCloseReason(event.code);
+                    let logMessage = `X Connection closed (Code: ${event.code})`;
+
+                    if (event.reason) {
+                        logMessage += ` - ${event.reason}`;
+                        closeReason += `\n\nServer message: "${event.reason}"`;
+                    }
+
+                    this.addLog(logMessage, 'system');
+
+                    // Show modal with close details
+                    this.showCloseModal(event.code, event.reason, closeReason);
+                };
+
+                this.ws.onerror = (error) => {
+                    this.addLog('X WebSocket error occurred', 'error');
+                    console.error('WebSocket error:', error);
+                };
+            }
+
+            disconnect() {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.addLog('Disconnecting...', 'system');
+                    this.ws.close(1000, 'User requested disconnect');
+                } else {
+                    this.addLog('Not connected', 'system');
+                }
+
+                // Stop stress test if running
+                this.stopStressTest();
+            }
+
+            sendMessage() {
+                const message = this.elements.messageInput.value.trim();
+                if (!message) return;
+
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    this.addLog('❌ Not connected to server', 'error');
+                    return;
+                }
+
+                try {
+                    this.ws.send(message);
+                    this.messagesSent++;
+                    this.updateStats();
+                    this.addLog(`▲ ${message}`, 'sent');
+                    this.elements.messageInput.value = '';
+                } catch (error) {
+                    this.addLog(`❌ Failed to send message: ${error.message}`, 'error');
+                }
+            }
+
+            sendQuickCommand(command) {
+                this.elements.messageInput.value = command;
+                this.sendMessage();
+            }
+
+            addLog(message, type = 'system') {
+                const entry = document.createElement('div');
+                entry.className = `log-entry ${type}`;
+
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = new Date().toLocaleTimeString();
+
+                entry.appendChild(timestamp);
+
+                // Create a text node for the message to prevent HTML injection
+                // and handle any special characters properly
+                const messageText = document.createTextNode(message);
+                entry.appendChild(messageText);
+
+                this.elements.logContainer.appendChild(entry);
+                this.elements.logContainer.scrollTop = this.elements.logContainer.scrollHeight;
+
+                // Also log to console for debugging
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+
+            updateStatus(status, text) {
+                this.elements.statusDot.className = `status-dot ${status}`;
+                this.elements.statusText.textContent = text;
+            }
+
+            updateControls(connected) {
+                this.elements.connectBtn.disabled = connected;
+                this.elements.disconnectBtn.disabled = !connected;
+                this.elements.messageInput.disabled = !connected;
+                this.elements.sendBtn.disabled = !connected;
+                this.elements.timeCmd.disabled = !connected;
+                this.elements.helpCmd.disabled = !connected;
+                this.elements.pingCmd.disabled = !connected;
+                this.elements.stressTestBtn.disabled = !connected;
+                this.elements.urlInput.disabled = connected;
+
+                // Stop stress test if disconnected
+                if (!connected) {
+                    this.stopStressTest();
+                }
+            }
+
+            updateStats() {
+                this.elements.messagesSent.textContent = this.messagesSent;
+                this.elements.messagesReceived.textContent = this.messagesReceived;
+            }
+
+            startConnectionTimer() {
+                this.connectionTimer = setInterval(() => {
+                    if (this.connectTime) {
+                        const duration = Date.now() - this.connectTime;
+                        const seconds = Math.floor(duration / 1000);
+                        const minutes = Math.floor(seconds / 60);
+                        const hours = Math.floor(minutes / 60);
+
+                        let timeStr = '';
+                        if (hours > 0) {
+                            timeStr = `${hours}h ${minutes % 60}m`;
+                        } else if (minutes > 0) {
+                            timeStr = `${minutes}m ${seconds % 60}s`;
+                        } else {
+                            timeStr = `${seconds}s`;
+                        }
+
+                        this.elements.connectionTime.textContent = timeStr;
+                    }
+                }, 1000);
+            }
+
+            stopConnectionTimer() {
+                if (this.connectionTimer) {
+                    clearInterval(this.connectionTimer);
+                    this.connectionTimer = null;
+                }
+                this.elements.connectionTime.textContent = '--';
+                this.connectTime = null;
+            }
+
+            getCloseReason(code) {
+                const reasons = {
+                    1000: 'Normal closure - The connection completed successfully.',
+                    1001: 'Going away - The server is going down or the browser is navigating away.',
+                    1002: 'Protocol error - The connection was terminated due to a protocol error.',
+                    1003: 'Unsupported data - The connection was terminated because unsupported data was received.',
+                    1004: 'Reserved - A reserved value and MUST NOT be set as a status code.',
+                    1005: 'No status - No status code was present (this is not an error).',
+                    1006: 'Abnormal closure - The connection was closed abnormally.',
+                    1007: 'Invalid data - The connection was terminated because invalid data was received.',
+                    1008: 'Policy violation - The connection was terminated because a policy violation occurred.',
+                    1009: 'Message too big - The connection was terminated because a data frame was too large.',
+                    1010: 'Extension required - The client expected the server to negotiate extensions.',
+                    1011: 'Internal error - The server encountered an unexpected condition.',
+                    1012: 'Service restart - The server is restarting.',
+                    1013: 'Try again later - The server is temporarily overloaded.',
+                    1014: 'Bad gateway - The server was acting as a gateway and received an invalid response.',
+                    1015: 'TLS handshake failure - The connection was closed due to a failure to perform a TLS handshake.'
+                };
+
+                return reasons[code] || `Unknown close code: ${code}`;
+            }
+
+            showCloseModal(code, reason, description) {
+                const modalBody = document.getElementById('closeModalBody');
+                modalBody.innerHTML = `
+            <p><strong>Close Code:</strong> ${code}</p>
+            ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+            <p><strong>Description:</strong> ${description}</p>
+        `;
+                this.elements.closeModal.classList.add('show');
+            }
+
+            closeModal() {
+                this.elements.closeModal.classList.remove('show');
+            }
+
+            toggleStressTest() {
+                if (this.stressTestRunning) {
+                    this.stopStressTest();
+                } else {
+                    this.startStressTest();
+                }
+            }
+
+            startStressTest() {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    this.addLog('X Cannot start stress test - not connected', 'error');
+                    return;
+                }
+
+                // Reset counters
+                this.stressTestCount = 0;
+                this.stressTestRunning = true;
+                this.stressTestStartTime = Date.now();
+                this.awaitingStressResponse = false;
+
+                // Update UI
+                this.elements.stressTestBtn.textContent = 'Stop Test';
+                this.elements.stressTestBtn.classList.add('running');
+                this.elements.progressContainer.style.display = 'block';
+                this.updateProgressBar();
+
+                this.addLog(`> Starting request-response stress test: ${this.stressTestTotal} round-trips`, 'system');
+
+                // Send first message to start the chain
+                this.sendStressTestMessage();
+            }
+
+
+
+            sendStressTestMessage() {
+                if (!this.stressTestRunning || this.stressTestCount >= this.stressTestTotal) {
+                    this.completeStressTest();
+                    return;
+                }
+
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    this.addLog('X Stress test stopped - connection lost', 'error');
+                    this.stopStressTest();
+                    return;
+                }
+
+                try {
+                    // Create binary message with counter and timestamp
+                    const message = `STRESS_${this.stressTestCount + 1}_${Date.now()}`;
+                    const encoder = new TextEncoder();
+                    const binaryData = encoder.encode(message);
+
+                    // Send as binary message
+                    this.ws.send(binaryData.buffer);
+                    this.awaitingStressResponse = true;
+                    this.stressTestSendTime = Date.now(); // Track send time for latency
+
+                    // Timeout protection - if no response in 5 seconds, continue
+                    if (this.stressTestTimeout)
+                        clearTimeout(this.stressTestTimeout);
+
+                    this.stressTestTimeout = setTimeout(() => {
+                        if (this.awaitingStressResponse && this.stressTestRunning) {
+                            this.addLog('> Timeout waiting for response, continuing...', 'system');
+                            this.stopStressTest();
+                        }
+                    }, 5000);
+
+                } catch (error) {
+                    this.addLog(`X Stress test error: ${error.message}`, 'error');
+                    this.stopStressTest();
+                }
+            }
+
+            handleStressTestResponse() {
+                if (!this.awaitingStressResponse) return;
+
+                // Calculate latency if we have send time
+                if (this.stressTestSendTime) {
+                    const latency = Date.now() - this.stressTestSendTime;
+                    this.totalLatency += latency;
+                }
+
+                this.awaitingStressResponse = false;
+                this.stressTestCount++;
+                this.updateProgressBar();
+                this.sendStressTestMessage();
+            }
+
+            updateProgressBar() {
+                const percentage = (this.stressTestCount / this.stressTestTotal) * 100;
+                this.elements.progressFill.style.width = `${percentage}%`;
+                this.elements.progressText.textContent = `Progress: ${this.stressTestCount}/${this.stressTestTotal}`;
+
+                if (this.stressTestStartTime) {
+                    const elapsed = (Date.now() - this.stressTestStartTime) / 1000;
+                    const rate = elapsed > 0 ? Math.round(this.stressTestCount / elapsed) : 0;
+                    this.elements.progressRate.textContent = `${rate} req/sec`;
+
+                    // Calculate messages per second (includes both sent and received)
+                    const totalMessages = this.stressTestCount * 2; // sent + received
+                    const msgRate = elapsed > 0 ? Math.round(totalMessages / elapsed) : 0;
+                    this.elements.progressMessages.textContent = `${msgRate} msg/sec`;
+
+                    // Calculate average latency
+                    const avgLatency = this.stressTestCount > 0 ? Math.round(this.totalLatency / this.stressTestCount) : 0;
+                    this.elements.progressLatency.textContent = `${avgLatency}ms avg`;
+                }
+            }
+
+            completeStressTest() {
+                const duration = Date.now() - this.stressTestStartTime;
+                const rate = Math.round((this.stressTestCount / duration) * 1000);
+                this.addLog(`> Stress test completed: ${this.stressTestCount} round-trips in ${duration}ms (${rate} req/sec)`, 'system');
+                this.stopStressTest();
+            }
+
+            stopStressTest() {
+                if (this.stressTestInterval) {
+                    clearInterval(this.stressTestInterval);
+                    this.stressTestInterval = null;
+                }
+
+                this.stressTestRunning = false;
+                this.awaitingStressResponse = false;
+                this.totalLatency = 0;
+                this.elements.stressTestBtn.textContent = 'Stress Test';
+                this.elements.stressTestBtn.classList.remove('running');
+                this.elements.progressContainer.style.display = 'none';
+
+                // Reset progress bar
+                this.elements.progressFill.style.width = '0%';
+            }
+        }
+
+        // Global function for modal
+        function closeModal() {
+            client.closeModal();
+        }
+
+        // Initialize the client
+        const client = new WebSocketClient();
+    </script>
+</body>
+
+</html>

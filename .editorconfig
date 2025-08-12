@@ -1,0 +1,75 @@
+# .editorconfig
+root = true
+
+[*.cs]
+max_line_length = 120
+
+###############
+# Qualification
+###############
+
+# Use 'this.' qualifier
+dotnet_style_qualification_for_field = true:warning
+dotnet_style_qualification_for_property = true:warning
+dotnet_style_qualification_for_method = true:warning
+dotnet_style_qualification_for_event = true:warning
+
+#########################
+# Async Naming Convention
+#########################
+
+# Naming style for async methods
+dotnet_naming_style.async_methods_end_with_async.required_suffix = Async
+dotnet_naming_style.async_methods_end_with_async.capitalization = pascal_case
+
+dotnet_naming_symbols.async_methods.applicable_kinds = method
+dotnet_naming_symbols.async_methods.applicable_accessibilities = *
+dotnet_naming_symbols.async_methods.required_modifiers = async
+
+dotnet_naming_rule.async_methods_should_end_with_async.symbols = async_methods
+dotnet_naming_rule.async_methods_should_end_with_async.style = async_methods_end_with_async
+dotnet_naming_rule.async_methods_should_end_with_async.severity = warning
+
+#################
+# Using Directives
+#################
+
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = true
+
+###########
+# Braces & Formatting
+###########
+
+csharp_prefer_braces = true:suggestion
+csharp_indent_case_contents = true
+
+######################
+# Modifier Preferences
+######################
+
+# Modifier order: public, protected, private, internal, static, readonly, volatile, async
+csharp_preferred_modifier_order = public, protected, private, internal, static, readonly, volatile, async : warning
+
+# Optional: place accessibility modifiers first (more visual consistency)
+dotnet_style_require_accessibility_modifiers = always:warning
+
+#####################
+# Formatting & Layout
+#####################
+
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+####################
+# Roslynator Support
+####################
+
+# Enable member ordering rules via Roslynator if installed
+# This is a naming-convention-style fallback for basic member ordering
+
+# You can also add specific Roslynator rules via dotnet_diagnostic.RCS####.severity = warning|error
+
+dotnet_diagnostic.RCS1214.severity = warning
