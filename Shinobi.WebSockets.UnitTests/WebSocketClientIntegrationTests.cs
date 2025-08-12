@@ -231,12 +231,19 @@ namespace Shinobi.WebSockets.UnitTests
 
         public async Task DisposeAsync()
         {
-            if (this.server != null)
+            try
             {
-                await this.server.StopAsync();
-                this.server.Dispose();
+                if (this.server != null)
+                {
+                    await this.server.StopAsync();
+                    this.server.Dispose();
+                }
+                this.cts.Dispose();
             }
-            this.cts.Dispose();
+            catch
+            {
+                // Can happen
+            }
         }
     }
 }
