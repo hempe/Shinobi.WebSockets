@@ -1,0 +1,47 @@
+name: Publish to NuGet
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Extract version from tag
+      id: version
+      run: |
+        # Remove 'v' prefix if present (e.g., v1.2.3 -> 1.2.3)
+        VERSION=${GITHUB_REF_NAME#v}
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
+        
+    - name: Restore dependencies
+      run: dotnet restore Shinobi.WebSockets.sln
+      
+    - name: Build
+      run: dotnet build Shinobi.WebSockets.sln --configuration Release --no-restore -p:Version=${{ steps.version.outputs.VERSION }}
+      
+    - name: Run tests
+      run: dotnet test Shinobi.WebSockets.UnitTests/Shinobi.WebSockets.UnitTests.csproj --configuration Release --no-build --framework net9.0 --verbosity normal
+      
+    - name: Pack NuGet package
+      run: dotnet pack Shinobi.WebSockets/Shinobi.WebSockets.csproj --configuration Release --no-build -p:Version=${{ steps.version.outputs.VERSION }} --output ./artifacts
+      
+    - name: Publish to NuGet
+      run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-package
+        path: ./artifacts/*.nupkg

@@ -8,7 +8,6 @@ This document tracks potential future enhancements for Shinobi.WebSockets. The c
 
 ### Protocol & Standards
 
-- [ ] Support `Sec-WebSocket-Protocol` negotiation
 - [ ] Add WebSocket extensions support (beyond per-message deflate)
 
 ### Developer Experience

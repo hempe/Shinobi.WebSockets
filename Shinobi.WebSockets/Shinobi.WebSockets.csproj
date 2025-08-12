@@ -3,14 +3,13 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net9</TargetFrameworks>
     <!--<TargetFrameworks>netstandard2.0;net45</TargetFrameworks>-->
-    <Version>1.1.8</Version>
+    <!-- Version will be set by GitHub Actions on release -->
+    <Version>1.0.0</Version>
     <Authors>David Haig, Hansueli Burri</Authors>
     <Company>Hansueli Burri</Company>
     <Copyright>David Haig, Hansueli Burri</Copyright>
-    <PackageIconUrl></PackageIconUrl>
     <RepositoryUrl>https://github.com/hempe/Shinobi.WebSockets</RepositoryUrl>
-    <PackageLicenseUrl></PackageLicenseUrl>
-    <PackageProjectUrl>https://github.com/ninjasource/Shinobi.WebSockets</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/hempe/Shinobi.WebSockets</PackageProjectUrl>
     <Description>A modern, flexible WebSocket library for .NET that makes it easy to build robust
       servers and clients.
       Built on System.Net.WebSockets.WebSocket abstract class with extensive additional features.
@@ -24,12 +23,8 @@
       and connection state monitoring. Includes demo applications and extensive documentation for
       easy adoption.</Description>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <PackageReleaseNotes>Receive buffer can now be smaller than a websocket frame</PackageReleaseNotes>
-    <PackageTags>WebSockets, Web Sockets, WebSocket, Web Socket, .netstandard,</PackageTags>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <PackageVersion>$(AssemblyVersion)</PackageVersion>
-    <Version>$(AssemblyVersion)</Version>
-    <FileVersion>$(AssemblyVersion)</FileVersion>
+    <PackageReleaseNotes>Complete refactor and modernization of Ninja.WebSockets with fluent builders, auto-reconnect, and comprehensive interceptor model</PackageReleaseNotes>
+    <PackageTags>WebSockets, WebSocket, .NET, .NET Standard, Shinobi, Server, Client, Async, Real-time, Networking</PackageTags>
     <SignAssembly>false</SignAssembly>
     <Configurations>Debug;Release</Configurations>
     <PackageLicenseFile>LICENCE.md</PackageLicenseFile>
