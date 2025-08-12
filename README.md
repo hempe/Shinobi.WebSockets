@@ -1,4 +1,8 @@
-﻿# Shinobi.WebSockets
+﻿<p align="center">
+  <img src="icon.png" width="96" height="96" alt="Shinobi.WebSockets Logo">
+</p>
+
+# Shinobi.WebSockets
 
 ## Background
 

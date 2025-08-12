@@ -4,33 +4,34 @@
     <TargetFrameworks>netstandard2.0;net9</TargetFrameworks>
     <!--<TargetFrameworks>netstandard2.0;net45</TargetFrameworks>-->
     <Version>1.1.8</Version>
-    <Authors>David Haig</Authors>
-    <Company>David Haig</Company>
-    <Copyright>David Haig</Copyright>
+    <Authors>David Haig, Hansueli Burri</Authors>
+    <Company>Hansueli Burri</Company>
+    <Copyright>David Haig, Hansueli Burri</Copyright>
     <PackageIconUrl></PackageIconUrl>
-    <RepositoryUrl>https://github.com/ninjasource/Shinobi.WebSockets</RepositoryUrl>
+    <RepositoryUrl>https://github.com/hempe/Shinobi.WebSockets</RepositoryUrl>
     <PackageLicenseUrl></PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/ninjasource/Shinobi.WebSockets</PackageProjectUrl>
-    <Description>A concrete implementation of the .Net Standard 2.0 System.Net.WebSockets.WebSocket
-      abstract class
+    <Description>A modern, flexible WebSocket library for .NET that makes it easy to build robust
+      servers and clients.
+      Built on System.Net.WebSockets.WebSocket abstract class with extensive additional features.
+      Targets .NET Standard 2.0 and .NET 9, with compatibility back to .NET Framework 4.7.2
+      Works cross-platform (Windows, Linux, macOS) without HTTP.sys dependencies.
 
-      Can target .NET 4.5 (or above) or .NET Standard 2.0 (or above)
-      Works on any version of Windows (including Windows 7) as well as Linux as it does not use
-      HTTP.sys.
-
-      A WebSocket library that allows you to make WebSocket connections as a client or to respond to
-      WebSocket requests as a server. You can safely pass around a general purpose WebSocket
-      instance throughout your codebase without tying yourself strongly to this library. This is the
-      same WebSocket abstract class used by .net core 2.0 and it allows for asynchronous Websocket
-      communication for improved performance and scalability.</Description>
+      Features fluent builder APIs for both server and client, auto-reconnect with exponential
+      backoff,
+      per-message deflate compression, SSL/TLS support, CORS, authentication hooks, comprehensive
+      logging,
+      and connection state monitoring. Includes demo applications and extensive documentation for
+      easy adoption.</Description>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageReleaseNotes>Receive buffer can now be smaller than a websocket frame</PackageReleaseNotes>
     <PackageTags>WebSockets, Web Sockets, WebSocket, Web Socket, .netstandard,</PackageTags>
-    <AssemblyVersion>1.0.1.8</AssemblyVersion>
-    <FileVersion>1.0.1.8</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <PackageVersion>$(AssemblyVersion)</PackageVersion>
+    <Version>$(AssemblyVersion)</Version>
+    <FileVersion>$(AssemblyVersion)</FileVersion>
     <SignAssembly>false</SignAssembly>
-    <AssemblyOriginatorKeyFile>Shinobi.WebSockets.pfx</AssemblyOriginatorKeyFile>
-    <Configurations>Debug;Release;ReleaseSigned</Configurations>
+    <Configurations>Debug;Release</Configurations>
     <PackageLicenseFile>LICENCE.md</PackageLicenseFile>
     <PackageIcon>icon.png</PackageIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -44,11 +45,6 @@
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup
-    Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='ReleaseSigned|netstandard2.0|AnyCPU'">
-    <DefineConstants>TRACE;RELEASESIGNED</DefineConstants>
-    <Optimize>true</Optimize>
-  </PropertyGroup>
 
   <ItemGroup>
     <None Include="..\icon.png">

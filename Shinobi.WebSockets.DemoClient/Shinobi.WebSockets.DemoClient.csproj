@@ -9,9 +9,6 @@
     <RootNamespace>Shinobi.WebSockets.DemoClient</RootNamespace>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)' == 'ReleaseSigned'">
-    <DefineConstants>$(DefineConstants);RELEASESIGNED</DefineConstants>
-  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Shinobi.WebSockets\Shinobi.WebSockets.csproj" />

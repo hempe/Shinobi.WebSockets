@@ -31,11 +31,14 @@ public class Program
             Console.WriteLine($"Tests completed: {info.TotalTests}, Failed: {info.TestsFailed}, Skipped: {info.TestsSkipped}");
         };
 
+        var failures = new List<string>();
         runner.OnTestFailed = failure =>
         {
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"❌ {failure.TestDisplayName}");
             Console.WriteLine(failure.ExceptionMessage);
+
+            failures.Add($"x {failure.TestDisplayName}: {failure.ExceptionMessage}");
             Console.ResetColor();
         };
 
@@ -52,6 +55,9 @@ public class Program
         // Wait until all tests complete
         while (runner.Status != AssemblyRunnerStatus.Idle)
             await Task.Delay(100);
+
+        if (failures.Any())
+            throw new Exception(string.Join(Environment.NewLine, failures));
     }
 
     private static void RunTestClass(string name)

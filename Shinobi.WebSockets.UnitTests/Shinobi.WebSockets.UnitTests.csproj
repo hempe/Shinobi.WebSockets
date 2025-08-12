@@ -4,17 +4,12 @@
     <TargetFrameworks>net9.0;net472</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <SignAssembly>false</SignAssembly>
-    <AssemblyOriginatorKeyFile>Shinobi.WebSockets.pfx</AssemblyOriginatorKeyFile>
-    <Configurations>Debug;Release;ReleaseSigned</Configurations>
+    <Configurations>Debug;Release</Configurations>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <Nullable>enable</Nullable>
     <LangVersion>8</LangVersion>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseSigned|AnyCPU'">
-    <Optimize>true</Optimize>
-    <DefineConstants>TRACE</DefineConstants>
-  </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
     <PackageReference Include="System.Threading.Channels" Version="6.0.0" />

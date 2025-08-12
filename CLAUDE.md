@@ -18,8 +18,6 @@ dotnet build -f net9
 # Build in Release mode
 dotnet build -c Release
 
-# Build signed release (for publishing)
-dotnet build -c ReleaseSigned
 ```
 
 ## Test Commands
@@ -36,7 +34,7 @@ dotnet test --filter "FullyQualifiedName~HttpHeaderParserTests" --framework net9
 
 # Run .NET Framework 4.7.2 tests (dotnet test doesn't work for net472 on Linux)
 # Use the Linux runner instead:
-dotnet run --project Shinobi.WebSockets.UnitTests.RunnerLinux/Shinobi.WebSockets.UnitTests.RunnerLinux.csproj
+dotnet run --project Shinobi.WebSockets.UnitTests.RunnerLinux/Shinobi.WebSockets.UnitTests.RunnerLinux.csproj --framework net472
 
 # Alternative: Use VS Code launch configuration "Launch Shinobi.WebSockets.UnitTests.RunnerLinux (.NET 4.7.2)"
 ```
@@ -78,7 +76,7 @@ dotnet run --project Shinobi.WebSockets.DemoClient/Shinobi.WebSockets.DemoClient
 
 ### Multi-Target Support
 
-The library targets both .NET Standard 2.0 and .NET 9, with compatibility back to .NET Framework 4.7.2. Uses conditional compilation for signed releases via RELEASESIGNED define.
+The library targets both .NET Standard 2.0 and .NET 9, with compatibility back to .NET Framework 4.7.2.
 
 ### Testing Structure
 

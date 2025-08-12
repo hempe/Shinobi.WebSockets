@@ -34,7 +34,7 @@
             "stopAtEntry": false
         },
         {
-            "type": "mono",
+            "type": "coreclr",
             "request": "launch",
             "name": "Launch Shinobi.WebSockets.UnitTests.RunnerLinux (.NET 4.7.2)",
             "program": "${workspaceFolder}/Shinobi.WebSockets.UnitTests.RunnerLinux/bin/Debug/net472/Shinobi.WebSockets.UnitTests.RunnerLinux.exe",
