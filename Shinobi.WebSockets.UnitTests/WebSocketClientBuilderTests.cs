@@ -142,7 +142,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseLogging_ShouldSetupLogging()
         {
             using var loggerFactory = LoggerFactory.Create(builder => builder
-                .SetMinimumLevel(LogLevel.Debug)
+                .SetMinimumLevel(LogLevel.Warning)
                 .AddConsole());
 
             var client = WebSocketClientBuilder.Create()
@@ -156,7 +156,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void FluentAPI_ShouldChainMethodCalls()
         {
             using var loggerFactory = LoggerFactory.Create(builder => builder
-                .SetMinimumLevel(LogLevel.Debug)
+                .SetMinimumLevel(LogLevel.Warning)
                 .AddConsole());
 
             var client = WebSocketClientBuilder.Create()

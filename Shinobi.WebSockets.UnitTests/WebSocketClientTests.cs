@@ -25,7 +25,7 @@ namespace Shinobi.WebSockets.UnitTests
         public WebSocketClientTests()
         {
             using var loggerFactory = LoggerFactory.Create(builder => builder
-                    .SetMinimumLevel(LogLevel.Trace)
+                    .SetMinimumLevel(LogLevel.Warning)
                     .AddConsole());
             Events.Log = new Events(loggerFactory.CreateLogger<Events>());
             this.logger = loggerFactory.CreateLogger<WebSocketClientTests>();

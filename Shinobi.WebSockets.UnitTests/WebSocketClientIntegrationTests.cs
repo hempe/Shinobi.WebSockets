@@ -141,7 +141,7 @@ namespace Shinobi.WebSockets.UnitTests
             var connectionEstablished = new TaskCompletionSource<bool>();
 
             using var loggerFactory = LoggerFactory.Create(builder => builder
-                .SetMinimumLevel(LogLevel.Debug)
+                .SetMinimumLevel(LogLevel.Warning)
                 .AddConsole());
 
             using var client = WebSocketClientBuilder.Create()
