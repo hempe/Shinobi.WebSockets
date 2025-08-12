@@ -6,6 +6,9 @@
         "source.fixAll": "always",
         "source.organizeImports": "always",
       }
+    },
+    "files.exclude": {
+      "**/BenchmarkDotNet.Artifacts": true
     }
   }
   
