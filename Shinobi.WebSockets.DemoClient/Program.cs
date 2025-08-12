@@ -20,7 +20,7 @@ namespace Shinobi.WebSockets.DemoClient
         private static int messagesReceived;
         private static DateTime? connectTime;
         private static Timer? connectionTimer;
-        private static readonly CancellationTokenSource appCts = new();
+        private static readonly CancellationTokenSource appCts = new CancellationTokenSource();
         
         // Stress test variables
         private static bool stressTestRunning;
@@ -108,7 +108,7 @@ namespace Shinobi.WebSockets.DemoClient
                 if (string.IsNullOrEmpty(input)) continue;
 
 #if NET472
-                var parts = input.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                var parts = input!.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
 #else
                 var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
 #endif

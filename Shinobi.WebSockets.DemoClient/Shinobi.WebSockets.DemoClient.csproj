@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net9.0;net472</TargetFrameworks>
     <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>8.0</LangVersion>
     <AssemblyName>Shinobi.WebSockets.DemoClient</AssemblyName>
     <RootNamespace>Shinobi.WebSockets.DemoClient</RootNamespace>
   </PropertyGroup>

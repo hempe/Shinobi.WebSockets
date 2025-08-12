@@ -6,6 +6,7 @@
     <Configurations>Debug;Release</Configurations>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <Nullable>enable</Nullable>
+    <LangVersion>8.0</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
