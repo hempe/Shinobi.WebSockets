@@ -111,6 +111,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
 
+#if NET9_0_OR_GREATER
         [Fact]
         public async Task PermessageDeflateAsync()
         {
@@ -157,6 +158,7 @@ namespace Shinobi.WebSockets.UnitTests
             Assert.Equal($"Server [1]: {message}".Length, replies[0].Text.Length);
             Assert.Equal($"Server [1]: {message}", replies[0].Text);
         }
+#endif
 
 
         [Fact]

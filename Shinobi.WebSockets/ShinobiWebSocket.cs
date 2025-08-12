@@ -85,8 +85,9 @@ namespace Shinobi.WebSockets
             this.internalReadCts = new CancellationTokenSource();
             this.state = WebSocketState.Open;
             this.stopwatch = Stopwatch.StartNew();
-            this.PermessageDeflate = secWebSocketExtensions != null;
 
+#if NET9_0_OR_GREATER
+            this.PermessageDeflate = secWebSocketExtensions != null;
             if (this.PermessageDeflate)
             {
                 var deflaterNoContextTakeover = isClient ? "client_no_context_takeover" : "server_no_context_takeover";
@@ -101,6 +102,14 @@ namespace Shinobi.WebSockets
                 this.inflater = null;
                 Events.Log?.NoMessageCompression(context.Guid);
             }
+#else
+            // Per-message deflate not supported on .NET Standard 2.0 / .NET Framework
+            // due to DeflateStream.Flush() limitations
+            this.PermessageDeflate = false;
+            this.deflater = null;
+            this.inflater = null;
+            Events.Log?.NoMessageCompression(context.Guid);
+#endif
 
             this.KeepAliveInterval = keepAliveInterval;
             this.includeExceptionInCloseResponse = includeExceptionInCloseResponse;
