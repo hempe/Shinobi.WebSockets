@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -14,9 +13,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Exceptions;
-using Shinobi.WebSockets.Extensions;
-using Shinobi.WebSockets.Internal;
 using Shinobi.WebSockets.Http;
+using Shinobi.WebSockets.Internal;
 
 namespace Shinobi.WebSockets
 {
@@ -27,7 +25,7 @@ namespace Shinobi.WebSockets
     /// </summary>
     public class WebSocketClient : IDisposable
     {
-        internal WebSocket? webSocket;
+        internal ShinobiWebSocket? webSocket;
         private bool isDisposed;
         private readonly ILogger<WebSocketClient>? logger;
         private readonly WebSocketClientOptions options;
@@ -44,7 +42,7 @@ namespace Shinobi.WebSockets
         /// Occurs when the WebSocket connection state changes (e.g., Connected, Disconnected, Reconnecting).
         /// </summary>
         public event WebSocketConnectionStateChangedHandler? ConnectionStateChanged;
-        
+
         /// <summary>
         /// Occurs when the client is about to attempt a reconnection. Allows modification of the target URI.
         /// </summary>
@@ -98,15 +96,15 @@ namespace Shinobi.WebSockets
         {
             this.currentUri = uri;
             this.connectionCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            
+
             this.ChangeConnectionState(WebSocketConnectionState.Connecting);
-            
+
             this.connectionTask = Task.Run(async () => await this.ManageConnectionAsync(this.connectionCancellationTokenSource.Token));
-            
+
             // Wait for initial connection or failure
             var initialConnectionTimeout = TimeSpan.FromSeconds(30);
             var timeoutTask = Task.Delay(initialConnectionTimeout, cancellationToken);
-            
+
             while (this.ConnectionState == WebSocketConnectionState.Connecting && !cancellationToken.IsCancellationRequested)
             {
                 var completedTask = await Task.WhenAny(timeoutTask, Task.Delay(100, cancellationToken));
@@ -114,10 +112,10 @@ namespace Shinobi.WebSockets
                 {
                     throw new TimeoutException("Initial connection attempt timed out");
                 }
-                
+
                 if (this.ConnectionState == WebSocketConnectionState.Connected)
                     break;
-                    
+
                 if (this.ConnectionState == WebSocketConnectionState.Failed)
                     throw new InvalidOperationException("Failed to establish WebSocket connection");
             }
@@ -129,9 +127,9 @@ namespace Shinobi.WebSockets
         public async Task StopAsync()
         {
             this.ChangeConnectionState(WebSocketConnectionState.Disconnecting);
-            
+
             this.connectionCancellationTokenSource?.Cancel();
-            
+
             if (this.webSocket?.State == WebSocketState.Open)
             {
                 try
@@ -143,7 +141,7 @@ namespace Shinobi.WebSockets
                     // Ignore close errors
                 }
             }
-            
+
             if (this.connectionTask != null)
             {
                 try
@@ -155,7 +153,7 @@ namespace Shinobi.WebSockets
                     // Ignore task cancellation
                 }
             }
-            
+
             this.ChangeConnectionState(WebSocketConnectionState.Disconnected);
         }
 
@@ -194,13 +192,13 @@ namespace Shinobi.WebSockets
         private void ChangeConnectionState(WebSocketConnectionState newState, Exception? exception = null)
         {
             WebSocketConnectionState previousState;
-            
+
             lock (this.stateLock)
             {
                 previousState = this.connectionState;
                 this.connectionState = newState;
             }
-            
+
             if (previousState != newState)
             {
                 this.logger?.LogDebug("WebSocket connection state changed from {PreviousState} to {NewState}", previousState, newState);
@@ -213,33 +211,33 @@ namespace Shinobi.WebSockets
         /// </summary>
         private async Task ManageConnectionAsync(CancellationToken cancellationToken)
         {
-            int attemptNumber = 0;
-            
+            var attemptNumber = 0;
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
                     attemptNumber++;
-                    
+
                     // Try to establish connection
                     await this.ConnectAsync(cancellationToken);
-                    
+
                     // Connection successful, reset attempt counter and log success
                     if (attemptNumber > 1)
                     {
                         this.logger?.LogInformation("Successfully reconnected to {Uri} after {AttemptNumber} attempts", this.currentUri, attemptNumber);
                     }
                     attemptNumber = 0;
-                    
+
                     // Handle messages until disconnection
                     await this.HandleMessagesAsync(cancellationToken);
-                    
+
                     // If we get here, connection was closed
                     if (cancellationToken.IsCancellationRequested)
                         break;
-                        
+
                     this.logger?.LogInformation("WebSocket connection closed, checking reconnect options");
-                        
+
                     // Check if we should reconnect
                     if (!this.options.ReconnectOptions.Enabled)
                     {
@@ -247,11 +245,11 @@ namespace Shinobi.WebSockets
                         this.ChangeConnectionState(WebSocketConnectionState.Disconnected);
                         break;
                     }
-                    
+
                     // Prepare for reconnect
                     this.logger?.LogInformation("Starting auto-reconnect sequence (attempt {AttemptNumber})", attemptNumber + 1);
                     this.ChangeConnectionState(WebSocketConnectionState.Reconnecting);
-                    
+
                     // Check max attempts
                     if (this.options.ReconnectOptions.MaxAttempts > 0 && attemptNumber > this.options.ReconnectOptions.MaxAttempts)
                     {
@@ -259,10 +257,10 @@ namespace Shinobi.WebSockets
                         this.ChangeConnectionState(WebSocketConnectionState.Failed);
                         break;
                     }
-                    
+
                     // Calculate delay with exponential backoff and jitter
                     var delay = this.CalculateReconnectDelay(attemptNumber);
-                    
+
                     // Allow URL modification through OnReconnecting handler
                     var reconnectUri = this.currentUri!;
                     if (this.options.OnReconnecting != null)
@@ -275,13 +273,13 @@ namespace Shinobi.WebSockets
                         }
                         this.currentUri = reconnectUri;
                     }
-                    
+
                     // Raise reconnecting event
                     this.Reconnecting?.Invoke(this, new WebSocketReconnectingEventArgs(reconnectUri, attemptNumber, delay));
-                    
-                    this.logger?.LogInformation("Reconnecting to {Uri} in {Delay}ms (attempt {AttemptNumber})", 
+
+                    this.logger?.LogInformation("Reconnecting to {Uri} in {Delay}ms (attempt {AttemptNumber})",
                         reconnectUri, delay.TotalMilliseconds, attemptNumber);
-                    
+
                     // Wait before reconnecting
                     await Task.Delay(delay, cancellationToken);
                 }
@@ -293,13 +291,13 @@ namespace Shinobi.WebSockets
                 catch (Exception ex)
                 {
                     this.logger?.LogError(ex, "Connection error (attempt {AttemptNumber})", attemptNumber);
-                    
+
                     if (!this.options.ReconnectOptions.Enabled)
                     {
                         this.ChangeConnectionState(WebSocketConnectionState.Failed, ex);
                         break;
                     }
-                    
+
                     // Error occurred, will try to reconnect in next iteration
                     this.ChangeConnectionState(WebSocketConnectionState.Reconnecting, ex);
                 }
@@ -312,14 +310,14 @@ namespace Shinobi.WebSockets
         private async Task ConnectAsync(CancellationToken cancellationToken)
         {
             this.ChangeConnectionState(WebSocketConnectionState.Connecting);
-            
+
             this.webSocket = await this.PerformWebSocketConnectionAsync(this.currentUri!, this.options, cancellationToken);
-            
+
             // Cast to ShinobiWebSocket since we know we return ShinobiWebSocket
-            var shinobiWebSocket = (ShinobiWebSocket)this.webSocket;
-            
+            var shinobiWebSocket = this.webSocket;
+
             this.ChangeConnectionState(WebSocketConnectionState.Connected);
-            
+
             // Trigger connect interceptors
             if (this.OnConnectChainAsync != null)
             {
@@ -335,10 +333,10 @@ namespace Shinobi.WebSockets
             var baseDelay = this.options.ReconnectOptions.InitialDelay.TotalMilliseconds;
             var multiplier = Math.Pow(this.options.ReconnectOptions.BackoffMultiplier, attemptNumber - 1);
             var delayMs = baseDelay * multiplier;
-            
+
             // Apply maximum delay
             delayMs = Math.Min(delayMs, this.options.ReconnectOptions.MaxDelay.TotalMilliseconds);
-            
+
             // Apply jitter
             if (this.options.ReconnectOptions.Jitter > 0)
             {
@@ -346,7 +344,7 @@ namespace Shinobi.WebSockets
                 var jitter = (this.random.NextDouble() - 0.5) * 2 * jitterRange;
                 delayMs += jitter;
             }
-            
+
             return TimeSpan.FromMilliseconds(Math.Max(0, delayMs));
         }
 
@@ -355,7 +353,7 @@ namespace Shinobi.WebSockets
             if (this.webSocket == null)
                 return;
 
-            var shinobiWebSocket = (ShinobiWebSocket)this.webSocket;
+            var shinobiWebSocket = this.webSocket;
 
             try
             {
@@ -416,26 +414,26 @@ namespace Shinobi.WebSockets
 
         #region WebSocket Connection Logic (moved from WebSocketClientFactory)
 
-        private const string NewLine = "\r\n";
-
         /// <summary>
         /// Performs the complete WebSocket connection process
         /// </summary>
-        private async ValueTask<WebSocket> PerformWebSocketConnectionAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken)
+        private async ValueTask<ShinobiWebSocket> PerformWebSocketConnectionAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken)
         {
             var guid = Guid.NewGuid();
             var uriScheme = uri.Scheme.ToLower();
-
-            return await this.PerformHandshakeAsync(
-                guid,
-                uri,
-                await this.GetStreamAsync(
+            var client = await this.GetClientAsync(
                     guid,
                     uriScheme == "wss" || uriScheme == "https",
                     options.NoDelay,
                     uri.Host,
                     uri.Port,
-                    cancellationToken).ConfigureAwait(false),
+                    cancellationToken).ConfigureAwait(false);
+
+            return await this.PerformHandshakeAsync(
+                client.TcpClient,
+                guid,
+                uri,
+                client.Stream,
                 options,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -444,7 +442,7 @@ namespace Shinobi.WebSockets
         /// Connects with a stream that has already been opened and HTTP websocket upgrade request sent
         /// This function will check the handshake response from the server and proceed if successful
         /// </summary>
-        private async ValueTask<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string? secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
+        private async ValueTask<ShinobiWebSocket> ConnectAsync(TcpClient tcpClient, Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string? secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
         {
             Events.Log?.ReadingHttpResponse(guid);
             HttpResponse? response;
@@ -463,7 +461,7 @@ namespace Shinobi.WebSockets
             this.ThrowIfInvalidAcceptString(guid, response!, secWebSocketKey);
 
             return new ShinobiWebSocket(
-                new WebSocketHttpContext(response!, responseStream, guid),
+                new WebSocketHttpContext(tcpClient, response!, responseStream, guid),
                 response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.ParseExtension(),
                 keepAliveInterval,
                 includeExceptionInCloseResponse,
@@ -503,7 +501,7 @@ namespace Shinobi.WebSockets
         /// <summary>
         /// Creates the underlying stream for WebSocket connection
         /// </summary>
-        protected async virtual ValueTask<Stream> GetStreamAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
+        protected async virtual ValueTask<(Stream Stream, TcpClient TcpClient)> GetClientAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
         {
             var tcpClient = new TcpClient { NoDelay = noDelay };
             if (IPAddress.TryParse(host, out var ipAddress))
@@ -528,11 +526,11 @@ namespace Shinobi.WebSockets
                 // This will throw an AuthenticationException if the certificate is not valid
                 this.TlsAuthenticateAsClient(sslStream, host);
                 Events.Log?.ConnectionSecured(loggingGuid);
-                return sslStream;
+                return (sslStream, tcpClient);
             }
 
             Events.Log?.ConnectionNotSecure(loggingGuid);
-            return stream;
+            return (stream, tcpClient);
         }
 
         /// <summary>
@@ -551,7 +549,7 @@ namespace Shinobi.WebSockets
             return false;
         }
 
-        private ValueTask<WebSocket> PerformHandshakeAsync(Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
+        private ValueTask<ShinobiWebSocket> PerformHandshakeAsync(TcpClient tcpClient, Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
         {
             var secWebSocketKey = Shared.SecWebSocketKey();
             var handshakeHttpRequest = HttpRequest.Create("GET", uri.PathAndQuery)
@@ -571,14 +569,16 @@ namespace Shinobi.WebSockets
             var httpRequest = Encoding.UTF8.GetBytes(handshakeHttpRequest);
             stream.Write(httpRequest, 0, httpRequest.Length);
             Events.Log?.HandshakeSent(guid, handshakeHttpRequest);
-            return this.ConnectAsync(stream, secWebSocketKey, options, cancellationToken);
+            return this.ConnectAsync(tcpClient, stream, secWebSocketKey, options, cancellationToken);
         }
 
         /// <summary>
         /// Connects with a stream and performs handshake validation
         /// </summary>
-        private ValueTask<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken)
-            => this.ConnectAsync(Guid.NewGuid(),
+        private ValueTask<ShinobiWebSocket> ConnectAsync(TcpClient tcpClient, Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken)
+            => this.ConnectAsync(
+                tcpClient,
+                Guid.NewGuid(),
                 responseStream,
                 secWebSocketKey,
                 options.KeepAliveInterval,

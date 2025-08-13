@@ -1,8 +1,6 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -20,8 +18,8 @@ using Microsoft.Extensions.Logging;
 using Shinobi.WebSockets;
 using Shinobi.WebSockets.Builders;
 using Shinobi.WebSockets.Extensions;
-using Shinobi.WebSockets.Internal;
 using Shinobi.WebSockets.Http;
+using Shinobi.WebSockets.Internal;
 
 
 [SimpleJob(RuntimeMoniker.Net90)]
@@ -93,8 +91,9 @@ public class WebSocketThroughputBenchmarks
                         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
                         var httpRequest = await HttpRequest.ReadAsync(stream, connectCts.Token);
-                        if (httpRequest == null) continue;
-                        var context = new WebSocketHttpContext(httpRequest, stream, Guid.NewGuid());
+                        if (httpRequest == null)
+                            continue;
+                        var context = new WebSocketHttpContext(tcpClient, httpRequest, stream, Guid.NewGuid());
 
                         if (context.IsWebSocketRequest)
                         {
@@ -396,8 +395,8 @@ public class WebSocketThroughputBenchmarks
         sb.Append("{");
         while (Encoding.UTF8.GetByteCount(sb.ToString()) < targetSizeKb * 1024)
         {
-            string key = $"key_{rand.Next(0, 100)}";
-            string value = $"value_{rand.Next(0, 1000)}";
+            var key = $"key_{rand.Next(0, 100)}";
+            var value = $"value_{rand.Next(0, 1000)}";
             sb.AppendFormat("\"{0}\":\"{1}\",", key, value);
         }
 

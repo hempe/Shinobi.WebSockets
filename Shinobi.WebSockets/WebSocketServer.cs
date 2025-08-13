@@ -1,10 +1,5 @@
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -18,8 +13,8 @@ using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Exceptions;
 using Shinobi.WebSockets.Extensions;
-using Shinobi.WebSockets.Internal;
 using Shinobi.WebSockets.Http;
+using Shinobi.WebSockets.Internal;
 
 namespace Shinobi.WebSockets
 {
@@ -164,7 +159,7 @@ namespace Shinobi.WebSockets
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
-                        TcpClient tcpClient = await this.listener.AcceptTcpClientAsync();
+                        var tcpClient = await this.listener.AcceptTcpClientAsync();
                         _ = Task.Run(() => this.ProcessTcpClientAsync(tcpClient, cancellationToken.Token));
                     }
                 }
@@ -245,7 +240,7 @@ namespace Shinobi.WebSockets
 
                     var guid = Guid.NewGuid();
                     Events.Log?.AcceptWebSocketStarted(guid);
-                    context = new WebSocketHttpContext(httpRequest, stream, guid);
+                    context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid);
                     var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
                     if (handshakeResponse.StatusCode == 101)
                     {

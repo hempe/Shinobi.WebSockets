@@ -2,7 +2,6 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.IO.Pipes;
 using System.Linq;
 using System.Net.WebSockets;
@@ -165,7 +164,7 @@ namespace Shinobi.WebSockets.UnitTests
         public async Task ReceiveBufferTooSmallToFitWebsocketFrameTestAsync()
         {
             this.logger.LogDebug("ReceiveBufferTooSmallToFitWebsocketFrameTest");
-            string pipeName = Guid.NewGuid().ToString();
+            var pipeName = Guid.NewGuid().ToString();
             using var clientPipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             using var serverPipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
@@ -196,7 +195,7 @@ namespace Shinobi.WebSockets.UnitTests
         public async Task SimpleNamedPipesAsync()
         {
             this.logger.LogDebug("SimpleNamedPipes");
-            string pipeName = Guid.NewGuid().ToString();
+            var pipeName = Guid.NewGuid().ToString();
             using var clientPipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             using var serverPipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
@@ -236,7 +235,7 @@ namespace Shinobi.WebSockets.UnitTests
         {
 
             return new ShinobiWebSocket(
-                new WebSocketHttpContext(HttpResponse.Create(101), mockNetworkStream, guid),
+                new WebSocketHttpContext(null, HttpResponse.Create(101), mockNetworkStream, guid),
                 permessageDeflate ? new WebSocketExtension() : null,
                 keepAliveInterval,
                 includeExceptionInCloseResponse,
