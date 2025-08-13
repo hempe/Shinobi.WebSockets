@@ -220,8 +220,7 @@ public class WebSocketServerClientBenchmarks
             var httpRequest = await HttpRequest.ReadAsync(stream, cancellationToken);
             if (httpRequest == null)
                 return;
-            var context = new WebSocketHttpContext(httpRequest, stream, Guid.NewGuid());
-
+            var context = new WebSocketHttpContext(tcpClient, httpRequest, stream, Guid.NewGuid());
 
             if (context.IsWebSocketRequest)
             {

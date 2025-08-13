@@ -11,10 +11,10 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
-using Shinobi.WebSockets.Extensions;
-using Shinobi.WebSockets.Internal;
 using Shinobi.WebSockets.Builders;
+using Shinobi.WebSockets.Extensions;
 using Shinobi.WebSockets.Http;
+using Shinobi.WebSockets.Internal;
 
 using Xunit;
 
@@ -94,7 +94,7 @@ namespace Shinobi.WebSockets.UnitTests
 
                         this.logger.LogDebug("[Server] WebSocket request received.");
 
-                        HttpListenerWebSocketContext webSocketContext = await context.AcceptWebSocketAsync(null);
+                        var webSocketContext = await context.AcceptWebSocketAsync(null);
                         this.logger.LogDebug("[Server] WebSocket accepted.");
                         var webSocket = webSocketContext.WebSocket;
                         this.webSocket = webSocket;
@@ -268,8 +268,9 @@ namespace Shinobi.WebSockets.UnitTests
                     using var str = tcpClient.GetStream();
 
                     var httpRequest = await HttpRequest.ReadAsync(str, cancellationToken);
-                    if (httpRequest == null) throw new System.Exception("This should not happen");
-                    var context = new WebSocketHttpContext(httpRequest, str, Guid.NewGuid());
+                    if (httpRequest == null)
+                        throw new System.Exception("This should not happen");
+                    var context = new WebSocketHttpContext(tcpClient, httpRequest, str, Guid.NewGuid());
 
                     this.logger.LogDebug("[Server] Connection established.");
                     if (context.IsWebSocketRequest)
@@ -355,11 +356,11 @@ namespace Shinobi.WebSockets.UnitTests
                 // copy data so that masking doesn't affect the original message
                 var data = message.ToArray();
 
-                for (int i = 0; i <= (data.Length - 1) / sendBufferLength; i++)
+                for (var i = 0; i <= (data.Length - 1) / sendBufferLength; i++)
                 {
-                    int start = i * sendBufferLength;
-                    int nextStart = Math.Min(start + sendBufferLength, data.Length);
-                    ArraySegment<byte> seg = new ArraySegment<byte>(data, start, nextStart - start);
+                    var start = i * sendBufferLength;
+                    var nextStart = Math.Min(start + sendBufferLength, data.Length);
+                    var seg = new ArraySegment<byte>(data, start, nextStart - start);
                     var endOfMessage = nextStart == data.Length;
                     await client.SendAsync(seg, WebSocketMessageType.Binary, endOfMessage, cancellationToken);
                 }

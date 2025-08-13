@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-
-using Shinobi.WebSockets.Exceptions;
-using Shinobi.WebSockets.Extensions;
+using System.Web;
 
 namespace Shinobi.WebSockets.Http
 {
@@ -37,9 +37,19 @@ namespace Shinobi.WebSockets.Http
         public readonly HttpRequest? HttpRequest;
 
         /// <summary>
+        /// The original tcp client.
+        /// </summary>
+        public readonly TcpClient? TcpClient;
+
+        /// <summary>
         /// The Path extracted from the http header
         /// </summary>
         public readonly string? Path;
+
+        /// <summary>
+        /// The Query extracted from the http header path
+        /// </summary>
+        public NameValueCollection? Query;
 
         /// <summary>
         /// The stream AFTER the header has already been read
@@ -52,13 +62,39 @@ namespace Shinobi.WebSockets.Http
         public readonly Guid Guid;
 
         /// <summary>
+        /// Gets a dictionary containing custom metadata associated with this object.
+        /// This collection allows users to store arbitrary key-value pairs for 
+        /// application-specific purposes.
+        /// </summary>
+        /// <remarks>
+        ///   <para>
+        ///     The metadata dictionary is mutable and can be modified after object creation.
+        ///     Keys are case-sensitive strings, and values can be any object type.
+        ///   </para>
+        ///   <para>
+        ///   Common use cases include:
+        ///   <list type="bullet">
+        ///     <item><description>Storing user-defined tags or labels</description></item>
+        ///     <item><description>Adding application-specific configuration data</description></item>
+        ///     <item><description>Associating custom properties for business logic</description></item>
+        ///     <item><description>Tracking additional context information</description></item>
+        ///   </list>
+        ///   </para>
+        ///   <para>
+        ///     Note: This collection is initialized as empty and is never null.
+        ///   </para>
+        /// </remarks>
+        public readonly IDictionary<string, object> Metadata = new Dictionary<string, object>();
+
+        /// <summary>
         /// Initialises a new instance of the WebSocketHttpContext class
         /// </summary>
         /// <param name="httpHeader">The raw http request extracted from the stream</param>
         /// <param name="stream">The stream AFTER the header has already been read</param>
         /// <param name="guid">Connection identifier</param>
-        public WebSocketHttpContext(HttpHeader httpHeader, Stream stream, Guid guid)
+        public WebSocketHttpContext(TcpClient? tcpClient, HttpHeader httpHeader, Stream stream, Guid guid)
         {
+            this.TcpClient = tcpClient;
             this.Guid = guid;
             this.IsWebSocketRequest = httpHeader.GetHeaderValue("Upgrade") == "websocket";
             this.WebSocketRequestedProtocols = httpHeader.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
@@ -66,13 +102,19 @@ namespace Shinobi.WebSockets.Http
             this.Stream = stream;
         }
 
-        public WebSocketHttpContext(HttpRequest httpRequest, Stream stream, Guid guid)
-            : this((HttpHeader)httpRequest, stream, guid)
+        public WebSocketHttpContext(TcpClient? tcpClient, HttpRequest httpRequest, Stream stream, Guid guid)
+            : this(tcpClient, (HttpHeader)httpRequest, stream, guid)
         {
 
             this.Path = httpRequest.Path;
+            if (!string.IsNullOrWhiteSpace(this.Path) && this.Path.Contains('?'))
+            {
+                this.Query = HttpUtility.ParseQueryString(this.Path.Substring(this.Path.IndexOf('?')));
+            }
+
             this.HttpRequest = httpRequest;
         }
+
 
         public async ValueTask TerminateAsync(HttpResponse response, CancellationToken cancellationToken)
         {
