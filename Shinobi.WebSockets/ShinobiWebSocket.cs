@@ -22,10 +22,8 @@
 // ---------------------------------------------------------------------
 
 using System;
-using System.Buffers;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -86,7 +84,7 @@ namespace Shinobi.WebSockets
             this.state = WebSocketState.Open;
             this.stopwatch = Stopwatch.StartNew();
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             this.PermessageDeflate = secWebSocketExtensions != null;
             if (this.PermessageDeflate)
             {
@@ -342,7 +340,7 @@ namespace Shinobi.WebSockets
 
             this.pendingDataOffset += bytesToCopy;
 
-            bool isEndOfMessage = this.pendingDataOffset >= pendingDecompressedData.Count;
+            var isEndOfMessage = this.pendingDataOffset >= pendingDecompressedData.Count;
             if (isEndOfMessage)
             {
                 // All pending data has been returned
@@ -482,7 +480,7 @@ namespace Shinobi.WebSockets
             {
                 if (this.state == WebSocketState.Open)
                 {
-                    CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                     try
                     {
                         // TODO: I Don't like that we don't await this.
@@ -501,6 +499,7 @@ namespace Shinobi.WebSockets
                 this.Context.Stream.Close();
                 this.inflater?.Dispose();
                 this.deflater?.Dispose();
+                this.Context.TcpClient?.Dispose();
             }
             catch (Exception ex)
             {

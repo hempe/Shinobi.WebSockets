@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
 #else 
 using Shinobi.WebSockets.Extensions;
 #endif
@@ -42,7 +42,7 @@ namespace Shinobi.WebSockets.Http
             if (headerData.Count == 0)
                 return null;
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             return Parse(headerData);
 #else
             return Parse(Encoding.UTF8.GetString(headerData.Array!, headerData.Offset, headerData.Count));
@@ -50,7 +50,7 @@ namespace Shinobi.WebSockets.Http
         }
 
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Parse HTTP request from raw HTTP header bytes (optimized for .NET 9+)
         /// </summary>
@@ -162,7 +162,7 @@ namespace Shinobi.WebSockets.Http
             if (string.IsNullOrEmpty(this.Method) || string.IsNullOrEmpty(this.Path))
                 throw new InvalidOperationException("Cannot build HTTP request without method and path");
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             var builder = new StringBuilder();
             builder.Append($"{this.Method} {this.Path} {httpVersion}\r\n");
 
@@ -181,11 +181,11 @@ namespace Shinobi.WebSockets.Http
             return builder.ToString();
 #else
             var builder = new StringBuilder();
-            builder.AppendFormat("{0} {1} {2}\r\n", Method, Path, httpVersion);
+            builder.AppendFormat("{0} {1} {2}\r\n", this.Method, this.Path, httpVersion);
 
-            if (headers != null)
+            if (this.headers != null)
             {
-                foreach (var header in headers)
+                foreach (var header in this.headers)
                 {
                     foreach (var value in header.Value)
                     {

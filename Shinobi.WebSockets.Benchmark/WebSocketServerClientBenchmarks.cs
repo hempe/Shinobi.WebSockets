@@ -122,7 +122,7 @@ public class WebSocketServerClientBenchmarks
         this.clients = new List<ClientWebSocket>();
         var clientConnectTasks = new List<Task>();
 
-        for (int i = 0; i < this.ClientCount; i++)
+        for (var i = 0; i < this.ClientCount; i++)
         {
             var clientIndex = i; // Capture for lambda
             clientConnectTasks.Add(Task.Run(async () =>
@@ -207,7 +207,7 @@ public class WebSocketServerClientBenchmarks
     private async Task HandleClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)
     {
         WebSocket webSocket = null;
-        string clientId = Guid.NewGuid().ToString();
+        var clientId = Guid.NewGuid().ToString();
 
         try
         {
@@ -218,9 +218,9 @@ public class WebSocketServerClientBenchmarks
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
 
             var httpRequest = await HttpRequest.ReadAsync(stream, cancellationToken);
-            if (httpRequest == null) return;
-            var context = new WebSocketHttpContext(httpRequest, stream, Guid.NewGuid());
-
+            if (httpRequest == null)
+                return;
+            var context = new WebSocketHttpContext(tcpClient, httpRequest, stream, Guid.NewGuid());
 
             if (context.IsWebSocketRequest)
             {

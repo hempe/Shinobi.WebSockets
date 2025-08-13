@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
 #else 
 using Shinobi.WebSockets.Extensions;
 #endif
@@ -20,7 +20,7 @@ namespace Shinobi.WebSockets.Http
     public sealed class HttpResponse : HttpHeader
     {
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
         private static ReadOnlySpan<char> GetReasonPhrase(int statusCode) => statusCode switch
 #else
         private static string GetReasonPhrase(int statusCode) => statusCode switch
@@ -86,7 +86,7 @@ namespace Shinobi.WebSockets.Http
             : base(headers)
         {
             this.StatusCode = statusCode;
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             this.reasonPhrase = GetReasonPhrase(statusCode).ToString();
 #else
             this.reasonPhrase = GetReasonPhrase(statusCode);
@@ -108,14 +108,14 @@ namespace Shinobi.WebSockets.Http
             if (headerData.Count == 0)
                 return null;
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             return Parse(headerData);
 #else
             return Parse(Encoding.UTF8.GetString(headerData.Array!, headerData.Offset, headerData.Count));
 #endif
         }
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Parse HTTP response from raw HTTP header bytes (optimized for .NET 9+)
         /// </summary>
@@ -226,7 +226,7 @@ namespace Shinobi.WebSockets.Http
         /// <returns>Complete HTTP response string</returns>
         public string Build()
         {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             var builder = new StringBuilder();
             builder.Append($"HTTP/1.1 {this.StatusCode} {this.reasonPhrase}\r\n");
 
@@ -275,7 +275,7 @@ namespace Shinobi.WebSockets.Http
             void EncodeAndWrite(string text)
             {
                 if (string.IsNullOrEmpty(text)) return;
-#if NET9_0_OR_GREATER 
+#if NET8_0_OR_GREATER 
                 var maxBytes = Encoding.UTF8.GetMaxByteCount(text.Length);
                 var span = bufferStream.GetFreeSpan(maxBytes);
                 var bytesEncoded = Encoding.UTF8.GetBytes(text.AsSpan(), span);

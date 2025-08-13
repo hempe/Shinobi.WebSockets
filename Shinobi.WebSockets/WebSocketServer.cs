@@ -1,10 +1,5 @@
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -18,8 +13,8 @@ using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Exceptions;
 using Shinobi.WebSockets.Extensions;
-using Shinobi.WebSockets.Internal;
 using Shinobi.WebSockets.Http;
+using Shinobi.WebSockets.Internal;
 
 namespace Shinobi.WebSockets
 {
@@ -85,6 +80,7 @@ namespace Shinobi.WebSockets
                 return;
 
             this.runToken?.Cancel();
+            await this.DrainConnectionAsync().ConfigureAwait(false);
 
             try
             {
@@ -164,7 +160,7 @@ namespace Shinobi.WebSockets
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
-                        TcpClient tcpClient = await this.listener.AcceptTcpClientAsync();
+                        var tcpClient = await this.listener.AcceptTcpClientAsync();
                         _ = Task.Run(() => this.ProcessTcpClientAsync(tcpClient, cancellationToken.Token));
                     }
                 }
@@ -245,7 +241,7 @@ namespace Shinobi.WebSockets
 
                     var guid = Guid.NewGuid();
                     Events.Log?.AcceptWebSocketStarted(guid);
-                    context = new WebSocketHttpContext(httpRequest, stream, guid);
+                    context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid);
                     var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
                     if (handshakeResponse.StatusCode == 101)
                     {
@@ -334,48 +330,76 @@ namespace Shinobi.WebSockets
                 if (disposing)
                 {
                     this.runToken?.Dispose();
+                    var listener = this.listener;
+                    if (listener != null)
+                    {
+                        this.Caught(() => listener.Server?.Close(0), "Close server");
+                        this.Caught(() => listener.Stop(), "Stop listener");
+                        this.Caught(() => listener.Server?.Dispose(), "Dispose server");
+                    }
                 }
 
                 this.isDisposed = true;
             }
         }
+        private void Caught(Action a, string method)
+        {
+            try
+            {
+                a();
+            }
+            catch (Exception e)
+            {
+                this.logger?.LogInformation("{Method} faild: {Message}", method, e.Message);
+            }
+        }
 
         private async Task HandleWebSocketAsync(ShinobiWebSocket client, CancellationToken cancellationToken)
         {
-            using var receiveBuffer = new ArrayPoolStream();
             WebSocketMessageType? currentMessageType = null;
 
             try
             {
-                while (!cancellationToken.IsCancellationRequested && !this.isDisposed)
+
+                var receiveBuffer = new ArrayPoolStream();
+                try
                 {
-                    var result = await client.ReceiveAsync(receiveBuffer, cancellationToken);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    while (!cancellationToken.IsCancellationRequested && !this.isDisposed)
                     {
-                        await this.OnCloseAsync(client, cancellationToken);
-                        return;
-                    }
+                        var result = await client.ReceiveAsync(receiveBuffer, cancellationToken);
 
-                    // If we're in the middle of a message, ensure message type consistency
-                    if (currentMessageType.HasValue && result.MessageType != currentMessageType.Value)
-                    {
-                        throw new InvalidOperationException($"WebSocket message type changed from {currentMessageType.Value} to {result.MessageType} during partial message.");
-                    }
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            await this.OnCloseAsync(client, cancellationToken);
+                            return;
+                        }
 
-                    // Set the message type for the first frame of a new message
-                    if (!currentMessageType.HasValue)
-                    {
-                        currentMessageType = result.MessageType;
-                    }
+                        // If we're in the middle of a message, ensure message type consistency
+                        if (currentMessageType.HasValue && result.MessageType != currentMessageType.Value)
+                        {
+                            throw new InvalidOperationException($"WebSocket message type changed from {currentMessageType.Value} to {result.MessageType} during partial message.");
+                        }
 
-                    if (result.EndOfMessage)
-                    {
-                        receiveBuffer.Position = 0;
-                        await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
-                        receiveBuffer.SetLength(0);
-                        currentMessageType = null; // Reset for next message
+                        // Set the message type for the first frame of a new message
+                        if (!currentMessageType.HasValue)
+                        {
+                            currentMessageType = result.MessageType;
+                        }
+
+                        if (result.EndOfMessage)
+                        {
+                            receiveBuffer.Position = 0;
+                            await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
+                            currentMessageType = null; // Reset for next message
+                            receiveBuffer.Dispose();
+                            receiveBuffer = new ArrayPoolStream();
+                        }
+
                     }
+                }
+                finally
+                {
+                    receiveBuffer.Dispose();
                 }
             }
             catch when (cancellationToken.IsCancellationRequested)
@@ -385,6 +409,37 @@ namespace Shinobi.WebSockets
             catch (Exception e)
             {
                 await this.OnErrorAsync(client, e, cancellationToken);
+            }
+        }
+
+        private async Task DrainConnectionAsync()
+        {
+            try
+            {
+                using (var cts = new CancellationTokenSource())
+                {
+
+                    cts.CancelAfter(100);
+                    using (var tcpClient = new TcpClient { NoDelay = true })
+                    {
+                        using (cts.Token.Register(() => tcpClient.Close()))
+                        {
+                            try
+                            {
+                                await tcpClient.ConnectAsync("localhost", this.options.Port);
+                                this.logger?.LogDebug("Drain clients succeeded.");
+                            }
+                            catch (Exception e)
+                            {
+                                this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
             }
         }
     }

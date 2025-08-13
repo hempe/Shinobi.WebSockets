@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using Shinobi.WebSockets.Exceptions;
 using Shinobi.WebSockets.Internal;
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
 #else 
 using Shinobi.WebSockets.Extensions;
 #endif
@@ -89,7 +89,7 @@ namespace Shinobi.WebSockets.Http
 
             try
             {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 var headerMemory = headerBytes.AsMemory(0, MaxHeaderSize);
                 var bufferMemory = buffer.AsMemory(0, InitialChunkSize);
 #endif
@@ -97,7 +97,7 @@ namespace Shinobi.WebSockets.Http
                 // Phase 1: Chunked reads (until close to limit)
                 while (MaxHeaderSize - totalHeaderBytes >= InitialChunkSize)
                 {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
                     int bytesRead = await stream.ReadAsync(bufferMemory.Slice(0, Math.Min(InitialChunkSize, MaxHeaderSize - totalHeaderBytes)), cancellationToken).ConfigureAwait(false);
 #else
                     int bytesRead = await stream.ReadAsync(buffer, 0, Math.Min(InitialChunkSize, MaxHeaderSize - totalHeaderBytes), cancellationToken).ConfigureAwait(false);
@@ -123,7 +123,7 @@ namespace Shinobi.WebSockets.Http
 
                         if (sequenceIndex == 4)
                         {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
                             // For .NET 9+, we'll return the bytes and let the caller handle the span
                             var resultBytes = new byte[totalHeaderBytes];
                             Array.Copy(headerBytes, resultBytes, totalHeaderBytes);
@@ -141,7 +141,7 @@ namespace Shinobi.WebSockets.Http
                 {
                     while (totalHeaderBytes < MaxHeaderSize)
                     {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
                         int bytesRead = await stream.ReadAsync(singleByteBuffer.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
 #else
                         int bytesRead = await stream.ReadAsync(singleByteBuffer, 0, 1, cancellationToken).ConfigureAwait(false);
@@ -163,7 +163,7 @@ namespace Shinobi.WebSockets.Http
 
                         if (sequenceIndex == 4)
                         {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
                             var resultBytes = new byte[totalHeaderBytes];
                             Array.Copy(headerBytes, resultBytes, totalHeaderBytes);
                             return new ArraySegment<byte>(resultBytes);
@@ -183,7 +183,7 @@ namespace Shinobi.WebSockets.Http
             finally
             {
                 Shared.Return(buffer);
-#if !NET9_0_OR_GREATER
+#if !NET8_0_OR_GREATER
                 // Only return the rented array for pre-.NET 9, since we're copying for .NET 9+
                 if (totalHeaderBytes == 0) // Only return if we didn't use it in the result
 #endif
@@ -192,7 +192,7 @@ namespace Shinobi.WebSockets.Http
         }
 
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
         internal static void ParseHeaders(ReadOnlySpan<char> httpHeader, int startPos, Dictionary<string, HashSet<string>> headers)
         {
             var pos = startPos;

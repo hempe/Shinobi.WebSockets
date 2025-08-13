@@ -12,7 +12,7 @@ namespace Shinobi.WebSockets.Extensions
         private const int WebSocketVersion = 13;
         public static HttpResponse HandshakeResponse(this WebSocketHttpContext context, WebSocketServerOptions options)
         {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             ArgumentNullException.ThrowIfNull(context.HttpRequest);
 #else
             if (context.HttpRequest is null)

@@ -1,8 +1,7 @@
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
 
 using System;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Text;
 
@@ -34,7 +33,7 @@ namespace Shinobi.WebSockets.UnitTests
             var result = reader.ReadToEnd();
             Assert.Equal(message, result);
         }
-        
+
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
