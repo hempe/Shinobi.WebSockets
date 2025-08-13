@@ -13,12 +13,12 @@ namespace Shinobi.WebSockets.Builders
     /// </summary>
     public class WebSocketClientBuilder
     {
-        private readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();
-        private readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
-        private readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
-        private readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
-        private ILogger<WebSocketClient>? logger;
-        private WebSocketClientOptions configuration = new WebSocketClientOptions();
+        internal readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();
+        internal readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
+        internal readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
+        internal readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
+        internal ILogger<WebSocketClient>? logger;
+        internal WebSocketClientOptions configuration = new WebSocketClientOptions();
 
         /// <summary>
         /// Sets the keep-alive interval for ping/pong messages

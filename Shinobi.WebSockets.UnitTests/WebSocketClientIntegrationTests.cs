@@ -62,7 +62,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task WebSocketClient_ShouldConnectAndEchoTextMessage()
+        public async Task WebSocketClient_ShouldConnectAndEchoTextMessageAsync()
         {
             // Arrange
             var messageToSend = "Hello WebSocket!";
@@ -95,7 +95,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task WebSocketClient_ShouldConnectAndEchoBinaryMessage()
+        public async Task WebSocketClient_ShouldConnectAndEchoBinaryMessageAsync()
         {
             // Arrange
             var messageToSend = new byte[] { 1, 2, 3, 4, 5 };
@@ -133,7 +133,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task WebSocketClient_WithAutoReconnect_ShouldWork()
+        public async Task WebSocketClient_WithAutoReconnect_ShouldWorkAsync()
         {
             // Arrange
             var messageToSend = "Auto-reconnect test";
@@ -185,7 +185,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task WebSocketClient_WithCustomReconnectOptions_ShouldWork()
+        public async Task WebSocketClient_WithCustomReconnectOptions_ShouldWorkAsync()
         {
             // Arrange
             var messageToSend = "Custom reconnect test";
