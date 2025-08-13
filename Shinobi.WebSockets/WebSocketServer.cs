@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
-using Shinobi.WebSockets.Builders;
 using Shinobi.WebSockets.Exceptions;
 using Shinobi.WebSockets.Extensions;
 using Shinobi.WebSockets.Http;
@@ -407,19 +406,24 @@ namespace Shinobi.WebSockets
         {
             try
             {
-                using (var client = new WebSocketClientBuilder().Build())
                 using (var cts = new CancellationTokenSource())
                 {
+
                     cts.CancelAfter(100);
-                    try
+                    using (var tcpClient = new TcpClient { NoDelay = true })
                     {
-                        await client.StartAsync(new Uri($"ws://localhost:{this.options.Port}"), cts.Token).ConfigureAwait(false);
-                        client.Abort();
-                        this.logger?.LogDebug("Drain clients succeeded.");
-                    }
-                    catch (Exception e)
-                    {
-                        this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
+                        using (cts.Token.Register(() => tcpClient.Close()))
+                        {
+                            try
+                            {
+                                await tcpClient.ConnectAsync("localhost", this.options.Port);
+                                this.logger?.LogDebug("Drain clients succeeded.");
+                            }
+                            catch (Exception e)
+                            {
+                                this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
+                            }
+                        }
                     }
                 }
             }
