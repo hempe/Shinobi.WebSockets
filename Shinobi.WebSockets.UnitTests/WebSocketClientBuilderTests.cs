@@ -17,7 +17,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void Create_ShouldReturnNewInstance()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.NotNull(builder);
             Assert.Empty(builder.onConnect);
             Assert.Empty(builder.onClose);
@@ -31,9 +31,9 @@ namespace Shinobi.WebSockets.UnitTests
         {
             var interval = TimeSpan.FromMinutes(5);
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UseKeepAlive(interval);
-            
+
             Assert.Equal(interval, builder.configuration.KeepAliveInterval);
         }
 
@@ -41,10 +41,10 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseNoDelay_ShouldSetNoDelayOption()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UseNoDelay(true);
             Assert.True(builder.configuration.NoDelay);
-            
+
             builder.UseNoDelay(false);
             Assert.False(builder.configuration.NoDelay);
         }
@@ -53,10 +53,10 @@ namespace Shinobi.WebSockets.UnitTests
         public void IncludeExceptionInCloseResponse_ShouldSetOption()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.IncludeExceptionInCloseResponse(true);
             Assert.True(builder.configuration.IncludeExceptionInCloseResponse);
-            
+
             builder.IncludeExceptionInCloseResponse(false);
             Assert.False(builder.configuration.IncludeExceptionInCloseResponse);
         }
@@ -65,9 +65,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeader_ShouldAddCustomHeader()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.AddHeader("Custom-Header", "test-value");
-            
+
             Assert.Contains("Custom-Header", builder.configuration.AdditionalHttpHeaders.Keys);
             Assert.Equal("test-value", builder.configuration.AdditionalHttpHeaders["Custom-Header"]);
         }
@@ -76,7 +76,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeader_WithNullOrEmptyName_ShouldThrowArgumentException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentException>(() => builder.AddHeader(null!, "value"));
             Assert.Throws<ArgumentException>(() => builder.AddHeader("", "value"));
             Assert.Throws<ArgumentException>(() => builder.AddHeader("   ", "value"));
@@ -86,7 +86,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeader_WithNullValue_ShouldThrowArgumentNullException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentNullException>(() => builder.AddHeader("Header", null!));
         }
 
@@ -94,9 +94,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseSubProtocol_ShouldSetSubProtocol()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UseSubProtocol("chat");
-            
+
             Assert.Equal("chat", builder.configuration.SecWebSocketProtocol);
         }
 
@@ -104,7 +104,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseSubProtocol_WithNullOrEmpty_ShouldThrowArgumentException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentException>(() => builder.UseSubProtocol(null!));
             Assert.Throws<ArgumentException>(() => builder.UseSubProtocol(""));
             Assert.Throws<ArgumentException>(() => builder.UseSubProtocol("   "));
@@ -114,9 +114,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseExtensions_ShouldSetExtensions()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UseExtensions("custom-extension");
-            
+
             Assert.Equal("custom-extension", builder.configuration.SecWebSocketExtensions);
         }
 
@@ -124,9 +124,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void UsePerMessageDeflate_ShouldSetExtensions()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UsePerMessageDeflate();
-            
+
             Assert.Equal("permessage-deflate", builder.configuration.SecWebSocketExtensions);
         }
 
@@ -134,9 +134,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseBearerAuthentication_ShouldAddAuthHeader()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UseBearerAuthentication("test-token");
-            
+
             Assert.Contains("Authorization", builder.configuration.AdditionalHttpHeaders.Keys);
             Assert.Equal("Bearer test-token", builder.configuration.AdditionalHttpHeaders["Authorization"]);
         }
@@ -145,7 +145,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseBearerAuthentication_WithNullOrEmpty_ShouldThrowArgumentException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentException>(() => builder.UseBearerAuthentication(null!));
             Assert.Throws<ArgumentException>(() => builder.UseBearerAuthentication(""));
             Assert.Throws<ArgumentException>(() => builder.UseBearerAuthentication("   "));
@@ -155,9 +155,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseBasicAuthentication_ShouldAddAuthHeader()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UseBasicAuthentication("user", "pass");
-            
+
             var expectedCredentials = Convert.ToBase64String(Encoding.UTF8.GetBytes("user:pass"));
             Assert.Contains("Authorization", builder.configuration.AdditionalHttpHeaders.Keys);
             Assert.Equal($"Basic {expectedCredentials}", builder.configuration.AdditionalHttpHeaders["Authorization"]);
@@ -167,7 +167,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseBasicAuthentication_WithInvalidInputs_ShouldThrowExceptions()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentException>(() => builder.UseBasicAuthentication(null!, "pass"));
             Assert.Throws<ArgumentException>(() => builder.UseBasicAuthentication("", "pass"));
             Assert.Throws<ArgumentException>(() => builder.UseBasicAuthentication("   ", "pass"));
@@ -179,13 +179,13 @@ namespace Shinobi.WebSockets.UnitTests
         {
             var builder = WebSocketClientBuilder.Create();
             var handlerCalled = false;
-            
+
             builder.OnConnect(async (webSocket, next, ct) =>
             {
                 handlerCalled = true;
                 await next(webSocket, ct);
             });
-            
+
             Assert.Single(builder.onConnect);
             Assert.False(handlerCalled); // Handler not called yet
         }
@@ -194,7 +194,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnConnect_WithNullHandler_ShouldThrowArgumentNullException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentNullException>(() => builder.OnConnect(null!));
         }
 
@@ -202,9 +202,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnClose_ShouldRegisterCloseHandler()
         {
             var builder = WebSocketClientBuilder.Create();
-            
-            builder.OnClose(async (webSocket, next, ct) => await next(webSocket, ct));
-            
+
+            builder.OnClose(async (webSocket, statusDescription, next, ct) => await next(webSocket, statusDescription, ct));
+
             Assert.Single(builder.onClose);
         }
 
@@ -212,7 +212,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnClose_WithNullHandler_ShouldThrowArgumentNullException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentNullException>(() => builder.OnClose(null!));
         }
 
@@ -220,9 +220,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnError_ShouldRegisterErrorHandler()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.OnError(async (webSocket, exception, next, ct) => await next(webSocket, exception, ct));
-            
+
             Assert.Single(builder.onError);
         }
 
@@ -230,7 +230,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnError_WithNullHandler_ShouldThrowArgumentNullException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentNullException>(() => builder.OnError(null!));
         }
 
@@ -238,10 +238,10 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnMessage_ShouldRegisterMessageHandler()
         {
             var builder = WebSocketClientBuilder.Create();
-            
-            builder.OnMessage(async (webSocket, messageType, stream, next, ct) => 
+
+            builder.OnMessage(async (webSocket, messageType, stream, next, ct) =>
                 await next(webSocket, messageType, stream, ct));
-            
+
             Assert.Single(builder.onMessage);
         }
 
@@ -249,7 +249,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnMessage_WithNullHandler_ShouldThrowArgumentNullException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentNullException>(() => builder.OnMessage(null!));
         }
 
@@ -257,9 +257,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnTextMessage_ShouldRegisterMessageHandler()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.OnTextMessage((webSocket, message, ct) => new ValueTask());
-            
+
             Assert.Single(builder.onMessage);
         }
 
@@ -267,7 +267,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnTextMessage_WithNullHandler_ShouldThrowArgumentNullException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentNullException>(() => builder.OnTextMessage(null!));
         }
 
@@ -275,9 +275,9 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnBinaryMessage_ShouldRegisterMessageHandler()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.OnBinaryMessage((webSocket, data, ct) => new ValueTask());
-            
+
             Assert.Single(builder.onMessage);
         }
 
@@ -285,7 +285,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void OnBinaryMessage_WithNullHandler_ShouldThrowArgumentNullException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentNullException>(() => builder.OnBinaryMessage(null!));
         }
 
@@ -297,9 +297,9 @@ namespace Shinobi.WebSockets.UnitTests
                 .AddConsole());
 
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UseLogging(loggerFactory);
-            
+
             Assert.NotNull(builder.logger);
             Assert.Single(builder.onConnect); // Logging adds 1 connect handler
             Assert.Single(builder.onClose); // Logging adds 1 close handler  
@@ -310,13 +310,13 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseConfiguration_ShouldConfigureOptions()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             builder.UseConfiguration(options =>
             {
                 options.KeepAliveInterval = TimeSpan.FromMinutes(10);
                 options.NoDelay = false;
             });
-            
+
             Assert.Equal(TimeSpan.FromMinutes(10), builder.configuration.KeepAliveInterval);
             Assert.False(builder.configuration.NoDelay);
         }
@@ -325,7 +325,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void UseConfiguration_WithNullAction_ShouldThrowArgumentNullException()
         {
             var builder = WebSocketClientBuilder.Create();
-            
+
             Assert.Throws<ArgumentNullException>(() => builder.UseConfiguration(null!));
         }
 
@@ -345,7 +345,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .UseLogging(loggerFactory)
                 .OnConnect(async (ws, next, ct) => await next(ws, ct))
                 .OnTextMessage((ws, msg, ct) => new ValueTask())
-                .OnClose(async (ws, next, ct) => await next(ws, ct));
+                .OnClose(async (ws, statusDescription, next, ct) => await next(ws, statusDescription, ct));
 
             Assert.Equal(TimeSpan.FromSeconds(30), builder.configuration.KeepAliveInterval);
             Assert.True(builder.configuration.NoDelay);
@@ -357,7 +357,7 @@ namespace Shinobi.WebSockets.UnitTests
             Assert.Equal(2, builder.onClose.Count); // 1 user + 1 logging handler
             Assert.Single(builder.onError); // 1 logging handler
             Assert.Single(builder.onMessage); // 1 text message handler
-            
+
             var client = builder.Build();
             Assert.NotNull(client);
         }
@@ -370,7 +370,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .OnConnect(async (ws, next, ct) => await next(ws, ct));
 
             var client = builder.Build();
-            
+
             Assert.NotNull(client);
             // Verify that handlers were transferred to configuration
             Assert.Single(builder.configuration.OnConnect!);

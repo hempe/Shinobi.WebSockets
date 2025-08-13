@@ -3,8 +3,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Shinobi.WebSockets.Internal;
-
 namespace Shinobi.WebSockets.Internal
 {
     public sealed class ArrayPoolStream : Stream

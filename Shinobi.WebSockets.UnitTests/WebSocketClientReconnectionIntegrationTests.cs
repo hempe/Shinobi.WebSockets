@@ -98,7 +98,7 @@ namespace Shinobi.WebSockets.UnitTests
             await Task.Delay(100); // Give server time to start
         }
 
-        [Fact(Skip = "Integration test - investigate server setup timing issues")]
+        [Fact(Skip = "Integration test has timing issues - use WebSocketClientBackoffTests for backoff testing")]
         public async Task WebSocketClient_WithExponentialBackoff_ShouldIncreaseDelayBetweenAttemptsAsync()
         {
             // Arrange

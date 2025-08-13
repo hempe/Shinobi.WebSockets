@@ -56,10 +56,10 @@ namespace WebSockets.DemoServer
 
                         await next(webSocket, cancellationToken);
                     })
-                    .OnClose((webSocket, next, cancellationToken) =>
+                    .OnClose((webSocket, statusDescription, next, cancellationToken) =>
                     {
-                        logger.LogInformation("Client disconnected: {ConnectionId}", webSocket.Context.Guid);
-                        return next(webSocket, cancellationToken);
+                        logger.LogInformation("Client disconnected: {ConnectionId}: {StatusDescription}", webSocket.Context.Guid, statusDescription);
+                        return next(webSocket, statusDescription, cancellationToken);
                     })
                     .OnTextMessage(async (webSocket, message, cancellationToken) =>
                     {

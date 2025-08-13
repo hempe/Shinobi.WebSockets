@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -370,7 +371,9 @@ namespace Shinobi.WebSockets
 
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
-                            await this.OnCloseAsync(client, cancellationToken);
+                            var message = receiveBuffer.GetDataArraySegment();
+                            var statusDescription = result.Count == 0 ? null : Encoding.UTF8.GetString(message.Array, message.Offset + (message.Count - result.Count), result.Count);
+                            await this.OnCloseAsync(client, statusDescription, cancellationToken);
                             return;
                         }
 
@@ -404,7 +407,7 @@ namespace Shinobi.WebSockets
             }
             catch when (cancellationToken.IsCancellationRequested)
             {
-                await this.OnCloseAsync(client, cancellationToken);
+                await this.OnCloseAsync(client, "Server stopping", cancellationToken);
             }
             catch (Exception e)
             {

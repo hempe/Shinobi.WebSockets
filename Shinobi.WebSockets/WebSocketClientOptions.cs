@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
+
 namespace Shinobi.WebSockets
 {
     /// <summary>
@@ -97,9 +98,9 @@ namespace Shinobi.WebSockets
 
         public WebSocketConnectionStateChangedEventArgs(WebSocketConnectionState previousState, WebSocketConnectionState newState, Exception? exception = null)
         {
-            PreviousState = previousState;
-            NewState = newState;
-            Exception = exception;
+            this.PreviousState = previousState;
+            this.NewState = newState;
+            this.Exception = exception;
         }
     }
 
@@ -114,9 +115,9 @@ namespace Shinobi.WebSockets
 
         public WebSocketReconnectingEventArgs(Uri currentUri, int attemptNumber, TimeSpan delay)
         {
-            CurrentUri = currentUri;
-            AttemptNumber = attemptNumber;
-            Delay = delay;
+            this.CurrentUri = currentUri;
+            this.AttemptNumber = attemptNumber;
+            this.Delay = delay;
         }
     }
 

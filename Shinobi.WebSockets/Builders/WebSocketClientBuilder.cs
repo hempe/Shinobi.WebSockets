@@ -126,6 +126,7 @@ namespace Shinobi.WebSockets.Builders
             return this;
         }
 
+
         /// <summary>
         /// Adds a handler for when a WebSocket connection is established
         /// </summary>
@@ -230,10 +231,10 @@ namespace Shinobi.WebSockets.Builders
                 return next(webSocket, cancellationToken);
             });
 
-            this.OnClose((webSocket, next, cancellationToken) =>
+            this.OnClose((webSocket, statusDescription, next, cancellationToken) =>
             {
-                this.logger.LogInformation("WebSocket client disconnected: {ConnectionId}", webSocket.Context.Guid);
-                return next(webSocket, cancellationToken);
+                this.logger.LogInformation("WebSocket client disconnected: {ConnectionId}, {StatusDescription}", webSocket.Context.Guid, statusDescription);
+                return next(webSocket, statusDescription, cancellationToken);
             });
 
             this.OnError((webSocket, exception, next, cancellationToken) =>

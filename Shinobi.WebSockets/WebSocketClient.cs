@@ -33,7 +33,7 @@ namespace Shinobi.WebSockets
         private Uri? currentUri;
         private CancellationTokenSource? connectionCancellationTokenSource;
         private Task? connectionTask;
-        private readonly Random random = new Random();
+        private readonly BackoffCalculator backoffCalculator = new BackoffCalculator();
 
         // Connection state management
         private WebSocketConnectionState connectionState = WebSocketConnectionState.Disconnected;
@@ -50,10 +50,10 @@ namespace Shinobi.WebSockets
         public event WebSocketReconnectingEventHandler? Reconnecting;
 
         // Chain handlers built from interceptor lists
-        private readonly WebSocketConnectHandler OnConnectChainAsync;
-        private readonly WebSocketCloseHandler OnCloseChainAsync;
-        private readonly WebSocketErrorHandler OnErrorChainAsync;
-        private readonly WebSocketMessageHandler OnMessageChainAsync;
+        private readonly WebSocketConnectHandler OnConnectAsync;
+        private readonly WebSocketCloseHandler OnCloseCsync;
+        private readonly WebSocketErrorHandler OnErrorAsync;
+        private readonly WebSocketMessageHandler OnMessageAsync;
 
         /// <summary>
         /// Gets the current connection state
@@ -82,10 +82,10 @@ namespace Shinobi.WebSockets
             this.options = options;
 
             // Use the specific builders to create handler chains
-            this.OnConnectChainAsync = Builder.BuildWebSocketConnectChain(options.OnConnect);
-            this.OnCloseChainAsync = Builder.BuildWebSocketCloseChain(options.OnClose);
-            this.OnErrorChainAsync = Builder.BuildWebSocketErrorChain(options.OnError);
-            this.OnMessageChainAsync = Builder.BuildWebSocketMessageChain(options.OnMessage);
+            this.OnConnectAsync = Builder.BuildWebSocketConnectChain(options.OnConnect);
+            this.OnCloseCsync = Builder.BuildWebSocketCloseChain(options.OnClose);
+            this.OnErrorAsync = Builder.BuildWebSocketErrorChain(options.OnError);
+            this.OnMessageAsync = Builder.BuildWebSocketMessageChain(options.OnMessage);
         }
 
         /// <summary>
@@ -108,7 +108,7 @@ namespace Shinobi.WebSockets
 
             while (this.ConnectionState == WebSocketConnectionState.Connecting && !cancellationToken.IsCancellationRequested)
             {
-                var completedTask = await Task.WhenAny(timeoutTask, Task.Delay(100, cancellationToken));
+                var completedTask = await Task.WhenAny(timeoutTask, Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken));
                 if (completedTask == timeoutTask)
                 {
                     throw new TimeoutException("Initial connection attempt timed out");
@@ -328,8 +328,8 @@ namespace Shinobi.WebSockets
             this.ChangeConnectionState(WebSocketConnectionState.Connected);
 
             // Trigger connect interceptors
-            if (this.OnConnectChainAsync != null)
-                await this.OnConnectChainAsync(shinobiWebSocket, cancellationToken);
+            if (this.OnConnectAsync != null)
+                await this.OnConnectAsync(shinobiWebSocket, cancellationToken);
         }
 
         /// <summary>
@@ -337,22 +337,11 @@ namespace Shinobi.WebSockets
         /// </summary>
         private TimeSpan CalculateReconnectDelay(int attemptNumber)
         {
-            var baseDelay = this.options.ReconnectOptions.InitialDelay.TotalMilliseconds;
-            var multiplier = Math.Pow(this.options.ReconnectOptions.BackoffMultiplier, attemptNumber - 1);
-            var delayMs = baseDelay * multiplier;
-
-            // Apply maximum delay
-            delayMs = Math.Min(delayMs, this.options.ReconnectOptions.MaxDelay.TotalMilliseconds);
-
-            // Apply jitter
-            if (this.options.ReconnectOptions.Jitter > 0)
-            {
-                var jitterRange = delayMs * this.options.ReconnectOptions.Jitter;
-                var jitter = (this.random.NextDouble() - 0.5) * 2 * jitterRange;
-                delayMs += jitter;
-            }
-
-            return TimeSpan.FromMilliseconds(Math.Max(0, delayMs));
+            return this.backoffCalculator.CalculateDelay(
+                attemptNumber - 1, // BackoffCalculator uses 0-based attempt numbers
+                this.options.ReconnectOptions.InitialDelay,
+                this.options.ReconnectOptions.MaxDelay,
+                this.options.ReconnectOptions.Jitter);
         }
 
         private async Task HandleMessagesAsync(CancellationToken cancellationToken)
@@ -373,7 +362,9 @@ namespace Shinobi.WebSockets
                         var result = await this.webSocket.ReceiveAsync(receiveBuffer, cancellationToken);
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
-                            await this.OnCloseChainAsync(shinobiWebSocket, cancellationToken);
+                            var message = receiveBuffer.GetDataArraySegment();
+                            var statusDescription = result.Count == 0 ? null : Encoding.UTF8.GetString(message.Array, message.Offset + (message.Count - result.Count), result.Count);
+                            await this.OnCloseCsync(shinobiWebSocket, statusDescription, cancellationToken);
                             return;
                         }
 
@@ -392,7 +383,7 @@ namespace Shinobi.WebSockets
                         if (result.EndOfMessage)
                         {
                             receiveBuffer.Position = 0;
-                            await this.OnMessageChainAsync(shinobiWebSocket, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
+                            await this.OnMessageAsync(shinobiWebSocket, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
                             currentMessageType = null; // Reset for next message
                             receiveBuffer.Dispose();
                             receiveBuffer = new ArrayPoolStream();
@@ -406,10 +397,8 @@ namespace Shinobi.WebSockets
             }
             catch (Exception ex)
             {
-                if (this.OnErrorChainAsync != null)
-                {
-                    await this.OnErrorChainAsync(shinobiWebSocket, ex, cancellationToken);
-                }
+                if (this.OnErrorAsync != null)
+                    await this.OnErrorAsync(shinobiWebSocket, ex, cancellationToken);
                 throw; // Re-throw to trigger reconnect logic
             }
         }

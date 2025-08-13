@@ -28,8 +28,8 @@ namespace Shinobi.WebSockets
     public delegate ValueTask WebSocketConnectInterceptor(ShinobiWebSocket webSocket, WebSocketConnectHandler next, CancellationToken cancellationToken);
 
     // WebSocket close delegates  
-    public delegate ValueTask WebSocketCloseHandler(ShinobiWebSocket webSocket, CancellationToken cancellationToken);
-    public delegate ValueTask WebSocketCloseInterceptor(ShinobiWebSocket webSocket, WebSocketCloseHandler next, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketCloseHandler(ShinobiWebSocket webSocket, string? statusDescription, CancellationToken cancellationToken);
+    public delegate ValueTask WebSocketCloseInterceptor(ShinobiWebSocket webSocket, string? statusDescription, WebSocketCloseHandler next, CancellationToken cancellationToken);
 
     // WebSocket error delegates
     public delegate ValueTask WebSocketErrorHandler(ShinobiWebSocket webSocket, Exception exception, CancellationToken cancellationToken);
