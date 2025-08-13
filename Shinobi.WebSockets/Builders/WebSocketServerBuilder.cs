@@ -210,7 +210,7 @@ namespace Shinobi.WebSockets.Builders
             {
                 if (messageType == MessageType.Text)
                 {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
                     using var reader = new StreamReader(messageStream, leaveOpen: true);
 #else
                     var reader = new StreamReader(messageStream);

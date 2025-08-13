@@ -9,7 +9,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Builders;
-#if NET9_0_OR_GREATER
+
+#if NET8_0_OR_GREATER
 #else 
 using Shinobi.WebSockets.Extensions;
 #endif

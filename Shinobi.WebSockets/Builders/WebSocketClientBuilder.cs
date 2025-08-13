@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
@@ -75,8 +73,10 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="value">Header value</param>
         public WebSocketClientBuilder AddHeader(string name, string value)
         {
-            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Header name cannot be null or whitespace", nameof(name));
-            if (value == null) throw new ArgumentNullException(nameof(value));
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Header name cannot be null or whitespace", nameof(name));
+            if (value == null)
+                throw new ArgumentNullException(nameof(value));
 
             this.configuration.AdditionalHttpHeaders[name] = value;
             return this;
@@ -88,7 +88,8 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="subProtocol">The sub protocol name</param>
         public WebSocketClientBuilder UseSubProtocol(string subProtocol)
         {
-            if (string.IsNullOrWhiteSpace(subProtocol)) throw new ArgumentException("Sub protocol cannot be null or whitespace", nameof(subProtocol));
+            if (string.IsNullOrWhiteSpace(subProtocol))
+                throw new ArgumentException("Sub protocol cannot be null or whitespace", nameof(subProtocol));
 
             this.configuration.SecWebSocketProtocol = subProtocol;
             return this;
@@ -119,7 +120,8 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="configureOptions">Action to configure the options</param>
         public WebSocketClientBuilder UseConfiguration(Action<WebSocketClientOptions> configureOptions)
         {
-            if (configureOptions == null) throw new ArgumentNullException(nameof(configureOptions));
+            if (configureOptions == null)
+                throw new ArgumentNullException(nameof(configureOptions));
             configureOptions(this.configuration);
             return this;
         }
@@ -170,13 +172,14 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="handler">Text message handler</param>
         public WebSocketClientBuilder OnTextMessage(WebSocketTextMessageHandler handler)
         {
-            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
 
             return this.OnMessage(async (webSocket, messageType, messageStream, next, cancellationToken) =>
             {
                 if (messageType == MessageType.Text)
                 {
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
                     using var reader = new StreamReader(messageStream, leaveOpen: true);
 #else
                     var reader = new StreamReader(messageStream);
@@ -196,7 +199,8 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="handler">Binary message handler</param>
         public WebSocketClientBuilder OnBinaryMessage(WebSocketBinaryMessageHandler handler)
         {
-            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
 
             return this.OnMessage(async (webSocket, messageType, messageStream, next, cancellationToken) =>
             {
@@ -251,8 +255,9 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="token">Bearer token for authentication</param>
         public WebSocketClientBuilder UseBearerAuthentication(string token)
         {
-            if (string.IsNullOrWhiteSpace(token)) throw new ArgumentException("Token cannot be null or whitespace", nameof(token));
-            
+            if (string.IsNullOrWhiteSpace(token))
+                throw new ArgumentException("Token cannot be null or whitespace", nameof(token));
+
             return this.AddHeader("Authorization", $"Bearer {token}");
         }
 
@@ -263,8 +268,10 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="password">Password</param>
         public WebSocketClientBuilder UseBasicAuthentication(string username, string password)
         {
-            if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("Username cannot be null or whitespace", nameof(username));
-            if (password == null) throw new ArgumentNullException(nameof(password));
+            if (string.IsNullOrWhiteSpace(username))
+                throw new ArgumentException("Username cannot be null or whitespace", nameof(username));
+            if (password == null)
+                throw new ArgumentNullException(nameof(password));
 
             var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}"));
             return this.AddHeader("Authorization", $"Basic {credentials}");

@@ -1,8 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net9</TargetFrameworks>
-    <!--<TargetFrameworks>netstandard2.0;net45</TargetFrameworks>-->
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0</TargetFrameworks>
     <!-- Version will be set by GitHub Actions on release -->
     <Version>1.0.0</Version>
     <Authors>David Haig, Hansueli Burri</Authors>
@@ -35,8 +34,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <PropertyGroup
-    Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
 
@@ -50,15 +48,16 @@
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
-    <PackageReference Include="System.Buffers" Version="4.6.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.7" />
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0"
-      PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" PrivateAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" Version="4.14.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
   </ItemGroup>
 
+	<ItemGroup Condition="'$(TargetFramework)'=='netstandard2.0'">
+		<PackageReference Include="System.Buffers" Version="4.6.1" />
+	</ItemGroup>
 
 </Project>
