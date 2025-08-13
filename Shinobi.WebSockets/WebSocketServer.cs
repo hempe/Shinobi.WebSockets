@@ -356,40 +356,50 @@ namespace Shinobi.WebSockets
 
         private async Task HandleWebSocketAsync(ShinobiWebSocket client, CancellationToken cancellationToken)
         {
-            using var receiveBuffer = new ArrayPoolStream();
             WebSocketMessageType? currentMessageType = null;
 
             try
             {
-                while (!cancellationToken.IsCancellationRequested && !this.isDisposed)
+
+                var receiveBuffer = new ArrayPoolStream();
+                try
                 {
-                    var result = await client.ReceiveAsync(receiveBuffer, cancellationToken);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    while (!cancellationToken.IsCancellationRequested && !this.isDisposed)
                     {
-                        await this.OnCloseAsync(client, cancellationToken);
-                        return;
-                    }
+                        var result = await client.ReceiveAsync(receiveBuffer, cancellationToken);
 
-                    // If we're in the middle of a message, ensure message type consistency
-                    if (currentMessageType.HasValue && result.MessageType != currentMessageType.Value)
-                    {
-                        throw new InvalidOperationException($"WebSocket message type changed from {currentMessageType.Value} to {result.MessageType} during partial message.");
-                    }
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            await this.OnCloseAsync(client, cancellationToken);
+                            return;
+                        }
 
-                    // Set the message type for the first frame of a new message
-                    if (!currentMessageType.HasValue)
-                    {
-                        currentMessageType = result.MessageType;
-                    }
+                        // If we're in the middle of a message, ensure message type consistency
+                        if (currentMessageType.HasValue && result.MessageType != currentMessageType.Value)
+                        {
+                            throw new InvalidOperationException($"WebSocket message type changed from {currentMessageType.Value} to {result.MessageType} during partial message.");
+                        }
 
-                    if (result.EndOfMessage)
-                    {
-                        receiveBuffer.Position = 0;
-                        await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
-                        receiveBuffer.SetLength(0);
-                        currentMessageType = null; // Reset for next message
+                        // Set the message type for the first frame of a new message
+                        if (!currentMessageType.HasValue)
+                        {
+                            currentMessageType = result.MessageType;
+                        }
+
+                        if (result.EndOfMessage)
+                        {
+                            receiveBuffer.Position = 0;
+                            await this.OnMessageAsync(client, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
+                            currentMessageType = null; // Reset for next message
+                            receiveBuffer.Dispose();
+                            receiveBuffer = new ArrayPoolStream();
+                        }
+
                     }
+                }
+                finally
+                {
+                    receiveBuffer.Dispose();
                 }
             }
             catch when (cancellationToken.IsCancellationRequested)

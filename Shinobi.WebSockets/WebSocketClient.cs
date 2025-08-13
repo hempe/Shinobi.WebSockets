@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Exceptions;
+using Shinobi.WebSockets.Extensions;
 using Shinobi.WebSockets.Http;
 using Shinobi.WebSockets.Internal;
 
@@ -328,9 +329,7 @@ namespace Shinobi.WebSockets
 
             // Trigger connect interceptors
             if (this.OnConnectChainAsync != null)
-            {
                 await this.OnConnectChainAsync(shinobiWebSocket, cancellationToken);
-            }
         }
 
         /// <summary>
@@ -362,52 +361,47 @@ namespace Shinobi.WebSockets
                 return;
 
             var shinobiWebSocket = this.webSocket;
+            WebSocketMessageType? currentMessageType = null;
 
             try
             {
-                var buffer = new byte[4096];
-                var messageStream = new MemoryStream();
-
-                while (this.webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+                var receiveBuffer = new ArrayPoolStream();
+                try
                 {
-                    var segment = new ArraySegment<byte>(buffer);
-                    var result = await this.webSocket.ReceiveAsync(segment, cancellationToken);
-
-                    switch (result.MessageType)
+                    while (this.webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested && !this.isDisposed)
                     {
-                        case WebSocketMessageType.Text:
-                            messageStream.Write(buffer, 0, result.Count);
-                            if (result.EndOfMessage)
-                            {
-                                messageStream.Position = 0;
-                                if (this.OnMessageChainAsync != null)
-                                {
-                                    await this.OnMessageChainAsync(shinobiWebSocket, MessageType.Text, messageStream, cancellationToken);
-                                }
-                                messageStream = new MemoryStream();
-                            }
-                            break;
-
-                        case WebSocketMessageType.Binary:
-                            messageStream.Write(buffer, 0, result.Count);
-                            if (result.EndOfMessage)
-                            {
-                                messageStream.Position = 0;
-                                if (this.OnMessageChainAsync != null)
-                                {
-                                    await this.OnMessageChainAsync(shinobiWebSocket, MessageType.Binary, messageStream, cancellationToken);
-                                }
-                                messageStream = new MemoryStream();
-                            }
-                            break;
-
-                        case WebSocketMessageType.Close:
-                            if (this.OnCloseChainAsync != null)
-                            {
-                                await this.OnCloseChainAsync(shinobiWebSocket, cancellationToken);
-                            }
+                        var result = await this.webSocket.ReceiveAsync(receiveBuffer, cancellationToken);
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            await this.OnCloseChainAsync(shinobiWebSocket, cancellationToken);
                             return;
+                        }
+
+                        // If we're in the middle of a message, ensure message type consistency
+                        if (currentMessageType.HasValue && result.MessageType != currentMessageType.Value)
+                        {
+                            throw new InvalidOperationException($"WebSocket message type changed from {currentMessageType.Value} to {result.MessageType} during partial message.");
+                        }
+
+                        // Set the message type for the first frame of a new message
+                        if (!currentMessageType.HasValue)
+                        {
+                            currentMessageType = result.MessageType;
+                        }
+
+                        if (result.EndOfMessage)
+                        {
+                            receiveBuffer.Position = 0;
+                            await this.OnMessageChainAsync(shinobiWebSocket, (MessageType)result.MessageType, receiveBuffer, cancellationToken);
+                            currentMessageType = null; // Reset for next message
+                            receiveBuffer.Dispose();
+                            receiveBuffer = new ArrayPoolStream();
+                        }
                     }
+                }
+                finally
+                {
+                    receiveBuffer.Dispose();
                 }
             }
             catch (Exception ex)

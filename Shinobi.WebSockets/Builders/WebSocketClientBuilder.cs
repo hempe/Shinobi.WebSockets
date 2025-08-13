@@ -179,11 +179,7 @@ namespace Shinobi.WebSockets.Builders
             {
                 if (messageType == MessageType.Text)
                 {
-#if NET8_0_OR_GREATER
-                    using var reader = new StreamReader(messageStream, leaveOpen: true);
-#else
                     var reader = new StreamReader(messageStream);
-#endif
                     var message = await reader.ReadToEndAsync();
                     await handler(webSocket, message, cancellationToken);
                     return;
