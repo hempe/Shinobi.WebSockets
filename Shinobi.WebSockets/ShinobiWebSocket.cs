@@ -86,7 +86,7 @@ namespace Shinobi.WebSockets
             this.state = WebSocketState.Open;
             this.stopwatch = Stopwatch.StartNew();
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
             this.PermessageDeflate = secWebSocketExtensions != null;
             if (this.PermessageDeflate)
             {

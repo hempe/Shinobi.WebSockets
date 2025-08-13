@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
 #else 
 using Shinobi.WebSockets.Extensions;
 #endif

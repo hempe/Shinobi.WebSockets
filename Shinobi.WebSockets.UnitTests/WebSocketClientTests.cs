@@ -111,7 +111,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
 
-#if NET9_0_OR_GREATER
+#if NET8_0_OR_GREATER
         [Fact]
         public async Task PermessageDeflateAsync()
         {
