@@ -158,6 +158,14 @@ namespace Shinobi.WebSockets
         }
 
         /// <summary>
+        /// Aborts the WebSocket without sending a Close frame
+        /// </summary>
+        public void Abort()
+        {
+            this.webSocket?.Abort();
+        }
+
+        /// <summary>
         /// Sends a text message asynchronously to the connected WebSocket server.
         /// </summary>
         /// <param name="message">The text message to send</param>
@@ -504,33 +512,37 @@ namespace Shinobi.WebSockets
         protected async virtual ValueTask<(Stream Stream, TcpClient TcpClient)> GetClientAsync(Guid loggingGuid, bool isSecure, bool noDelay, string host, int port, CancellationToken cancellationToken)
         {
             var tcpClient = new TcpClient { NoDelay = noDelay };
-            if (IPAddress.TryParse(host, out var ipAddress))
+            using (cancellationToken.Register(() => tcpClient.Close()))
             {
-                Events.Log?.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
-                await tcpClient.ConnectAsync(ipAddress, port).ConfigureAwait(false);
+
+                if (IPAddress.TryParse(host, out var ipAddress))
+                {
+                    Events.Log?.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
+                    await tcpClient.ConnectAsync(ipAddress, port).ConfigureAwait(false);
+                }
+                else
+                {
+                    Events.Log?.ClientConnectingToHost(loggingGuid, host, port);
+                    await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                var stream = tcpClient.GetStream();
+
+                if (isSecure)
+                {
+                    var sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
+                    Events.Log?.AttemtingToSecureSslConnection(loggingGuid);
+
+                    // This will throw an AuthenticationException if the certificate is not valid
+                    this.TlsAuthenticateAsClient(sslStream, host);
+                    Events.Log?.ConnectionSecured(loggingGuid);
+                    return (sslStream, tcpClient);
+                }
+
+                Events.Log?.ConnectionNotSecure(loggingGuid);
+                return (stream, tcpClient);
             }
-            else
-            {
-                Events.Log?.ClientConnectingToHost(loggingGuid, host, port);
-                await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            var stream = tcpClient.GetStream();
-
-            if (isSecure)
-            {
-                var sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
-                Events.Log?.AttemtingToSecureSslConnection(loggingGuid);
-
-                // This will throw an AuthenticationException if the certificate is not valid
-                this.TlsAuthenticateAsClient(sslStream, host);
-                Events.Log?.ConnectionSecured(loggingGuid);
-                return (sslStream, tcpClient);
-            }
-
-            Events.Log?.ConnectionNotSecure(loggingGuid);
-            return (stream, tcpClient);
         }
 
         /// <summary>

@@ -80,6 +80,7 @@ namespace Shinobi.WebSockets
                 return;
 
             this.runToken?.Cancel();
+            await this.DrainConnectionAsync().ConfigureAwait(false);
 
             try
             {
@@ -329,9 +330,27 @@ namespace Shinobi.WebSockets
                 if (disposing)
                 {
                     this.runToken?.Dispose();
+                    var listener = this.listener;
+                    if (listener != null)
+                    {
+                        this.Caught(() => listener.Server?.Close(0), "Close server");
+                        this.Caught(() => listener.Stop(), "Stop listener");
+                        this.Caught(() => listener.Server?.Dispose(), "Dispose server");
+                    }
                 }
 
                 this.isDisposed = true;
+            }
+        }
+        private void Caught(Action a, string method)
+        {
+            try
+            {
+                a();
+            }
+            catch (Exception e)
+            {
+                this.logger?.LogInformation("{Method} faild: {Message}", method, e.Message);
             }
         }
 
@@ -380,6 +399,37 @@ namespace Shinobi.WebSockets
             catch (Exception e)
             {
                 await this.OnErrorAsync(client, e, cancellationToken);
+            }
+        }
+
+        private async Task DrainConnectionAsync()
+        {
+            try
+            {
+                using (var cts = new CancellationTokenSource())
+                {
+
+                    cts.CancelAfter(100);
+                    using (var tcpClient = new TcpClient { NoDelay = true })
+                    {
+                        using (cts.Token.Register(() => tcpClient.Close()))
+                        {
+                            try
+                            {
+                                await tcpClient.ConnectAsync("localhost", this.options.Port);
+                                this.logger?.LogDebug("Drain clients succeeded.");
+                            }
+                            catch (Exception e)
+                            {
+                                this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
             }
         }
     }
