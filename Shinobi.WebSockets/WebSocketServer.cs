@@ -372,7 +372,7 @@ namespace Shinobi.WebSockets
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
                             var message = receiveBuffer.GetDataArraySegment();
-                            var statusDescription = result.Count == 0 ? null : Encoding.UTF8.GetString(message.Array, message.Offset + (message.Count - result.Count), result.Count);
+                            var statusDescription = result.Count == 0 ? null : Encoding.UTF8.GetString(message.Array!, message.Offset + (message.Count - result.Count), result.Count);
                             await this.OnCloseAsync(client, statusDescription, cancellationToken);
                             return;
                         }

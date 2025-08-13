@@ -5,8 +5,11 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Logging;
+
 using Shinobi.WebSockets.Builders;
+
 using Xunit;
 using Xunit.Abstractions;
 
@@ -36,7 +39,7 @@ namespace Shinobi.WebSockets.UnitTests
             this.serverPort = GetAvailablePort();
             this.serverUri = new Uri($"ws://localhost:{this.serverPort}/");
 
-            await this.StartTestServer();
+            await this.StartTestServerAsync();
         }
 
         public async Task DisposeAsync()
@@ -64,7 +67,7 @@ namespace Shinobi.WebSockets.UnitTests
             return port;
         }
 
-        private async Task StartTestServer()
+        private async Task StartTestServerAsync()
         {
             this.testServer = WebSocketServerBuilder.Create()
                 .UsePort((ushort)this.serverPort)
@@ -78,7 +81,7 @@ namespace Shinobi.WebSockets.UnitTests
                     if (this.serverShouldReject)
                     {
                         // Simulate server rejection by closing immediately
-                        await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.InternalServerError, 
+                        await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.InternalServerError,
                             "Server rejecting connections", ct);
                         return;
                     }
@@ -89,7 +92,7 @@ namespace Shinobi.WebSockets.UnitTests
                 {
                     // Echo back the message with timestamp
                     var response = $"Echo at {DateTime.Now:HH:mm:ss.fff}: {message}";
-                    await ws.SendAsync(new ArraySegment<byte>(System.Text.Encoding.UTF8.GetBytes(response)), 
+                    await ws.SendAsync(new ArraySegment<byte>(System.Text.Encoding.UTF8.GetBytes(response)),
                         System.Net.WebSockets.WebSocketMessageType.Text, true, ct);
                 })
                 .Build();
@@ -98,142 +101,7 @@ namespace Shinobi.WebSockets.UnitTests
             await Task.Delay(100); // Give server time to start
         }
 
-        [Fact(Skip = "Integration test has timing issues - use WebSocketClientBackoffTests for backoff testing")]
-        public async Task WebSocketClient_WithExponentialBackoff_ShouldIncreaseDelayBetweenAttemptsAsync()
-        {
-            // Arrange
-            var connectionAttempts = new List<DateTime>();
-            var stateChanges = new List<(DateTime Time, WebSocketConnectionState State)>();
 
-            using var loggerFactory = LoggerFactory.Create(builder => builder
-                .SetMinimumLevel(LogLevel.Warning)
-                .AddConsole());
-
-            var client = WebSocketClientBuilder.Create()
-                .UseLogging(loggerFactory)
-                .UseAutoReconnect(options =>
-                {
-                    options.InitialDelay = TimeSpan.FromMilliseconds(100);
-                    options.BackoffMultiplier = 2.0;
-                    options.MaxDelay = TimeSpan.FromSeconds(2);
-                    options.MaxAttempts = 4;
-                    options.Jitter = 0; // Disable jitter for predictable timing
-                })
-                .OnConnect(async (ws, next, ct) =>
-                {
-                    connectionAttempts.Add(DateTime.Now);
-                    await next(ws, ct);
-                })
-                .Build();
-
-            client.ConnectionStateChanged += (sender, e) =>
-            {
-                stateChanges.Add((DateTime.Now, e.NewState));
-                this.output.WriteLine($"State changed to: {e.NewState} at {DateTime.Now:HH:mm:ss.fff}");
-            };
-
-            // Make server reject all connections initially
-            this.serverShouldReject = true;
-
-            // Act
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            
-            try
-            {
-                await client.StartAsync(this.serverUri, cts.Token);
-            }
-            catch (InvalidOperationException)
-            {
-                // Expected - should fail after max attempts
-            }
-
-            // Allow some time for final state changes
-            await Task.Delay(200);
-
-            // Assert
-            this.output.WriteLine($"Total connection attempts: {connectionAttempts.Count}");
-            foreach (var attempt in connectionAttempts)
-            {
-                this.output.WriteLine($"Attempt at: {attempt:HH:mm:ss.fff}");
-            }
-
-            // Should have made 4 attempts (initial + 3 retries)
-            Assert.InRange(connectionAttempts.Count, 3, 5); // Allow some variance
-
-            if (connectionAttempts.Count >= 3)
-            {
-                // Check exponential backoff timing
-                var delay1 = connectionAttempts[1] - connectionAttempts[0];
-                var delay2 = connectionAttempts[2] - connectionAttempts[1];
-
-                this.output.WriteLine($"First delay: {delay1.TotalMilliseconds}ms");
-                this.output.WriteLine($"Second delay: {delay2.TotalMilliseconds}ms");
-
-                // Second delay should be roughly 2x the first delay (allowing for timing variance)
-                Assert.True(delay2.TotalMilliseconds > delay1.TotalMilliseconds * 1.5, 
-                    "Second delay should be significantly longer than first delay due to exponential backoff");
-            }
-
-            // Should eventually reach Failed state
-            Assert.Contains(stateChanges, item => item.State == WebSocketConnectionState.Failed);
-
-            client.Dispose();
-        }
-
-        [Fact(Skip = "Integration test - investigate server setup timing issues")]
-        public async Task WebSocketClient_MaxAttempts_ShouldStopReconnectingAfterLimitAsync()
-        {
-            // Arrange
-            var reconnectingEvents = new List<(DateTime Time, int AttemptNumber)>();
-            var stateChanges = new List<WebSocketConnectionState>();
-
-            var client = WebSocketClientBuilder.Create()
-                .UseAutoReconnect(options =>
-                {
-                    options.InitialDelay = TimeSpan.FromMilliseconds(50);
-                    options.BackoffMultiplier = 1.5;
-                    options.MaxAttempts = 3; // Strict limit
-                    options.Jitter = 0;
-                })
-                .Build();
-
-            client.Reconnecting += (sender, e) =>
-            {
-                reconnectingEvents.Add((DateTime.Now, e.AttemptNumber));
-                this.output.WriteLine($"Reconnecting attempt {e.AttemptNumber} at {DateTime.Now:HH:mm:ss.fff}");
-            };
-
-            client.ConnectionStateChanged += (sender, e) =>
-            {
-                stateChanges.Add(e.NewState);
-                this.output.WriteLine($"State: {e.NewState}");
-            };
-
-            // Make server reject all connections
-            this.serverShouldReject = true;
-
-            // Act
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => client.StartAsync(this.serverUri, cts.Token));
-
-            // Allow time for final state changes
-            await Task.Delay(100);
-
-            // Assert
-            this.output.WriteLine($"Total reconnecting events: {reconnectingEvents.Count}");
-            this.output.WriteLine($"Exception message: {exception.Message}");
-
-            // Should not exceed max attempts
-            Assert.True(reconnectingEvents.Count <= 3, 
-                $"Should not exceed 3 reconnect attempts, but had {reconnectingEvents.Count}");
-
-            // Should reach Failed state
-            Assert.Contains(WebSocketConnectionState.Failed, stateChanges);
-
-            client.Dispose();
-        }
 
         [Fact(Skip = "Integration test - investigate server setup timing issues")]
         public async Task WebSocketClient_SuccessfulReconnection_ShouldResetAttemptCounterAsync()
@@ -248,7 +116,6 @@ namespace Shinobi.WebSockets.UnitTests
                 {
                     options.InitialDelay = TimeSpan.FromMilliseconds(100);
                     options.BackoffMultiplier = 2.0;
-                    options.MaxAttempts = 5;
                     options.Jitter = 0;
                 })
                 .OnConnect(async (ws, next, ct) =>
@@ -261,7 +128,7 @@ namespace Shinobi.WebSockets.UnitTests
                 {
                     messagesReceived.Add(message);
                     this.output.WriteLine($"Received: {message}");
-                    return new ValueTask();
+                    return default(ValueTask);
                 })
                 .Build();
 
@@ -291,7 +158,7 @@ namespace Shinobi.WebSockets.UnitTests
             await Task.Delay(500); // Let client detect disconnection
 
             // Restart server after a delay, but still rejecting initially
-            await this.StartTestServer();
+            await this.StartTestServerAsync();
             await Task.Delay(1000); // Let reconnection attempts happen
 
             // Now allow connections again
@@ -313,7 +180,7 @@ namespace Shinobi.WebSockets.UnitTests
             await this.testServer.StopAsync();
             await Task.Delay(500);
 
-            await this.StartTestServer();
+            await this.StartTestServerAsync();
             await Task.Delay(1000); // Let some reconnection attempts happen
 
             await client.StopAsync();
@@ -354,7 +221,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .OnTextMessage(async (ws, message, ct) =>
                 {
                     var response = $"Fallback echo: {message}";
-                    await ws.SendAsync(new ArraySegment<byte>(System.Text.Encoding.UTF8.GetBytes(response)), 
+                    await ws.SendAsync(new ArraySegment<byte>(System.Text.Encoding.UTF8.GetBytes(response)),
                         System.Net.WebSockets.WebSocketMessageType.Text, true, ct);
                 })
                 .Build();
@@ -369,7 +236,6 @@ namespace Shinobi.WebSockets.UnitTests
                     .UseAutoReconnect(options =>
                     {
                         options.InitialDelay = TimeSpan.FromMilliseconds(100);
-                        options.MaxAttempts = 3;
                         options.Jitter = 0;
                     })
                     .OnReconnecting((uri, attemptNumber, ct) =>
@@ -384,7 +250,7 @@ namespace Shinobi.WebSockets.UnitTests
                     {
                         messagesReceived.Add(message);
                         this.output.WriteLine($"Received: {message}");
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
                     .Build();
 
@@ -436,7 +302,6 @@ namespace Shinobi.WebSockets.UnitTests
                 {
                     options.InitialDelay = TimeSpan.FromMilliseconds(200);
                     options.BackoffMultiplier = 1.0; // No exponential growth for predictable baseline
-                    options.MaxAttempts = 5;
                     options.Jitter = 0.5; // 50% jitter should create noticeable variance
                 })
                 .OnConnect(async (ws, next, ct) =>
@@ -451,7 +316,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Act
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            
+
             try
             {
                 await client.StartAsync(this.serverUri, cts.Token);
@@ -512,7 +377,6 @@ namespace Shinobi.WebSockets.UnitTests
                 .UseAutoReconnect(options =>
                 {
                     options.InitialDelay = TimeSpan.FromMilliseconds(200);
-                    options.MaxAttempts = 8;
                     options.BackoffMultiplier = 1.5;
                     options.Jitter = 0.1;
                 })
@@ -520,7 +384,7 @@ namespace Shinobi.WebSockets.UnitTests
                 {
                     messagesReceived.Add(message);
                     this.output.WriteLine($"Received: {message}");
-                    return new ValueTask();
+                    return default(ValueTask);
                 })
                 .Build();
 
@@ -535,10 +399,10 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Act
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            
+
             // Initial connection
             await client.StartAsync(this.serverUri, cts.Token);
-            
+
             // Verify initial connection
             await client.SendTextAsync("Before interruption", cts.Token);
             await Task.Delay(200);
@@ -546,14 +410,14 @@ namespace Shinobi.WebSockets.UnitTests
             // Simulate network interruption
             this.output.WriteLine("=== Simulating network interruption ===");
             await this.testServer.StopAsync();
-            
+
             // Wait for client to detect disconnection and start reconnecting
             await Task.Delay(1000);
 
             // Restart server (simulating network recovery)
             this.output.WriteLine("=== Network recovered ===");
-            await this.StartTestServer();
-            
+            await this.StartTestServerAsync();
+
             // Wait for reconnection
             await Task.Delay(3000);
 
@@ -581,7 +445,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Should have connected initially
             Assert.Contains(connectionStates, item => item.State == WebSocketConnectionState.Connected);
-            
+
             // Should have started reconnecting after disconnection
             Assert.Contains(connectionStates, item => item.State == WebSocketConnectionState.Reconnecting);
 

@@ -201,7 +201,7 @@ namespace Shinobi.WebSockets.UnitTests
                     {
                         this.logger.LogDebug($"[Server] Received {data.Length} bytes");
                         this.ReceivedMessages.Add(data);
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
                     .OnClose(async (webSocket, statusDescription, next, cancellationToken) =>
                     {

@@ -110,9 +110,7 @@ namespace Shinobi.WebSockets
             {
                 var completedTask = await Task.WhenAny(timeoutTask, Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken));
                 if (completedTask == timeoutTask)
-                {
                     throw new TimeoutException("Initial connection attempt timed out");
-                }
 
                 if (this.ConnectionState == WebSocketConnectionState.Connected)
                     break;
@@ -259,13 +257,6 @@ namespace Shinobi.WebSockets
                     this.logger?.LogInformation("Starting auto-reconnect sequence (attempt {AttemptNumber})", attemptNumber + 1);
                     this.ChangeConnectionState(WebSocketConnectionState.Reconnecting);
 
-                    // Check max attempts
-                    if (this.options.ReconnectOptions.MaxAttempts > 0 && attemptNumber > this.options.ReconnectOptions.MaxAttempts)
-                    {
-                        this.logger?.LogWarning("Maximum reconnect attempts ({MaxAttempts}) exceeded", this.options.ReconnectOptions.MaxAttempts);
-                        this.ChangeConnectionState(WebSocketConnectionState.Failed);
-                        break;
-                    }
 
                     // Calculate delay with exponential backoff and jitter
                     var delay = this.CalculateReconnectDelay(attemptNumber);
@@ -363,7 +354,7 @@ namespace Shinobi.WebSockets
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
                             var message = receiveBuffer.GetDataArraySegment();
-                            var statusDescription = result.Count == 0 ? null : Encoding.UTF8.GetString(message.Array, message.Offset + (message.Count - result.Count), result.Count);
+                            var statusDescription = result.Count == 0 ? null : Encoding.UTF8.GetString(message.Array!, message.Offset + (message.Count - result.Count), result.Count);
                             await this.OnCloseCsync(shinobiWebSocket, statusDescription, cancellationToken);
                             return;
                         }

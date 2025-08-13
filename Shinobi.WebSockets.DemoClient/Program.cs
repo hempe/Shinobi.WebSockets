@@ -259,11 +259,11 @@ namespace Shinobi.WebSockets.DemoClient
                         if (stressTestRunning && awaitingStressResponse && message.StartsWith("STRESS_"))
                         {
                             HandleStressTestResponseAsync();
-                            return new ValueTask();
+                            return default(ValueTask);
                         }
 
                         WriteReceived($"▼ {message}");
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
                     .OnBinaryMessage((ws, data, ct) =>
                     {
@@ -273,11 +273,11 @@ namespace Shinobi.WebSockets.DemoClient
                         if (stressTestRunning && awaitingStressResponse && message.StartsWith("STRESS_"))
                         {
                             HandleStressTestResponseAsync();
-                            return new ValueTask();
+                            return default(ValueTask);
                         }
 
                         WriteReceived($"▼ [BINARY] {message}");
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
                     .Build();
 
@@ -520,7 +520,7 @@ namespace Shinobi.WebSockets.DemoClient
                     {
                         messagesReceived++;
                         WriteReceived($"▼ {message}");
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
                     .Build();
 

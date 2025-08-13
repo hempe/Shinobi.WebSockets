@@ -29,11 +29,22 @@ namespace Shinobi.WebSockets.UnitTests
         /// </summary>
         private static int GetAvailablePort()
         {
-            using var listener = new TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            listener.Stop();
-            return port;
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            try
+            {
+                listener.Start();
+                var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                listener.Stop();
+
+                return port;
+            }
+            finally
+            {
+#if !NETFRAMEWORK
+
+            listener.Dispose();
+#endif
+            }
         }
 
         [Fact]
@@ -61,7 +72,7 @@ namespace Shinobi.WebSockets.UnitTests
                 {
                     receivedMessage = message;
                     messageReceived.SetResult(true);
-                    return new ValueTask();
+                    return default(ValueTask);
                 })
                 .Build();
 
@@ -116,7 +127,7 @@ namespace Shinobi.WebSockets.UnitTests
                 {
                     receivedMessage = message;
                     messageReceived.SetResult(true);
-                    return new ValueTask();
+                    return default(ValueTask);
                 })
                 .Build();
 
@@ -145,7 +156,7 @@ namespace Shinobi.WebSockets.UnitTests
             }
         }
 
-        public async ValueTask DisposeAsync()
+        public ValueTask DisposeAsync()
         {
             try
             {
@@ -157,6 +168,7 @@ namespace Shinobi.WebSockets.UnitTests
             }
 
             this.cts.Dispose();
+            return default(ValueTask);
         }
     }
 }

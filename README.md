@@ -92,7 +92,7 @@ using var client = WebSocketClientBuilder.Create()
     .OnTextMessage((ws, message, ct) =>
     {
         Console.WriteLine($"Received: {message}");
-        return new ValueTask();
+        return default(ValueTask);
     })
     .Build();
 
@@ -118,7 +118,7 @@ using var client = WebSocketClientBuilder.Create()
     .OnTextMessage((message, ct) => // Simplified handler
     {
         Console.WriteLine($"Received: {message}");
-        return new ValueTask();
+        return default(ValueTask);
     })
     .Build();
 
@@ -135,7 +135,6 @@ using var client = WebSocketClientBuilder.Create()
         options.InitialDelay = TimeSpan.FromSeconds(2);
         options.MaxDelay = TimeSpan.FromMinutes(1);
         options.BackoffMultiplier = 2.0;
-        options.MaxAttempts = 5; // 0 = unlimited
         options.Jitter = 0.1; // Add 10% random jitter
     })
     .Build();
@@ -211,7 +210,6 @@ using var client = WebSocketClientBuilder.Create()
         maxDelay: TimeSpan.FromSeconds(30),
         multiplier: 2.0,
         jitter: 0.1)
-    .UseMaxReconnectAttempts(10)
     .OnConnect(async (ws, next, ct) =>
     {
         Console.WriteLine("Connected!");
@@ -230,12 +228,12 @@ using var client = WebSocketClientBuilder.Create()
     .OnTextMessage((ws, message, ct) =>
     {
         Console.WriteLine($"Text: {message}");
-        return new ValueTask();
+        return default(ValueTask);
     })
     .OnBinaryMessage((ws, data, ct) =>
     {
         Console.WriteLine($"Binary: {data.Length} bytes");
-        return new ValueTask();
+        return default(ValueTask);
     })
     .Build();
 ```
@@ -256,25 +254,30 @@ The `ConnectionState` property provides real-time connection status:
 When you configure logging with `UseLogging()`, the WebSocketClient automatically logs comprehensive information about reconnection attempts:
 
 #### Information Level Logs:
+
 - **Connection closed**: "WebSocket connection closed, checking reconnect options"
-- **Auto-reconnect disabled**: "Auto-reconnect is disabled, staying disconnected"  
+- **Auto-reconnect disabled**: "Auto-reconnect is disabled, staying disconnected"
 - **Starting reconnect**: "Starting auto-reconnect sequence (attempt N)"
 - **Reconnect attempt**: "Reconnecting to ws://example.com in 2000ms (attempt 3)"
 - **Successful reconnect**: "Successfully reconnected to ws://example.com after 3 attempts"
 - **Reconnection cancelled**: "WebSocket reconnection cancelled"
 
 #### Warning Level Logs:
+
 - **Max attempts exceeded**: "Maximum reconnect attempts (5) exceeded"
 
 #### Error Level Logs:
+
 - **Connection errors**: "Connection error (attempt 2)" with full exception details
 
 #### Debug Level Logs:
+
 - **State changes**: "WebSocket connection state changed from Connected to Reconnecting"
 - **OnReconnecting handler**: "Calling OnReconnecting handler for attempt 2"
 - **URI changes**: "OnReconnecting handler changed URI from ws://primary.com to ws://backup.com"
 
 #### Example Log Output:
+
 ```
 info: WebSocket connection closed, checking reconnect options
 info: Starting auto-reconnect sequence (attempt 1)
@@ -288,6 +291,7 @@ info: Successfully reconnected to ws://localhost:8080 after 1 attempts
 ## Migration from WebSocketClientFactory
 
 ### Before (Old Factory Pattern)
+
 ```csharp
 var factory = new WebSocketClientFactory();
 var webSocket = await factory.ConnectAsync(uri, options);
@@ -296,6 +300,7 @@ webSocket.Dispose();
 ```
 
 ### After (New Builder Pattern)
+
 ```csharp
 using var client = WebSocketClientBuilder.Create().Build();
 await client.StartAsync(uri);
@@ -307,6 +312,7 @@ await client.StopAsync();
 ### Key API Changes
 
 #### Before (WebSocketClientFactory Pattern)
+
 ```csharp
 var factory = new WebSocketClientFactory();
 var webSocket = await factory.ConnectAsync(uri, options);
@@ -316,6 +322,7 @@ webSocket.Dispose();
 ```
 
 #### After (New WebSocketClient Pattern)
+
 ```csharp
 var client = WebSocketClientBuilder.Create().Build();
 await client.StartAsync(uri);
@@ -373,7 +380,7 @@ disconnect        - Disconnect from server
 send <message>    - Send a text message
 binary <message>  - Send a binary message
 ping              - Send ping command
-time              - Send time command  
+time              - Send time command
 serverhelp        - Send help command to server
 stress [count]    - Run stress test (default: 1000 messages)
 stopstress        - Stop running stress test
@@ -388,11 +395,13 @@ quit/exit         - Exit the application
 #### Running Both Demo Applications
 
 1. Start the server in one terminal:
+
    ```bash
    dotnet run --project Shinobi.WebSockets.DemoServer
    ```
 
 2. Start the client in another terminal:
+
    ```bash
    dotnet run --project Shinobi.WebSockets.DemoClient
    ```

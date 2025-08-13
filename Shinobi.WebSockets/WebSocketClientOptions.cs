@@ -31,10 +31,6 @@ namespace Shinobi.WebSockets
         /// </summary>
         public double BackoffMultiplier { get; set; } = 2.0;
 
-        /// <summary>
-        /// Maximum number of reconnect attempts (0 = infinite)
-        /// </summary>
-        public int MaxAttempts { get; set; } = 0;
 
         /// <summary>
         /// Jitter to add randomness to backoff delays (0 = no jitter, 1 = up to 100% jitter)

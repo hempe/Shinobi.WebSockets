@@ -258,7 +258,7 @@ namespace Shinobi.WebSockets.UnitTests
         {
             var builder = WebSocketClientBuilder.Create();
 
-            builder.OnTextMessage((webSocket, message, ct) => new ValueTask());
+            builder.OnTextMessage((webSocket, message, ct) => default(ValueTask));
 
             Assert.Single(builder.onMessage);
         }
@@ -276,7 +276,7 @@ namespace Shinobi.WebSockets.UnitTests
         {
             var builder = WebSocketClientBuilder.Create();
 
-            builder.OnBinaryMessage((webSocket, data, ct) => new ValueTask());
+            builder.OnBinaryMessage((webSocket, data, ct) => default(ValueTask));
 
             Assert.Single(builder.onMessage);
         }
@@ -344,7 +344,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .UseBearerAuthentication("test-token")
                 .UseLogging(loggerFactory)
                 .OnConnect(async (ws, next, ct) => await next(ws, ct))
-                .OnTextMessage((ws, msg, ct) => new ValueTask())
+                .OnTextMessage((ws, msg, ct) => default(ValueTask))
                 .OnClose(async (ws, statusDescription, next, ct) => await next(ws, statusDescription, ct));
 
             Assert.Equal(TimeSpan.FromSeconds(30), builder.configuration.KeepAliveInterval);
