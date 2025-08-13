@@ -158,6 +158,14 @@ namespace Shinobi.WebSockets
         }
 
         /// <summary>
+        /// Aborts the WebSocket without sending a Close frame
+        /// </summary>
+        public void Abort()
+        {
+            this.webSocket?.Abort();
+        }
+
+        /// <summary>
         /// Sends a text message asynchronously to the connected WebSocket server.
         /// </summary>
         /// <param name="message">The text message to send</param>
