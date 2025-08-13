@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
@@ -62,7 +60,8 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="configureOptions">Action to configure the configuration</param>
         public WebSocketServerBuilder UseConfiguration(Action<WebSocketServerOptions> configureOptions)
         {
-            if (configureOptions == null) throw new ArgumentNullException(nameof(configureOptions));
+            if (configureOptions == null)
+                throw new ArgumentNullException(nameof(configureOptions));
             configureOptions(this.configuration);
             return this;
         }
@@ -109,7 +108,8 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="subProtocol">Sub protocol to add</param>
         public WebSocketServerBuilder AddSupportedSubProtocol(string subProtocol)
         {
-            if (string.IsNullOrWhiteSpace(subProtocol)) throw new ArgumentException("Sub protocol cannot be null or whitespace", nameof(subProtocol));
+            if (string.IsNullOrWhiteSpace(subProtocol))
+                throw new ArgumentException("Sub protocol cannot be null or whitespace", nameof(subProtocol));
 
             if (this.configuration.SupportedSubProtocols == null)
                 this.configuration.SupportedSubProtocols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -204,17 +204,14 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="handler">Text message handler</param>
         public WebSocketServerBuilder OnTextMessage(WebSocketTextMessageHandler handler)
         {
-            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
 
             return this.OnMessage(async (webSocket, messageType, messageStream, next, cancellationToken) =>
             {
                 if (messageType == MessageType.Text)
                 {
-#if NET8_0_OR_GREATER
-                    using var reader = new StreamReader(messageStream, leaveOpen: true);
-#else
                     var reader = new StreamReader(messageStream);
-#endif
                     var message = await reader.ReadToEndAsync();
                     await handler(webSocket, message, cancellationToken);
                     return;
@@ -230,7 +227,8 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="handler">Binary message handler</param>
         public WebSocketServerBuilder OnBinaryMessage(WebSocketBinaryMessageHandler handler)
         {
-            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
 
             return this.OnMessage(async (webSocket, messageType, messageStream, next, cancellationToken) =>
             {
@@ -291,7 +289,8 @@ namespace Shinobi.WebSockets.Builders
         /// <param name="authenticator">Authentication function that returns true if authentication succeeds</param>
         public WebSocketServerBuilder UseAuthentication(WebSocketAuthenticator authenticator)
         {
-            if (authenticator == null) throw new ArgumentNullException(nameof(authenticator));
+            if (authenticator == null)
+                throw new ArgumentNullException(nameof(authenticator));
 
             return this.OnHandshake(async (context, next, cancellationToken) =>
             {
