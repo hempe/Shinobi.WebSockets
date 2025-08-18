@@ -77,7 +77,25 @@ await server.StopAsync();
 
 ## Installation
 
-(NuGet publishing instructions go here if you publish it)
+Install the package via NuGet Package Manager:
+
+```bash
+dotnet add package Shinobi.WebSockets
+```
+
+Or via the Package Manager Console in Visual Studio:
+
+```powershell
+Install-Package Shinobi.WebSockets
+```
+
+You can also add it directly to your project file:
+
+```xml
+<PackageReference Include="Shinobi.WebSockets" Version="1.0.0" />
+```
+
+Note: Replace "1.0.0" with the latest version number available on NuGet.
 
 ---
 
@@ -253,7 +271,7 @@ The `ConnectionState` property provides real-time connection status:
 
 When you configure logging with `UseLogging()`, the WebSocketClient automatically logs comprehensive information about reconnection attempts:
 
-#### Information Level Logs:
+#### Information Level Logs
 
 - **Connection closed**: "WebSocket connection closed, checking reconnect options"
 - **Auto-reconnect disabled**: "Auto-reconnect is disabled, staying disconnected"
@@ -262,21 +280,21 @@ When you configure logging with `UseLogging()`, the WebSocketClient automaticall
 - **Successful reconnect**: "Successfully reconnected to ws://example.com after 3 attempts"
 - **Reconnection cancelled**: "WebSocket reconnection cancelled"
 
-#### Warning Level Logs:
+#### Warning Level Logs
 
 - **Max attempts exceeded**: "Maximum reconnect attempts (5) exceeded"
 
-#### Error Level Logs:
+#### Error Level Logs
 
 - **Connection errors**: "Connection error (attempt 2)" with full exception details
 
-#### Debug Level Logs:
+#### Debug Level Logs
 
 - **State changes**: "WebSocket connection state changed from Connected to Reconnecting"
 - **OnReconnecting handler**: "Calling OnReconnecting handler for attempt 2"
 - **URI changes**: "OnReconnecting handler changed URI from ws://primary.com to ws://backup.com"
 
-#### Example Log Output:
+#### Example Log Output
 
 ```
 info: WebSocket connection closed, checking reconnect options
@@ -414,7 +432,7 @@ quit/exit         - Exit the application
 
 ## License
 
-This project is licensed under the MIT License – see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License – see the [LICENCE.md](https://github.com/hempe/Shinobi.WebSockets/blob/master/LICENCE.md) file for details.
 
 ## Credits
 
