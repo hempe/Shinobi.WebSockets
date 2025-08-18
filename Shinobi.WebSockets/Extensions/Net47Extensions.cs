@@ -63,6 +63,18 @@ namespace Shinobi.WebSockets.Extensions
 
             return await task.ConfigureAwait(false);
         }
+
+        public static T[] ToArray<T>(this ArraySegment<T> segment)
+        {
+            if (segment.Array == null)
+                return Array.Empty<T>();
+
+            // Copy only the segment portion
+            var result = new T[segment.Count];
+            Array.Copy(segment.Array, segment.Offset, result, 0, segment.Count);
+            return result;
+        }
     }
+
 }
 #endif
