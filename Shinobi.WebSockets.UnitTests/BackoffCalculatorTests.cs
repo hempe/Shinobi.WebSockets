@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Shinobi.WebSockets.Internal;
 using Xunit;
 
@@ -165,6 +167,97 @@ namespace Shinobi.WebSockets.UnitTests
                     Assert.True(delay.TotalMilliseconds >= 0, 
                         $"Delay should never be negative, got {delay.TotalMilliseconds}ms for attempt {attempt}");
                 }
+            }
+        }
+
+        [Fact]
+        public void CalculateDelay_WithNoExponentialGrowthAndHighJitter_ShouldCreateVariation()
+        {
+            // Arrange - Test the specific scenario from the failing integration test
+            var calculator = new BackoffCalculator();
+            var initialDelay = TimeSpan.FromMilliseconds(200);
+            var maxDelay = TimeSpan.FromSeconds(30);
+            var jitterPercent = 0.5; // 50% jitter
+
+            // Act - Simulate multiple reconnect attempts with no exponential growth (multiplier = 1.0)
+            // Since BackoffCalculator uses exponential backoff (multiplier = 2), we test attempt 0 multiple times
+            var delays = new double[20];
+            for (int i = 0; i < delays.Length; i++)
+            {
+                delays[i] = calculator.CalculateDelay(0, initialDelay, maxDelay, jitterPercent).TotalMilliseconds;
+            }
+
+            // Assert
+            // With 50% jitter on 200ms base: range should be 100ms to 300ms
+            foreach (var delay in delays)
+            {
+                Assert.InRange(delay, 100.0, 300.0);
+            }
+
+            // Should have variation - not all delays should be the same
+            bool hasVariation = false;
+            var firstDelay = delays[0];
+            foreach (var delay in delays)
+            {
+                if (Math.Abs(delay - firstDelay) > 10.0) // Allow for some tolerance
+                {
+                    hasVariation = true;
+                    break;
+                }
+            }
+
+            Assert.True(hasVariation, "50% jitter should create noticeable variation in delays");
+
+            // Test the standard deviation to ensure meaningful variation
+            var mean = delays.Sum() / delays.Length;
+            var variance = delays.Sum(d => Math.Pow(d - mean, 2)) / delays.Length;
+            var stdDev = Math.Sqrt(variance);
+
+            // With 50% jitter, we should see a reasonable standard deviation
+            // The range is 100-300ms (200ms spread), so std dev should be meaningful
+            Assert.True(stdDev > 20.0, $"Standard deviation {stdDev:F2} should indicate meaningful variation with 50% jitter");
+        }
+
+        [Fact]
+        public void CalculateDelay_MatchingFailingTestConditions_ShouldProduceVariation()
+        {
+            // Arrange - Exactly matching the failing test conditions
+            var calculator = new BackoffCalculator();
+            var initialDelay = TimeSpan.FromMilliseconds(200);
+            var jitterPercent = 0.5; // 50% jitter
+            
+            // The failing test uses BackoffMultiplier = 1.0, but our BackoffCalculator 
+            // always uses exponential backoff. To simulate the same delay repeatedly,
+            // we always use attempt 0
+            
+            var delays = new List<double>();
+            
+            // Generate 10 delays as the failing test might
+            for (int i = 0; i < 10; i++)
+            {
+                var delay = calculator.CalculateDelay(0, initialDelay, TimeSpan.FromSeconds(30), jitterPercent);
+                delays.Add(delay.TotalMilliseconds);
+            }
+
+            // Assert - check if variation exists with same criteria as failing test
+            var firstDelay = delays[0];
+            var hasVariation = false;
+
+            foreach (var delay in delays)
+            {
+                if (Math.Abs(delay - firstDelay) > 20) // Same tolerance as failing test
+                {
+                    hasVariation = true;
+                    break;
+                }
+            }
+
+            Assert.True(hasVariation, "Jitter should create variation in delays (matching failing test criteria)");
+
+            // Verify range - should be 100ms to 300ms (200ms ± 50%)
+            foreach (var delay in delays)
+            {
+                Assert.InRange(delay, 80, 400); // Same range as failing test with tolerance
             }
         }
     }

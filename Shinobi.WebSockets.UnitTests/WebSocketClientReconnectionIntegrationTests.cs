@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -334,33 +335,83 @@ namespace Shinobi.WebSockets.UnitTests
 
             // Assert
             this.output.WriteLine($"Reconnect attempts: {reconnectTimes.Count}");
+            this.output.WriteLine($"Delays calculated: {delays.Count}");
+            
+            // Show detailed delay information
             for (int i = 0; i < delays.Count; i++)
             {
-                this.output.WriteLine($"Delay {i + 1}: {delays[i].TotalMilliseconds}ms");
+                this.output.WriteLine($"Delay {i + 1}: {delays[i].TotalMilliseconds:F2}ms");
             }
-
+            
             if (delays.Count >= 2)
             {
-                // With 50% jitter, delays should vary
-                var firstDelay = delays[0].TotalMilliseconds;
+                // Calculate statistics
+                var delayValues = delays.Select(d => d.TotalMilliseconds).ToArray();
+                var firstDelay = delayValues[0];
+                var minDelay = delayValues.Min();
+                var maxDelay = delayValues.Max();
+                var avgDelay = delayValues.Average();
+                var range = maxDelay - minDelay;
+                
+                this.output.WriteLine($"Delay Statistics:");
+                this.output.WriteLine($"  First delay: {firstDelay:F2}ms");
+                this.output.WriteLine($"  Min delay: {minDelay:F2}ms");
+                this.output.WriteLine($"  Max delay: {maxDelay:F2}ms");
+                this.output.WriteLine($"  Average delay: {avgDelay:F2}ms");
+                this.output.WriteLine($"  Range: {range:F2}ms");
+                
+                // Check for variation with detailed analysis
                 var hasVariation = false;
-
-                foreach (var delay in delays)
+                var maxDifference = 0.0;
+                
+                foreach (var delay in delayValues)
                 {
-                    if (Math.Abs(delay.TotalMilliseconds - firstDelay) > 20) // Allow for timing variance
+                    var difference = Math.Abs(delay - firstDelay);
+                    if (difference > maxDifference)
+                    {
+                        maxDifference = difference;
+                    }
+                    if (difference > 20) // Allow for timing variance
                     {
                         hasVariation = true;
-                        break;
                     }
                 }
-
-                Assert.True(hasVariation, "Jitter should create variation in delays");
+                
+                this.output.WriteLine($"  Max difference from first delay: {maxDifference:F2}ms");
+                this.output.WriteLine($"  Has variation (>20ms diff): {hasVariation}");
+                
+                // Check if all delays are within expected range
+                var expectedMin = 100.0; // 200ms - 50% = 100ms
+                var expectedMax = 300.0; // 200ms + 50% = 300ms
+                var allowanceMin = 80.0;  // Test allows wider range
+                var allowanceMax = 400.0; // Test allows wider range
+                
+                this.output.WriteLine($"Expected range (theoretical): {expectedMin:F0}ms - {expectedMax:F0}ms");
+                this.output.WriteLine($"Allowed range (with tolerance): {allowanceMin:F0}ms - {allowanceMax:F0}ms");
+                
+                var outOfRange = delayValues.Where(d => d < allowanceMin || d > allowanceMax).ToArray();
+                if (outOfRange.Any())
+                {
+                    this.output.WriteLine($"Delays out of range: {string.Join(", ", outOfRange.Select(d => $"{d:F2}ms"))}");
+                }
+                
+                // Enhanced assertion with better error message
+                var errorMessage = $"Jitter should create variation in delays. " +
+                    $"Got {delays.Count} delays with max difference of {maxDifference:F2}ms from first delay {firstDelay:F2}ms. " +
+                    $"Range: {minDelay:F2}ms - {maxDelay:F2}ms (span: {range:F2}ms). " +
+                    $"Expected variation >20ms with 50% jitter on 200ms base delay.";
+                    
+                Assert.True(hasVariation, errorMessage);
 
                 // All delays should be within expected range (100ms to 300ms with 50% jitter on 200ms base)
                 foreach (var delay in delays)
                 {
-                    Assert.InRange(delay.TotalMilliseconds, 80, 400); // Allow for some timing variance
+                    Assert.InRange(delay.TotalMilliseconds, allowanceMin, allowanceMax);
                 }
+            }
+            else
+            {
+                this.output.WriteLine("Not enough delays to test variation - need at least 2 delays");
             }
 
             client.Dispose();
