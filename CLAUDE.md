@@ -100,3 +100,4 @@ The main library has minimal dependencies:
 
 - Use `this.` instead of `_` prefix for private fields
 - Async functions should always have the `Async` suffix (except for `Main(string[])`)
+- Test methods that are async must also have the `Async` suffix (e.g., `MyTestAsync()`)
