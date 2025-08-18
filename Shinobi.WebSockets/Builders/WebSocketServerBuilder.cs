@@ -118,6 +118,7 @@ namespace Shinobi.WebSockets.Builders
             return this;
         }
 
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Enables per-message deflate compression with default settings
         /// </summary>
@@ -137,7 +138,7 @@ namespace Shinobi.WebSockets.Builders
             configure(this.configuration.PerMessageDeflate);
             return this;
         }
-
+#endif
         /// <summary>
         /// Adds an interceptor for stream acceptance (e.g., for SSL/TLS, logging, etc.)
         /// </summary>

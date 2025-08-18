@@ -104,7 +104,7 @@ namespace Shinobi.WebSockets.Builders
             this.configuration.SecWebSocketExtensions = extensions;
             return this;
         }
-
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Enables per-message deflate compression
         /// </summary>
@@ -113,6 +113,7 @@ namespace Shinobi.WebSockets.Builders
             this.configuration.SecWebSocketExtensions = "permessage-deflate";
             return this;
         }
+#endif
 
         /// <summary>
         /// Configures WebSocket client options

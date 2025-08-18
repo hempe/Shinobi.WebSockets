@@ -431,7 +431,7 @@ namespace Shinobi.WebSockets.UnitTests
             await client.StopAsync();
 
             // Assert
-            this.output.WriteLine($"\nConnection state timeline:");
+            this.output.WriteLine("\nConnection state timeline:");
             foreach (var (time, state) in connectionStates)
             {
                 this.output.WriteLine($"  {time:HH:mm:ss.fff}: {state}");

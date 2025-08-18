@@ -444,11 +444,13 @@ namespace Shinobi.WebSockets
 
             return new ShinobiWebSocket(
                 new WebSocketHttpContext(tcpClient, response!, responseStream, guid),
+#if NET8_0_OR_GREATER
                 response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.ParseExtension(),
+#endif
                 keepAliveInterval,
                 includeExceptionInCloseResponse,
                 true,
-                response.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
+                response!.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
         }
 
         private void ThrowIfInvalidAcceptString(Guid guid, HttpHeader response, string secWebSocketKey)

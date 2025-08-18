@@ -1,4 +1,4 @@
-
+#if NET8_0_OR_GREATER
 using System;
 using System.IO.Compression;
 
@@ -88,3 +88,4 @@ namespace Shinobi.WebSockets.Internal
         }
     }
 }
+#endif

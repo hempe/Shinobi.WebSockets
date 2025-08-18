@@ -45,7 +45,7 @@ namespace Shinobi.WebSockets
 
     // Authentication delegate
     public delegate bool WebSocketAuthenticator(WebSocketHttpContext context);
-
+#if NET8_0_OR_GREATER
     /// <summary>
     /// Configuration for WebSocket per-message deflate compression (RFC 7692)
     /// </summary>
@@ -66,7 +66,7 @@ namespace Shinobi.WebSockets
         /// </summary>
         public ContextTakeoverMode ClientContextTakeover { get; set; } = ContextTakeoverMode.Allow;
     }
-
+#endif
     /// <summary>
     /// Defines context takeover behavior for per-message deflate compression
     /// </summary>
@@ -123,7 +123,7 @@ namespace Shinobi.WebSockets
         /// Can be null or empty if no sub protocols are supported.
         /// </summary>
         public HashSet<string>? SupportedSubProtocols { get; set; }
-
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Gets or sets the per-message deflate compression configuration.
         /// When enabled, this allows the WebSocket server to negotiate and use per-message
@@ -134,7 +134,7 @@ namespace Shinobi.WebSockets
         /// Context takeover provides better compression but uses more memory. Consider your use case carefully.
         /// </remark>
         public PerMessageDeflateOptions PerMessageDeflate { get; set; } = new PerMessageDeflateOptions();
-
+#endif
         /// <summary>
         /// SSL X509Certificate2 interceptors.
         /// </summary>

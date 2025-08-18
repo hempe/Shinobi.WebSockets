@@ -57,21 +57,27 @@ namespace Shinobi.WebSockets
         private bool isContinuationFrame;
         private WebSocketMessageType continuationFrameMessageType = WebSocketMessageType.Binary;
         private WebSocketReadCursor? readCursor;
+
+#if NET8_0_OR_GREATER
         private readonly WebSocketDeflater? deflater;
         private readonly WebSocketInflater? inflater;
+        private bool isCollectingCompressedMessage;
+        private WebSocketMessageType collectedMessageType;
+        private ArraySegment<byte>? pendingDecompressedData = null;
+        private int pendingDataOffset;
+#endif
         private WebSocketCloseStatus? closeStatus;
         private string? closeStatusDescription;
         private long pingSentTicks;
-        private ArraySegment<byte>? pendingDecompressedData = null;
-        private int pendingDataOffset;
-        private bool isCollectingCompressedMessage;
-        private WebSocketMessageType collectedMessageType;
-        public readonly WebSocketHttpContext Context;
-        public readonly bool PermessageDeflate;
 
+        public readonly WebSocketHttpContext Context;
+
+        public readonly bool PermessageDeflate;
         public ShinobiWebSocket(
             WebSocketHttpContext context,
+#if NET8_0_OR_GREATER
             WebSocketExtension? secWebSocketExtensions,
+#endif
             TimeSpan keepAliveInterval,
             bool includeExceptionInCloseResponse,
             bool isClient,
@@ -101,11 +107,6 @@ namespace Shinobi.WebSockets
                 Events.Log?.NoMessageCompression(context.Guid);
             }
 #else
-            // Per-message deflate not supported on .NET Standard 2.0 / .NET Framework
-            // due to DeflateStream.Flush() limitations
-            this.PermessageDeflate = false;
-            this.deflater = null;
-            this.inflater = null;
             Events.Log?.NoMessageCompression(context.Guid);
 #endif
 
@@ -144,14 +145,20 @@ namespace Shinobi.WebSockets
         /// <returns>The web socket result details</returns>
         public async override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
+            return await this.ReceiveCoreAsync(buffer, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async ValueTask<WebSocketReceiveResult> ReceiveCoreAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        {
             try
             {
+#if NET8_0_OR_GREATER
                 // First, check if we have pending decompressed data from a previous call
                 if (this.pendingDecompressedData.HasValue && this.pendingDecompressedData.Value.Count > 0)
                 {
                     return this.ReturnPendingData(this.pendingDecompressedData.Value, buffer);
                 }
-
+#endif
                 // we may receive control frames so reading needs to happen in an infinite loop
                 while (true)
                 {
@@ -233,11 +240,11 @@ namespace Shinobi.WebSockets
             }
         }
 
-        private async Task<WebSocketReceiveResult> HandleDataFrameAsync(WebSocketFrame frame, ArraySegment<byte> framePayload, bool endOfMessage, ArraySegment<byte> userBuffer, CancellationToken cancellationToken)
+        private ValueTask<WebSocketReceiveResult> HandleDataFrameAsync(WebSocketFrame frame, ArraySegment<byte> framePayload, bool endOfMessage, ArraySegment<byte> userBuffer, CancellationToken cancellationToken)
         {
             var messageType = frame.OpCode == WebSocketOpCode.TextFrame ? WebSocketMessageType.Text : WebSocketMessageType.Binary;
 
-            //TODO: Check if this message is compressed (RSV1 bit set)?
+#if NET8_0_OR_GREATER
             if (this.inflater != null)
             {
                 if (!frame.IsFinBitSet)
@@ -250,29 +257,35 @@ namespace Shinobi.WebSockets
                     this.inflater.Write(framePayload);
 
                     // Continue reading more frames
-                    return await this.ReceiveAsync(userBuffer, cancellationToken).ConfigureAwait(false);
+                    return this.ReceiveCoreAsync(userBuffer, cancellationToken);
                 }
                 else
                 {
                     // Single compressed frame - decompress and return
                     this.inflater.Write(framePayload);
-                    return this.HandleDecompressedMessage(messageType, userBuffer);
+                    return ValueTask.FromResult(this.HandleDecompressedMessage(messageType, userBuffer));
                 }
             }
             else
             {
                 // Uncompressed message - handle normally
                 if (!frame.IsFinBitSet)
-                {
                     this.continuationFrameMessageType = messageType;
-                }
-
-                return new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, messageType, endOfMessage);
+                
+                return ValueTask.FromResult(new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, messageType, endOfMessage));
             }
+#else
+            // Uncompressed message - handle normally
+            if (frame.IsFinBitSet)
+                this.continuationFrameMessageType = messageType;
+
+            return new ValueTask<WebSocketReceiveResult>(new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, messageType, endOfMessage));
+#endif
         }
 
-        private async Task<WebSocketReceiveResult> HandleContinuationFrameAsync(ArraySegment<byte> framePayload, bool endOfMessage, ArraySegment<byte> userBuffer, CancellationToken cancellationToken)
+        private ValueTask<WebSocketReceiveResult> HandleContinuationFrameAsync(ArraySegment<byte> framePayload, bool endOfMessage, ArraySegment<byte> userBuffer, CancellationToken cancellationToken)
         {
+#if NET8_0_OR_GREATER
             if (this.isCollectingCompressedMessage && this.inflater != null)
             {
                 // Part of a compressed message - feed to inflater
@@ -282,21 +295,24 @@ namespace Shinobi.WebSockets
                 {
                     // End of compressed message - we now have the full decompressed data
                     this.isCollectingCompressedMessage = false;
-                    return this.HandleDecompressedMessage(this.collectedMessageType, userBuffer);
+                    return ValueTask.FromResult(this.HandleDecompressedMessage(this.collectedMessageType, userBuffer));
                 }
                 else
                 {
                     // Continue collecting compressed fragments
-                    return await this.ReceiveAsync(userBuffer, cancellationToken).ConfigureAwait(false);
+                    return this.ReceiveCoreAsync(userBuffer, cancellationToken);
                 }
             }
             else
             {
                 // Normal uncompressed continuation frame
-                return new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, this.continuationFrameMessageType, endOfMessage);
+                return ValueTask.FromResult(new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, this.continuationFrameMessageType, endOfMessage));
             }
+#else
+            return new ValueTask<WebSocketReceiveResult>(new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, this.continuationFrameMessageType, endOfMessage));
+#endif
         }
-
+#if NET8_0_OR_GREATER
         private WebSocketReceiveResult HandleDecompressedMessage(WebSocketMessageType messageType, ArraySegment<byte> userBuffer)
         {
             var decompressed = this.inflater!.Read();
@@ -351,7 +367,7 @@ namespace Shinobi.WebSockets
 
             return new WebSocketReceiveResult(bytesToCopy, this.collectedMessageType, isEndOfMessage);
         }
-
+#endif
         /// <summary>
         /// Send data to the web socket
         /// </summary>
@@ -366,6 +382,7 @@ namespace Shinobi.WebSockets
             {
                 var opCode = this.GetOppCode(messageType);
                 var msOpCode = this.isContinuationFrame ? WebSocketOpCode.ContinuationFrame : opCode;
+#if NET8_0_OR_GREATER
                 if (this.deflater != null && (messageType == WebSocketMessageType.Binary || messageType == WebSocketMessageType.Text))
                 {
                     this.deflater.Write(buffer);
@@ -383,11 +400,18 @@ namespace Shinobi.WebSockets
                 }
                 else
                 {
+                    
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient, false, !this.isContinuationFrame);
                     Events.Log?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
+#else
+                using var stream = new ArrayPoolStream();
+                WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient, false, !this.isContinuationFrame);
+                Events.Log?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
+                await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+#endif
                 this.isContinuationFrame = !endOfMessage;
             }
             catch (Exception e)
@@ -497,8 +521,11 @@ namespace Shinobi.WebSockets
                 // cancel pending reads - usually does nothing
                 this.internalReadCts.Cancel();
                 this.Context.Stream.Close();
+
+#if NET8_0_OR_GREATER
                 this.inflater?.Dispose();
                 this.deflater?.Dispose();
+#endif
                 this.Context.TcpClient?.Dispose();
             }
             catch (Exception ex)

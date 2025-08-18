@@ -253,7 +253,9 @@ namespace Shinobi.WebSockets
                             await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
                             webSocket = new ShinobiWebSocket(
                                 context,
+#if NET8_0_OR_GREATER
                                 handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtension(),
+#endif
                                 this.options.KeepAliveInterval,
                                 this.options.IncludeExceptionInCloseResponse,
                                 false,

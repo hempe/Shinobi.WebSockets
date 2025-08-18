@@ -119,7 +119,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             Assert.Equal("custom-extension", builder.configuration.SecWebSocketExtensions);
         }
-
+#if NET8_0_OR_GREATER
         [Fact]
         public void UsePerMessageDeflate_ShouldSetExtensions()
         {
@@ -129,7 +129,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             Assert.Equal("permessage-deflate", builder.configuration.SecWebSocketExtensions);
         }
-
+#endif
         [Fact]
         public void UseBearerAuthentication_ShouldAddAuthHeader()
         {
@@ -339,7 +339,9 @@ namespace Shinobi.WebSockets.UnitTests
             var builder = WebSocketClientBuilder.Create()
                 .UseKeepAlive(TimeSpan.FromSeconds(30))
                 .UseNoDelay(true)
+#if NET8_0_OR_GREATER
                 .UsePerMessageDeflate()
+#endif
                 .AddHeader("User-Agent", "TestClient/1.0")
                 .UseBearerAuthentication("test-token")
                 .UseLogging(loggerFactory)
@@ -349,7 +351,9 @@ namespace Shinobi.WebSockets.UnitTests
 
             Assert.Equal(TimeSpan.FromSeconds(30), builder.configuration.KeepAliveInterval);
             Assert.True(builder.configuration.NoDelay);
+#if NET8_0_OR_GREATER
             Assert.Equal("permessage-deflate", builder.configuration.SecWebSocketExtensions);
+#endif
             Assert.Equal("TestClient/1.0", builder.configuration.AdditionalHttpHeaders["User-Agent"]);
             Assert.Equal("Bearer test-token", builder.configuration.AdditionalHttpHeaders["Authorization"]);
             Assert.NotNull(builder.logger);

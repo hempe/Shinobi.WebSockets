@@ -236,7 +236,9 @@ namespace Shinobi.WebSockets.UnitTests
 
             return new ShinobiWebSocket(
                 new WebSocketHttpContext(null, HttpResponse.Create(101), mockNetworkStream, guid),
+#if NET8_0_OR_GREATER
                 permessageDeflate ? new WebSocketExtension() : null,
+#endif
                 keepAliveInterval,
                 includeExceptionInCloseResponse,
                 isClient,

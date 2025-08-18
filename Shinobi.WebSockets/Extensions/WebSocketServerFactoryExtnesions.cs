@@ -53,7 +53,9 @@ namespace Shinobi.WebSockets.Extensions
             Events.Log?.ServerHandshakeSuccess(guid);
             return new ShinobiWebSocket(
                 context,
+#if NET8_0_OR_GREATER
                 response.GetHeaderValue("Sec-WebSocket-Extensions")?.ParseExtension(),
+#endif
                 options.KeepAliveInterval,
                 options.IncludeExceptionInCloseResponse,
                 false,
