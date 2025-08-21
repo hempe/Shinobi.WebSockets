@@ -21,8 +21,9 @@ namespace Shinobi.WebSockets.Internal
         /// <param name="initialDelay">The initial delay for the first attempt</param>
         /// <param name="maxDelay">The maximum delay allowed</param>
         /// <param name="jitterPercent">The jitter percentage (0.0 to 1.0)</param>
+        /// <param name="backoffMultiplier">The backoff multiplier for exponential growth</param>
         /// <returns>The calculated delay</returns>
-        public TimeSpan CalculateDelay(int attemptNumber, TimeSpan initialDelay, TimeSpan maxDelay, double jitterPercent = 0.1)
+        public TimeSpan CalculateDelay(int attemptNumber, TimeSpan initialDelay, TimeSpan maxDelay, double jitterPercent = 0.1, double backoffMultiplier = 2.0)
         {
             if (attemptNumber < 0)
                 throw new ArgumentOutOfRangeException(nameof(attemptNumber), "Attempt number must be non-negative");
@@ -30,9 +31,12 @@ namespace Shinobi.WebSockets.Internal
             if (jitterPercent < 0.0 || jitterPercent > 1.0)
                 throw new ArgumentOutOfRangeException(nameof(jitterPercent), "Jitter percent must be between 0.0 and 1.0");
 
-            // Calculate exponential backoff: initialDelay * 2^attemptNumber
+            if (backoffMultiplier <= 0.0)
+                throw new ArgumentOutOfRangeException(nameof(backoffMultiplier), "Backoff multiplier must be positive");
+
+            // Calculate exponential backoff: initialDelay * backoffMultiplier^attemptNumber
             var exponentialDelay = TimeSpan.FromMilliseconds(
-                initialDelay.TotalMilliseconds * Math.Pow(2, attemptNumber));
+                initialDelay.TotalMilliseconds * Math.Pow(backoffMultiplier, attemptNumber));
 
             // Cap at max delay
             if (exponentialDelay > maxDelay)
@@ -54,15 +58,19 @@ namespace Shinobi.WebSockets.Internal
         /// <param name="attemptNumber">The attempt number (0-based)</param>
         /// <param name="initialDelay">The initial delay for the first attempt</param>
         /// <param name="maxDelay">The maximum delay allowed</param>
+        /// <param name="backoffMultiplier">The backoff multiplier for exponential growth</param>
         /// <returns>The calculated delay without jitter</returns>
-        public TimeSpan CalculateDelayWithoutJitter(int attemptNumber, TimeSpan initialDelay, TimeSpan maxDelay)
+        public TimeSpan CalculateDelayWithoutJitter(int attemptNumber, TimeSpan initialDelay, TimeSpan maxDelay, double backoffMultiplier = 2.0)
         {
             if (attemptNumber < 0)
                 throw new ArgumentOutOfRangeException(nameof(attemptNumber), "Attempt number must be non-negative");
 
-            // Calculate exponential backoff: initialDelay * 2^attemptNumber
+            if (backoffMultiplier <= 0.0)
+                throw new ArgumentOutOfRangeException(nameof(backoffMultiplier), "Backoff multiplier must be positive");
+
+            // Calculate exponential backoff: initialDelay * backoffMultiplier^attemptNumber
             var exponentialDelay = TimeSpan.FromMilliseconds(
-                initialDelay.TotalMilliseconds * Math.Pow(2, attemptNumber));
+                initialDelay.TotalMilliseconds * Math.Pow(backoffMultiplier, attemptNumber));
 
             // Cap at max delay
             return exponentialDelay > maxDelay ? maxDelay : exponentialDelay;

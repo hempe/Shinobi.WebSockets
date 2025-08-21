@@ -203,10 +203,10 @@ namespace Shinobi.WebSockets.UnitTests
                         this.ReceivedMessages.Add(data);
                         return default(ValueTask);
                     })
-                    .OnClose(async (webSocket, statusDescription, next, cancellationToken) =>
+                    .OnClose(async (webSocket, closeStatus, statusDescription, next, cancellationToken) =>
                     {
                         this.logger.LogDebug("[Server] WebSocket connection closed");
-                        await next(webSocket, statusDescription, cancellationToken);
+                        await next(webSocket, closeStatus, statusDescription, cancellationToken);
                     });
 
                 this.server = this.builder.Build();

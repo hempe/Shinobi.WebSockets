@@ -199,13 +199,13 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public void UseDevCertificate_WithNullBuilder_ShouldThrowNullReferenceException()
+        public void UseDevCertificate_WithNullBuilder_ShouldThrowArgumentNullException()
         {
             // Arrange
             WebSocketServerBuilder? nullBuilder = null;
 
-            // Act & Assert - Extension methods don't validate null parameters
-            Assert.Throws<NullReferenceException>(() => nullBuilder!.UseDevCertificate());
+            // Act & Assert - Extension method validates null parameters
+            Assert.Throws<ArgumentNullException>(() => nullBuilder!.UseDevCertificate());
         }
 
         [Fact]

@@ -203,7 +203,7 @@ namespace Shinobi.WebSockets.UnitTests
         {
             var builder = WebSocketClientBuilder.Create();
 
-            builder.OnClose(async (webSocket, statusDescription, next, ct) => await next(webSocket, statusDescription, ct));
+            builder.OnClose(async (webSocket, closeStatus, statusDescription, next, ct) => await next(webSocket, closeStatus, statusDescription, ct));
 
             Assert.Single(builder.onClose);
         }
@@ -347,7 +347,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .UseLogging(loggerFactory)
                 .OnConnect(async (ws, next, ct) => await next(ws, ct))
                 .OnTextMessage((ws, msg, ct) => default(ValueTask))
-                .OnClose(async (ws, statusDescription, next, ct) => await next(ws, statusDescription, ct));
+                .OnClose(async (ws, closeStatus, statusDescription, next, ct) => await next(ws, closeStatus, statusDescription, ct));
 
             Assert.Equal(TimeSpan.FromSeconds(30), builder.configuration.KeepAliveInterval);
             Assert.True(builder.configuration.NoDelay);

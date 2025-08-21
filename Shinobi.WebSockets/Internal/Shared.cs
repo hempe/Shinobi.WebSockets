@@ -1,5 +1,7 @@
 using System;
 using System.Buffers;
+using System.Net.WebSockets;
+using System.Text;
 
 namespace Shinobi.WebSockets.Internal
 {
@@ -74,5 +76,43 @@ namespace Shinobi.WebSockets.Internal
 
         public static void Return(ArraySegment<byte> segment)
             => Pool.Return(segment.Array!, clearArray: true);
+
+        /// <summary>
+        /// Parses the WebSocket close payload to extract close status and description
+        /// </summary>
+        public static (WebSocketCloseStatus closeStatus, string? statusDescription) ParseClosePayload(ArraySegment<byte> message, int count)
+        {
+            if (count == 0)
+            {
+                return (WebSocketCloseStatus.Empty, null);
+            }
+
+            // WebSocket close payload format:
+            // - First 2 bytes: close status in network byte order (big endian)
+            // - Remaining bytes: optional UTF-8 status description
+
+            if (count < 2)
+            {
+                // Invalid payload - should have at least 2 bytes for status code
+                return (WebSocketCloseStatus.ProtocolError, null);
+            }
+
+            // Extract close status from first 2 bytes (network byte order)
+            var statusBytes = new byte[2];
+            Array.Copy(message.Array!, message.Offset + (message.Count - count), statusBytes, 0, 2);
+            Array.Reverse(statusBytes); // Convert from network byte order to host byte order
+            var statusCode = BitConverter.ToUInt16(statusBytes, 0);
+            var closeStatus = (WebSocketCloseStatus)statusCode;
+
+            // Extract status description from remaining bytes (if any)
+            string? statusDescription = null;
+            if (count > 2)
+            {
+                var descriptionLength = count - 2;
+                statusDescription = Encoding.UTF8.GetString(message.Array!, message.Offset + (message.Count - count) + 2, descriptionLength);
+            }
+
+            return (closeStatus, statusDescription);
+        }
     }
 }

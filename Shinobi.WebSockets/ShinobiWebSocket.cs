@@ -271,7 +271,7 @@ namespace Shinobi.WebSockets
                 // Uncompressed message - handle normally
                 if (!frame.IsFinBitSet)
                     this.continuationFrameMessageType = messageType;
-                
+
                 return ValueTask.FromResult(new WebSocketReceiveResult(this.readCursor!.Value.NumBytesRead, messageType, endOfMessage));
             }
 #else
@@ -400,7 +400,7 @@ namespace Shinobi.WebSockets
                 }
                 else
                 {
-                    
+
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient, false, !this.isContinuationFrame);
                     Events.Log?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
@@ -614,7 +614,6 @@ namespace Shinobi.WebSockets
             Buffer.BlockCopy(statusBuffer, 0, payload, 0, statusBuffer.Length);
             Buffer.BlockCopy(descBuffer, 0, payload, statusBuffer.Length, descBuffer.Length);
             return (new ArraySegment<byte>(payload, 0, size), true);
-
         }
 
         /// <summary>

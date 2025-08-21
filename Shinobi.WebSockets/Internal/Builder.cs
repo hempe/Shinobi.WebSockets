@@ -93,7 +93,7 @@ namespace Shinobi.WebSockets.Internal
         public static WebSocketCloseHandler BuildWebSocketCloseChain(
             IEnumerable<WebSocketCloseInterceptor>? interceptors)
         {
-            WebSocketCloseHandler terminal = (webSocket, statusDescription, cancellationToken) => default(ValueTask);
+            WebSocketCloseHandler terminal = (webSocket, closeStatus, statusDescription, cancellationToken) => default(ValueTask);
             if (interceptors == null)
                 return terminal;
 
@@ -101,7 +101,7 @@ namespace Shinobi.WebSockets.Internal
             foreach (var interceptor in interceptors.Reverse())
             {
                 var next = chain;
-                chain = (webSocket, statusDescription, cancellationToken) => interceptor(webSocket, statusDescription, next, cancellationToken);
+                chain = (webSocket, closeStatus, statusDescription, cancellationToken) => interceptor(webSocket, closeStatus, statusDescription, next, cancellationToken);
             }
 
             return chain;

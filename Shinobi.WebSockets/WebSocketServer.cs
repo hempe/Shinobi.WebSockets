@@ -374,8 +374,8 @@ namespace Shinobi.WebSockets
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
                             var message = receiveBuffer.GetDataArraySegment();
-                            var statusDescription = result.Count == 0 ? null : Encoding.UTF8.GetString(message.Array!, message.Offset + (message.Count - result.Count), result.Count);
-                            await this.OnCloseAsync(client, statusDescription, cancellationToken);
+                            var (closeStatus, statusDescription) = Shared.ParseClosePayload(message, result.Count);
+                            await this.OnCloseAsync(client, closeStatus, statusDescription, cancellationToken);
                             return;
                         }
 
@@ -409,7 +409,7 @@ namespace Shinobi.WebSockets
             }
             catch when (cancellationToken.IsCancellationRequested)
             {
-                await this.OnCloseAsync(client, "Server stopping", cancellationToken);
+                await this.OnCloseAsync(client, WebSocketCloseStatus.InternalServerError, "Server stopping", cancellationToken);
             }
             catch (Exception e)
             {
@@ -447,5 +447,6 @@ namespace Shinobi.WebSockets
                 this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
             }
         }
+
     }
 }

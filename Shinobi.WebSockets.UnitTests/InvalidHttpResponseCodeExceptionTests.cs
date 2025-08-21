@@ -1,10 +1,12 @@
 using System;
+
 using Shinobi.WebSockets.Exceptions;
+
 using Xunit;
 
 namespace Shinobi.WebSockets.UnitTests
 {
-    public class ExceptionEdgeCaseTests
+    public class InvalidHttpResponseCodeExceptionTests
     {
         [Theory]
         [InlineData(400, "400")]
@@ -12,7 +14,7 @@ namespace Shinobi.WebSockets.UnitTests
         [InlineData(404, "404")]
         [InlineData(500, "500")]
         [InlineData(503, "503")]
-        public void InvalidHttpResponseCodeException_WithSpecificResponseCode_ShouldIncludeCodeInMessage(int responseCode, string expectedInMessage)
+        public void WithSpecificResponseCode_ShouldIncludeCodeInMessage(int responseCode, string expectedInMessage)
         {
             // Act
             var exception = new InvalidHttpResponseCodeException(responseCode);
@@ -23,7 +25,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public void InvalidHttpResponseCodeException_WithNullResponseCode_ShouldHandleNullCorrectly()
+        public void WithNullResponseCode_ShouldHandleNullCorrectly()
         {
             // Act
             var exception = new InvalidHttpResponseCodeException((int?)null);
@@ -32,12 +34,6 @@ namespace Shinobi.WebSockets.UnitTests
             Assert.Contains("Invalid status code:", exception.Message);
             Assert.Null(exception.ResponseCode);
         }
-
-
-
-
-
-
 
     }
 }

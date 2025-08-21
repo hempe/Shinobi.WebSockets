@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Builders;
+using Shinobi.WebSockets.Http;
 
 using Xunit;
 using Xunit.Abstractions;
@@ -53,9 +54,13 @@ namespace Shinobi.WebSockets.UnitTests
                     this.testServer.Dispose();
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Cleanup errors are acceptable
+                this.output.WriteLine($"Error during test server cleanup: {ex.Message}");
+            }
+            finally
+            {
+                this.testServer = null!;
             }
         }
 
@@ -103,8 +108,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
 
-
-        [Fact(Skip = "Integration test - investigate server setup timing issues")]
+        [Fact]
         public async Task WebSocketClient_SuccessfulReconnection_ShouldResetAttemptCounterAsync()
         {
             // Arrange
@@ -208,7 +212,7 @@ namespace Shinobi.WebSockets.UnitTests
             client.Dispose();
         }
 
-        [Fact(Skip = "Integration test - investigate server setup timing issues")]
+        [Fact]
         public async Task WebSocketClient_OnReconnecting_ShouldAllowUriFailoverAsync()
         {
             // Arrange
@@ -307,8 +311,19 @@ namespace Shinobi.WebSockets.UnitTests
                 })
                 .OnConnect(async (ws, next, ct) =>
                 {
+                    this.output.WriteLine($"Connected at {DateTime.Now:HH:mm:ss.fff}");
                     reconnectTimes.Add(DateTime.Now);
                     await next(ws, ct);
+                })
+                .OnClose((ws, closeStatus, statusDescription, next, ct) =>
+                {
+                    this.output.WriteLine($"Connection closed at {DateTime.Now:HH:mm:ss.fff} with status {closeStatus}: {statusDescription}");
+                    return next(ws, closeStatus, statusDescription, ct);
+                })
+                .OnError((ws, exception, next, ct) =>
+                {
+                    this.output.WriteLine($"Error at {DateTime.Now:HH:mm:ss.fff}: {exception.Message}");
+                    return next(ws, exception, ct);
                 })
                 .Build();
 
@@ -415,6 +430,177 @@ namespace Shinobi.WebSockets.UnitTests
             }
 
             client.Dispose();
+        }
+
+        [Fact]
+        public async Task WebSocketClient_JitterEnabled_ShouldVariateReconnectDelaysWithHandshakeRejectionAsync()
+        {
+            // Arrange
+            var reconnectTimes = new List<DateTime>();
+            var delays = new List<TimeSpan>();
+
+            // Create a test server that rejects WebSocket handshakes at HTTP level
+            var handshakeRejectPort = GetAvailablePort();
+            var handshakeRejectUri = new Uri($"ws://localhost:{handshakeRejectPort}/");
+
+            var handshakeRejectServer = WebSocketServerBuilder.Create()
+                .UsePort((ushort)handshakeRejectPort)
+                .OnHandshake((_context, _next, _ct) => new ValueTask<HttpResponse>(
+                    HttpResponse.Create(400)
+                    .WithBody("Bad Request - WebSocket handshake rejected")))
+                .Build();
+
+            await handshakeRejectServer.StartAsync();
+
+            try
+            {
+                var client = WebSocketClientBuilder.Create()
+                    .UseAutoReconnect(options =>
+                    {
+                        options.InitialDelay = TimeSpan.FromMilliseconds(200);
+                        options.BackoffMultiplier = 1.0; // No exponential growth for predictable baseline
+                        options.Jitter = 0.5; // 50% jitter should create noticeable variance
+                    })
+                    .OnConnect(async (ws, next, ct) =>
+                    {
+                        this.output.WriteLine($"Connected at {DateTime.Now:HH:mm:ss.fff}");
+                        reconnectTimes.Add(DateTime.Now);
+                        await next(ws, ct);
+                    })
+                    .OnError((ws, exception, next, ct) =>
+                    {
+                        this.output.WriteLine($"Error at {DateTime.Now:HH:mm:ss.fff}: {exception.Message}");
+                        return next(ws, exception, ct);
+                    })
+                    .Build();
+
+                // Act
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+
+                client.Reconnecting += (sender, e) =>
+                {
+                    reconnectTimes.Add(DateTime.Now);
+                    this.output.WriteLine($"Reconnecting attempt {e.AttemptNumber} at {DateTime.Now:HH:mm:ss.fff}");
+                };
+
+                try
+                {
+                    this.output.WriteLine("Starting client with handshake rejection...");
+                    await client.StartAsync(handshakeRejectUri, cts.Token);
+                    // StartAsync should not succeed with a server rejecting handshakes
+                    Assert.Fail("StartAsync should not succeed when server rejects handshakes");
+                }
+                catch (TimeoutException)
+                {
+                    this.output.WriteLine("StartAsync timed out as expected after reconnection attempts");
+                    // Expected - initial connection timeout while reconnecting
+                }
+                catch (InvalidOperationException ex)
+                {
+                    this.output.WriteLine($"StartAsync threw InvalidOperationException: {ex.Message}");
+                    // Expected - max attempts reached or connection failed
+                }
+                catch (OperationCanceledException)
+                {
+                    this.output.WriteLine("StartAsync was cancelled as expected");
+                    // Expected - operation was cancelled
+                }
+
+                await Task.Delay(1000); // Allow some time for reconnection attempts
+
+                // Calculate delays between attempts
+                for (int i = 1; i < reconnectTimes.Count; i++)
+                {
+                    delays.Add(reconnectTimes[i] - reconnectTimes[i - 1]);
+                }
+
+                // Assert
+                this.output.WriteLine($"Reconnect attempts: {reconnectTimes.Count}");
+                this.output.WriteLine($"Delays calculated: {delays.Count}");
+
+                // Show detailed delay information
+                for (int i = 0; i < delays.Count; i++)
+                {
+                    this.output.WriteLine($"Delay {i + 1}: {delays[i].TotalMilliseconds:F2}ms");
+                }
+
+                if (delays.Count >= 2)
+                {
+                    // Calculate statistics
+                    var delayValues = delays.Select(d => d.TotalMilliseconds).ToArray();
+                    var firstDelay = delayValues[0];
+                    var minDelay = delayValues.Min();
+                    var maxDelay = delayValues.Max();
+                    var avgDelay = delayValues.Average();
+                    var range = maxDelay - minDelay;
+
+                    this.output.WriteLine("Delay Statistics:");
+                    this.output.WriteLine($"  First delay: {firstDelay:F2}ms");
+                    this.output.WriteLine($"  Min delay: {minDelay:F2}ms");
+                    this.output.WriteLine($"  Max delay: {maxDelay:F2}ms");
+                    this.output.WriteLine($"  Average delay: {avgDelay:F2}ms");
+                    this.output.WriteLine($"  Range: {range:F2}ms");
+
+                    // Check for variation with detailed analysis
+                    var hasVariation = false;
+                    var maxDifference = 0.0;
+
+                    foreach (var delay in delayValues)
+                    {
+                        var difference = Math.Abs(delay - firstDelay);
+                        if (difference > maxDifference)
+                        {
+                            maxDifference = difference;
+                        }
+                        if (difference > 20) // Allow for timing variance
+                        {
+                            hasVariation = true;
+                        }
+                    }
+
+                    this.output.WriteLine($"  Max difference from first delay: {maxDifference:F2}ms");
+                    this.output.WriteLine($"  Has variation (>20ms diff): {hasVariation}");
+
+                    // Check if all delays are within expected range
+                    var allowanceMin = 80.0;  // Test allows wider range for handshake rejection timing
+                    var allowanceMax = 400.0; // Test allows wider range for handshake rejection timing
+
+                    this.output.WriteLine($"Allowed range (with tolerance): {allowanceMin:F0}ms - {allowanceMax:F0}ms");
+
+                    var outOfRange = delayValues.Where(d => d < allowanceMin || d > allowanceMax).ToArray();
+                    if (outOfRange.Any())
+                    {
+                        this.output.WriteLine($"Delays out of range: {string.Join(", ", outOfRange.Select(d => $"{d:F2}ms"))}");
+                    }
+
+                    // Enhanced assertion with better error message
+                    var errorMessage = "Jitter should create variation in delays even with handshake rejection. " +
+                        $"Got {delays.Count} delays with max difference of {maxDifference:F2}ms from first delay {firstDelay:F2}ms. " +
+                        $"Range: {minDelay:F2}ms - {maxDelay:F2}ms (span: {range:F2}ms). " +
+                        "Expected variation >20ms with 50% jitter on 200ms base delay.";
+
+                    Assert.True(hasVariation, errorMessage);
+
+                    // All delays should be within expected range (100ms to 300ms with 50% jitter on 200ms base)
+                    foreach (var delay in delays)
+                    {
+                        Assert.InRange(delay.TotalMilliseconds, allowanceMin, allowanceMax);
+                    }
+                }
+                else
+                {
+                    this.output.WriteLine("Not enough delays to test variation - need at least 2 delays");
+                    // Still assert we had at least one reconnect attempt
+                    Assert.True(reconnectTimes.Count >= 1, "Should have had at least one connection attempt");
+                }
+
+                client.Dispose();
+            }
+            finally
+            {
+                await handshakeRejectServer.StopAsync();
+                handshakeRejectServer.Dispose();
+            }
         }
 
         [Fact]

@@ -240,12 +240,12 @@ namespace Shinobi.WebSockets.DemoClient
                         StartConnectionTimer();
                         await next(ws, ct);
                     })
-                    .OnClose(async (ws, statusDescription, next, ct) =>
+                    .OnClose(async (ws, closeStatus, statusDescription, next, ct) =>
                     {
                         WriteWarning("✗ Connection closed: " + statusDescription);
                         StopConnectionTimer();
                         StopStressTest();
-                        await next(ws, statusDescription, ct);
+                        await next(ws, closeStatus, statusDescription, ct);
                     })
                     .OnError(async (ws, ex, next, ct) =>
                     {
@@ -511,10 +511,10 @@ namespace Shinobi.WebSockets.DemoClient
                         StartConnectionTimer();
                         await next(ws, ct);
                     })
-                    .OnClose(async (ws, statusDescription, next, ct) =>
+                    .OnClose(async (ws, closeStatus, statusDescription, next, ct) =>
                     {
                         WriteWarning("✗ Connection closed - auto-reconnect will attempt to reconnect");
-                        await next(ws, statusDescription, ct);
+                        await next(ws, closeStatus, statusDescription, ct);
                     })
                     .OnTextMessage((ws, message, ct) =>
                     {

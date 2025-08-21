@@ -230,10 +230,10 @@ namespace Shinobi.WebSockets.UnitTests
             var builder = WebSocketServerBuilder.Create();
             var handlerCalled = false;
 
-            WebSocketCloseInterceptor handler = (webSocket, statusDescription, next, cancellationToken) =>
+            WebSocketCloseInterceptor handler = (webSocket, closeStatus, statusDescription, next, cancellationToken) =>
             {
                 handlerCalled = true;
-                return next(webSocket, statusDescription, cancellationToken);
+                return next(webSocket, closeStatus, statusDescription, cancellationToken);
             };
 
             // Act

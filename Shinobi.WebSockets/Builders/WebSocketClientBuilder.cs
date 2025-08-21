@@ -232,10 +232,10 @@ namespace Shinobi.WebSockets.Builders
                 return next(webSocket, cancellationToken);
             });
 
-            this.OnClose((webSocket, statusDescription, next, cancellationToken) =>
+            this.OnClose((webSocket, closeStatus, statusDescription, next, cancellationToken) =>
             {
-                this.logger.LogInformation("WebSocket client disconnected: {ConnectionId}, {StatusDescription}", webSocket.Context.Guid, statusDescription);
-                return next(webSocket, statusDescription, cancellationToken);
+                this.logger.LogInformation("WebSocket client disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, {StatusDescription}", webSocket.Context.Guid, closeStatus, statusDescription);
+                return next(webSocket, closeStatus, statusDescription, cancellationToken);
             });
 
             this.OnError((webSocket, exception, next, cancellationToken) =>
