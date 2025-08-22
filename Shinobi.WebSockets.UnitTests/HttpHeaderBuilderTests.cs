@@ -1,8 +1,9 @@
 using System;
 using System.Linq;
-using Xunit;
-using Shinobi.WebSockets.Extensions;
+
 using Shinobi.WebSockets.Http;
+
+using Xunit;
 
 namespace Shinobi.WebSockets.UnitTests
 {
@@ -119,7 +120,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeaderIf_TrueCondition_ShouldAddHeader()
         {
             // Arrange & Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddHeaderIf(true, "X-Test", "value");
 
             // Assert
@@ -131,7 +132,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeaderIf_FalseCondition_ShouldNotAddHeader()
         {
             // Arrange & Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddHeaderIf(false, "X-Test", "value");
 
             // Assert
@@ -143,7 +144,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeaderIf_WithValueFactory_TrueCondition_ShouldAddHeader()
         {
             // Arrange & Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddHeaderIf(true, "X-Timestamp", () => DateTimeOffset.UtcNow.ToString("R"));
 
             // Assert
@@ -158,7 +159,7 @@ namespace Shinobi.WebSockets.UnitTests
             var factoryCalled = false;
 
             // Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddHeaderIf(false, "X-Test", () =>
                 {
                     factoryCalled = true;
@@ -174,7 +175,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeader_MultipleValues_ShouldHandleCorrectly()
         {
             // Arrange & Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddHeader("Accept", new[] { "text/html", "application/json", "application/xml" });
 
             // Assert
@@ -191,7 +192,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeader_DuplicateHeaderNames_ShouldAccumulate()
         {
             // Arrange & Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddHeader("Set-Cookie", "session=abc123")
                 .AddHeader("Set-Cookie", "theme=dark")
                 .AddHeader("Set-Cookie", "lang=en");
@@ -213,7 +214,7 @@ namespace Shinobi.WebSockets.UnitTests
                            "X-Custom: custom-value\r\n";
 
             // Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddRawHeaders(rawHeaders);
 
             // Assert
@@ -226,7 +227,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddRawHeaders_EmptyInput_ShouldNotThrow()
         {
             // Arrange & Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddRawHeaders("")
                 .AddRawHeaders(null);
 
@@ -245,7 +246,7 @@ namespace Shinobi.WebSockets.UnitTests
                            ": empty-name\r\n";
 
             // Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddRawHeaders(rawHeaders);
 
             // Assert
@@ -264,7 +265,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .AddHeader("Set-Cookie", new[] { "error=true", "timestamp=123456" });
 
             // Act
-            HttpResponse targetHeader = HttpResponse.Create(200)
+            var targetHeader = HttpResponse.Create(200)
                 .AddHeader("Server", "TestServer/1.0")
                 .AddHeaders(sourceHeader);
 
@@ -284,7 +285,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void ImplicitConversion_ShouldWorkCorrectly()
         {
             // Arrange
-            HttpResponse header = HttpResponse.Create(201)
+            var header = HttpResponse.Create(201)
                 .AddHeader("Location", "/api/users/123")
                 .AddHeader("Content-Type", "application/json");
 
@@ -336,7 +337,7 @@ namespace Shinobi.WebSockets.UnitTests
         public void AddHeaderIf_WithEmptyOrNullValues_ShouldHandleGracefully(string? value)
         {
             // Arrange & Act
-            HttpResponse header = HttpResponse.Create(200)
+            var header = HttpResponse.Create(200)
                 .AddHeaderIf(!string.IsNullOrWhiteSpace(value), "X-Optional", value!);
 
             // Assert

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -55,6 +57,9 @@ namespace Shinobi.WebSockets
         private readonly WebSocketCloseHandler OnCloseAsync;
         private readonly WebSocketErrorHandler OnErrorAsync;
         private readonly WebSocketMessageHandler OnMessageAsync;
+        private readonly ConcurrentDictionary<Guid, ShinobiWebSocket> clients = new();
+
+        public IEnumerable<ShinobiWebSocket> Clients => this.clients.Values;
 
         public WebSocketServer(
             WebSocketServerOptions options,
@@ -93,6 +98,7 @@ namespace Shinobi.WebSockets
             }
 
             await task;
+            this.clients.Clear();
         }
 
         public Task StartAsync()
@@ -110,7 +116,6 @@ namespace Shinobi.WebSockets
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             this.Dispose(disposing: true);
             GC.SuppressFinalize(this);
-
         }
 
         private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)
@@ -259,11 +264,13 @@ namespace Shinobi.WebSockets
                                 handshakeResponse.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
 
                             await this.OnConnectAsync(webSocket, source.Token);
+                            this.clients[context.Guid] = webSocket;
                             await this.HandleWebSocketAsync(webSocket, source.Token);
 
                         }
                         catch (WebSocketVersionNotSupportedException ex)
                         {
+                            this.clients.TryRemove(context.Guid, out _);
                             Events.Log?.WebSocketVersionNotSupported(guid, ex);
                             var response = HttpResponse.Create(426)
                                 .AddHeader("Sec-WebSocket-Version", "13")
@@ -274,6 +281,7 @@ namespace Shinobi.WebSockets
                         }
                         catch (Exception ex)
                         {
+                            this.clients.TryRemove(context.Guid, out _);
                             Events.Log?.BadRequest(guid, ex);
 
                             if (webSocket?.State == WebSocketState.Open)
@@ -292,6 +300,7 @@ namespace Shinobi.WebSockets
                     }
                     else
                     {
+                        this.clients.TryRemove(context.Guid, out _);
                         Events.Log?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
                         await context.TerminateAsync(handshakeResponse, source.Token).ConfigureAwait(false);
                     }
@@ -319,6 +328,9 @@ namespace Shinobi.WebSockets
                 finally
                 {
                     this.logger?.LogInformation("Server: Connection closed");
+
+                    if (context is not null)
+                        this.clients.TryRemove(context.Guid, out _);
                 }
             }
         }
@@ -337,6 +349,7 @@ namespace Shinobi.WebSockets
                         this.Caught(() => listener.Stop(), "Stop listener");
                         this.Caught(() => listener.Server?.Dispose(), "Dispose server");
                     }
+                    this.clients.Clear();
                 }
 
                 this.isDisposed = true;

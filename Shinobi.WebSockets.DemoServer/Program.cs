@@ -1,7 +1,5 @@
 ﻿using System;
-using System.IO;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
@@ -18,7 +16,7 @@ namespace WebSockets.DemoServer
         private static async Task Main(string[] args)
         {
             var loggerFactory = LoggerFactory.Create(builder => builder
-                .SetMinimumLevel(LogLevel.Warning)
+                .SetMinimumLevel(LogLevel.Debug)
                 .AddConsole());
 
             var logger = loggerFactory.CreateLogger<WebSocketServer>();
@@ -32,6 +30,7 @@ namespace WebSockets.DemoServer
 
             try
             {
+                var assembly = Assembly.GetExecutingAssembly();
                 // Create the WebSocket server with multiple features
                 var server = WebSocketServerBuilder.Create()
                     .UsePerMessageDeflate(x =>
@@ -87,20 +86,14 @@ namespace WebSockets.DemoServer
                     )
                     .OnHandshake((context, next, cancellationToken) =>
                     {
-                        // This is not a harded web server, but for testing this seem fine:
-                        if (!context.IsWebSocketRequest && context.Path == "/")
+                        // This is not a hardened web server, but for testing this seem fine:
+                        if (!context.IsWebSocketRequest)
                         {
-                            var assembly = Assembly.GetExecutingAssembly();
-                            var resourceName = "Shinobi.WebSockets.DemoServer.Client.html";
-                            using var stream = assembly.GetManifestResourceStream(resourceName) ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
-                            using var reader = new StreamReader(stream);
-                            var htmlContent = reader.ReadToEnd();
+                            if (context.Path == "/")
+                                return new ValueTask<HttpResponse>(FileResponse.CreateFromEmbeddedResource(assembly, "Shinobi.WebSockets.DemoServer.Client.html"));
 
-                            var response = HttpResponse.Create(200)
-                                .AddHeader("Content-Type", "text/html; charset=utf-8")
-                                .WithBody(htmlContent);
-
-                            return new ValueTask<HttpResponse>(response);
+                            if (context.Path == "/favicon.ico")
+                                return new ValueTask<HttpResponse>(FileResponse.CreateFromEmbeddedResource(assembly, "Shinobi.WebSockets.DemoServer.favicon.ico"));
                         }
 
                         logger.LogInformation("Path: {Path}", context.Path);
@@ -113,7 +106,7 @@ namespace WebSockets.DemoServer
 
                 logger.LogInformation("WebSocket server started successfully!");
                 logger.LogInformation("HTTPS WebSocket URL: wss://localhost:8080");
-                logger.LogInformation("Test with the demo client, lauche https://localhost:8080");
+                logger.LogInformation("Test with the demo client, launch https://localhost:8080");
 
                 Console.WriteLine("\nPress [ENTER] key to stop the server...");
 
