@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
@@ -87,7 +86,7 @@ namespace WebSockets.DemoServer
                     )
                     .OnHandshake((context, next, cancellationToken) =>
                     {
-                        // This is not a harded web server, but for testing this seem fine:
+                        // This is not a hardened web server, but for testing this seem fine:
                         if (!context.IsWebSocketRequest && context.Path == "/")
                         {
                             var assembly = Assembly.GetExecutingAssembly();
@@ -113,7 +112,7 @@ namespace WebSockets.DemoServer
 
                 logger.LogInformation("WebSocket server started successfully!");
                 logger.LogInformation("HTTPS WebSocket URL: wss://localhost:8080");
-                logger.LogInformation("Test with the demo client, lauche https://localhost:8080");
+                logger.LogInformation("Test with the demo client, launch https://localhost:8080");
 
                 Console.WriteLine("\nPress [ENTER] key to stop the server...");
 
