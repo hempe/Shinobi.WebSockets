@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -17,7 +16,7 @@ namespace WebSockets.DemoServer
         private static async Task Main(string[] args)
         {
             var loggerFactory = LoggerFactory.Create(builder => builder
-                .SetMinimumLevel(LogLevel.Warning)
+                .SetMinimumLevel(LogLevel.Debug)
                 .AddConsole());
 
             var logger = loggerFactory.CreateLogger<WebSocketServer>();
@@ -31,6 +30,7 @@ namespace WebSockets.DemoServer
 
             try
             {
+                var assembly = Assembly.GetExecutingAssembly();
                 // Create the WebSocket server with multiple features
                 var server = WebSocketServerBuilder.Create()
                     .UsePerMessageDeflate(x =>
@@ -87,19 +87,13 @@ namespace WebSockets.DemoServer
                     .OnHandshake((context, next, cancellationToken) =>
                     {
                         // This is not a hardened web server, but for testing this seem fine:
-                        if (!context.IsWebSocketRequest && context.Path == "/")
+                        if (!context.IsWebSocketRequest)
                         {
-                            var assembly = Assembly.GetExecutingAssembly();
-                            var resourceName = "Shinobi.WebSockets.DemoServer.Client.html";
-                            using var stream = assembly.GetManifestResourceStream(resourceName) ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
-                            using var reader = new StreamReader(stream);
-                            var htmlContent = reader.ReadToEnd();
+                            if (context.Path == "/")
+                                return new ValueTask<HttpResponse>(FileResponse.CreateFromEmbeddedResource(assembly, "Shinobi.WebSockets.DemoServer.Client.html"));
 
-                            var response = HttpResponse.Create(200)
-                                .AddHeader("Content-Type", "text/html; charset=utf-8")
-                                .WithBody(htmlContent);
-
-                            return new ValueTask<HttpResponse>(response);
+                            if (context.Path == "/favicon.ico")
+                                return new ValueTask<HttpResponse>(FileResponse.CreateFromEmbeddedResource(assembly, "Shinobi.WebSockets.DemoServer.favicon.ico"));
                         }
 
                         logger.LogInformation("Path: {Path}", context.Path);

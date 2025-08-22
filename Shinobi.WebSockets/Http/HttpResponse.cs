@@ -76,12 +76,12 @@ namespace Shinobi.WebSockets.Http
 
         public readonly int StatusCode;
         internal string? reasonPhrase = null;
-        internal string? body = null;
+        internal Stream? body = null;
 
         internal HttpResponse(
             int statusCode,
             IDictionary<string, HashSet<string>> headers,
-            string? body = null
+            Stream? body = null
             )
             : base(headers)
         {
@@ -166,13 +166,14 @@ namespace Shinobi.WebSockets.Http
         private static int? ExtractStatusCodeSpan(ReadOnlySpan<char> firstLine)
         {
             var firstSpace = firstLine.IndexOf(' ');
-            if (firstSpace == -1) return null;
+            if (firstSpace == -1)
+                return null;
 
             var secondSpace = firstLine.Slice(firstSpace + 1).IndexOf(' ');
             var endPos = secondSpace == -1 ? firstLine.Length : firstSpace + 1 + secondSpace;
 
             var statusCodeSpan = firstLine.Slice(firstSpace + 1, endPos - firstSpace - 1);
-            return int.TryParse(statusCodeSpan, out var statusCode) ? statusCode : (int?)null;
+            return int.TryParse(statusCodeSpan, out var statusCode) ? statusCode : null;
         }
 
 #else
@@ -210,13 +211,14 @@ namespace Shinobi.WebSockets.Http
                 return null;
 
             var firstSpace = firstLine.IndexOf(' ');
-            if (firstSpace == -1) return null;
+            if (firstSpace == -1)
+                return null;
 
             var secondSpace = firstLine.IndexOf(' ', firstSpace + 1);
             var endPos = secondSpace == -1 ? firstLine.Length : secondSpace;
 
             var statusCodeStr = firstLine.Substring(firstSpace + 1, endPos - firstSpace - 1);
-            return int.TryParse(statusCodeStr, out var statusCode) ? statusCode : (int?)null;
+            return int.TryParse(statusCodeStr, out var statusCode) ? statusCode : null;
         }
 #endif
 
@@ -241,7 +243,26 @@ namespace Shinobi.WebSockets.Http
                 }
             }
 
-            builder.Append("\r\n").Append(this.body);
+            if (this.body is not null)
+            {
+                builder.Append($"Content-Length: {this.body.Length}\r\n");
+                builder.Append("\r\n");
+
+                try
+                {
+                    using var reader = new StreamReader(this.body);
+                    builder.Append(reader.ReadToEnd());
+                }
+                catch
+                {
+                    builder.Append($"[BINARY BODY - {this.body.Length} bytes]");
+                }
+            }
+            else
+            {
+                builder.Append("\r\n");
+            }
+
             return builder.ToString();
 #else
             var builder = new StringBuilder();
@@ -258,11 +279,26 @@ namespace Shinobi.WebSockets.Http
                 }
             }
 
-            builder.Append("\r\n");
-            if (!string.IsNullOrEmpty(this.body))
+            if (this.body is not null)
             {
-                builder.Append(this.body);
+                builder.Append($"Content-Length: {this.body.Length}\r\n");
+                builder.Append("\r\n");
+
+                try
+                {
+                    using var reader = new StreamReader(this.body);
+                    builder.Append(reader.ReadToEnd());
+                }
+                catch
+                {
+                    builder.Append($"[BINARY BODY - {this.body.Length} bytes]");
+                }
             }
+            else
+            {
+                builder.Append("\r\n");
+            }
+
             return builder.ToString();
 #endif
         }
@@ -274,17 +310,11 @@ namespace Shinobi.WebSockets.Http
             // Helper local to encode & write a string chunk
             void EncodeAndWrite(string text)
             {
-                if (string.IsNullOrEmpty(text)) return;
-#if NET8_0_OR_GREATER 
-                var maxBytes = Encoding.UTF8.GetMaxByteCount(text.Length);
-                var span = bufferStream.GetFreeSpan(maxBytes);
-                var bytesEncoded = Encoding.UTF8.GetBytes(text.AsSpan(), span);
-                bufferStream.Position += bytesEncoded;
-#else
+                if (string.IsNullOrEmpty(text))
+                    return;
 
-                byte[] bytes = Encoding.UTF8.GetBytes(text);
+                var bytes = Encoding.UTF8.GetBytes(text);
                 bufferStream.Write(bytes, 0, bytes.Length);
-#endif
             }
 
             // Write status line
@@ -302,13 +332,17 @@ namespace Shinobi.WebSockets.Http
                 }
             }
 
-            // Blank line to separate headers and body
-            EncodeAndWrite("\r\n");
-
-            // Write body if any
-            if (!string.IsNullOrEmpty(this.body))
+            if (this.body is not null)
             {
-                EncodeAndWrite(this.body!);
+                EncodeAndWrite($"Content-Length: {this.body.Length}\r\n");
+                // Blank line to separate headers and body
+                EncodeAndWrite("\r\n");
+                this.body.CopyTo(bufferStream);
+            }
+            else
+            {
+                // Blank line to separate headers and body
+                EncodeAndWrite("\r\n");
             }
 
             // Get the buffered data segment

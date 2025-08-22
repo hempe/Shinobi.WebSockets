@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
 
 #if NET8_0_OR_GREATER
-#else 
+#else
 using Shinobi.WebSockets.Extensions;
 #endif
 
@@ -23,9 +26,41 @@ namespace Shinobi.WebSockets.Http
         /// </returns>
         public static HttpResponse WithBody(this HttpResponse @this, string? body)
         {
+            @this.body = body is null ? null : new MemoryStream(Encoding.UTF8.GetBytes(body));
+            return @this;
+        }
+
+        /// <summary>
+        /// Sets the body content for the HTTP response from a byte array.
+        /// </summary>
+        /// <param name="this">The HTTP response instance.</param>
+        /// <param name="body">The byte array containing the body content. If null, no body will be set.</param>
+        /// <returns>
+        /// Returns the current instance of <see cref="HttpResponse"/> to allow method chaining.
+        /// </returns>
+        public static HttpResponse WithBody(this HttpResponse @this, byte[]? body)
+        {
+            @this.body = body is null ? null : new MemoryStream(body);
+            return @this;
+        }
+
+        /// <summary>
+        /// Sets the body content for the HTTP response from a stream.
+        /// </summary>
+        /// <param name="this">The HTTP response instance.</param>
+        /// <param name="body">The stream containing the body content. The stream will be used directly and should be positioned at the start of the content to be sent.</param>
+        /// <returns>
+        /// Returns the current instance of <see cref="HttpResponse"/> to allow method chaining.
+        /// </returns>
+        /// <remarks>
+        /// The provided stream will be disposed when the HTTP response is written. Ensure the stream is readable and positioned correctly before passing it to this method.
+        /// </remarks>
+        public static HttpResponse WithBody(this HttpResponse @this, Stream? body)
+        {
             @this.body = body;
             return @this;
         }
+
 
         /// <summary>
         /// Add a header with a single value
