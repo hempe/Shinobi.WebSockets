@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+
     <title>WebSocket Demo Client</title>
     <style>
         * {
@@ -35,11 +37,11 @@
             text-align: center;
         }
 
-        .header h1 {
-            margin: 0;
-            font-size: 2rem;
-            font-weight: 600;
-        }
+            .header h1 {
+                margin: 0;
+                font-size: 2rem;
+                font-weight: 600;
+            }
 
         .connection-panel {
             padding: 1.5rem;
@@ -70,18 +72,18 @@
             animation: pulse 2s infinite;
         }
 
-        .status-dot.connected {
-            background: #10b981;
-        }
+            .status-dot.connected {
+                background: #10b981;
+            }
 
-        .status-dot.connecting {
-            background: #f59e0b;
-        }
+            .status-dot.connecting {
+                background: #f59e0b;
+            }
 
-        .status-dot.disconnected {
-            background: #ef4444;
-            animation: none;
-        }
+            .status-dot.disconnected {
+                background: #ef4444;
+                animation: none;
+            }
 
         @keyframes pulse {
             0% {
@@ -112,10 +114,10 @@
             transition: border-color 0.2s;
         }
 
-        .url-input:focus {
-            outline: none;
-            border-color: #4f46e5;
-        }
+            .url-input:focus {
+                outline: none;
+                border-color: #4f46e5;
+            }
 
         .btn {
             padding: 0.5rem 1.5rem;
@@ -127,37 +129,37 @@
             font-size: 0.9rem;
         }
 
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
+            .btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
 
         .btn-connect {
             background: #10b981;
             color: white;
         }
 
-        .btn-connect:hover:not(:disabled) {
-            background: #059669;
-        }
+            .btn-connect:hover:not(:disabled) {
+                background: #059669;
+            }
 
         .btn-disconnect {
             background: #ef4444;
             color: white;
         }
 
-        .btn-disconnect:hover:not(:disabled) {
-            background: #dc2626;
-        }
+            .btn-disconnect:hover:not(:disabled) {
+                background: #dc2626;
+            }
 
         .btn-send {
             background: #4f46e5;
             color: white;
         }
 
-        .btn-send:hover:not(:disabled) {
-            background: #4338ca;
-        }
+            .btn-send:hover:not(:disabled) {
+                background: #4338ca;
+            }
 
         .chat-panel {
             padding: 1.5rem;
@@ -181,27 +183,27 @@
             line-height: 1.4;
         }
 
-        .log-entry:last-child {
-            border-bottom: none;
-        }
+            .log-entry:last-child {
+                border-bottom: none;
+            }
 
-        .log-entry.sent {
-            color: #4f46e5;
-        }
+            .log-entry.sent {
+                color: #4f46e5;
+            }
 
-        .log-entry.received {
-            color: #059669;
-        }
+            .log-entry.received {
+                color: #059669;
+            }
 
-        .log-entry.system {
-            color: #64748b;
-            font-style: italic;
-        }
+            .log-entry.system {
+                color: #64748b;
+                font-style: italic;
+            }
 
-        .log-entry.error {
-            color: #ef4444;
-            font-weight: 500;
-        }
+            .log-entry.error {
+                color: #ef4444;
+                font-weight: 500;
+            }
 
         .timestamp {
             color: #94a3b8;
@@ -224,15 +226,15 @@
             transition: border-color 0.2s;
         }
 
-        .message-input:focus {
-            outline: none;
-            border-color: #4f46e5;
-        }
+            .message-input:focus {
+                outline: none;
+                border-color: #4f46e5;
+            }
 
-        .message-input:disabled {
-            background: #f1f5f9;
-            color: #94a3b8;
-        }
+            .message-input:disabled {
+                background: #f1f5f9;
+                color: #94a3b8;
+            }
 
         .quick-commands {
             display: flex;
@@ -251,27 +253,27 @@
             transition: all 0.2s;
         }
 
-        .quick-cmd:hover:not(:disabled) {
-            background: #e2e8f0;
-        }
+            .quick-cmd:hover:not(:disabled) {
+                background: #e2e8f0;
+            }
 
-        .quick-cmd.stress-test {
-            background: #fbbf24;
-            border-color: #f59e0b;
-            color: #92400e;
-            font-weight: 600;
-        }
+            .quick-cmd.stress-test {
+                background: #fbbf24;
+                border-color: #f59e0b;
+                color: #92400e;
+                font-weight: 600;
+            }
 
-        .quick-cmd.stress-test:hover:not(:disabled) {
-            background: #f59e0b;
-            color: white;
-        }
+                .quick-cmd.stress-test:hover:not(:disabled) {
+                    background: #f59e0b;
+                    color: white;
+                }
 
-        .quick-cmd.stress-test.running {
-            background: #ef4444;
-            color: white;
-            animation: pulse 1s infinite;
-        }
+                .quick-cmd.stress-test.running {
+                    background: #ef4444;
+                    color: white;
+                    animation: pulse 1s infinite;
+                }
 
         /* Modal styles */
         .modal {
@@ -285,11 +287,11 @@
             z-index: 1000;
         }
 
-        .modal.show {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+            .modal.show {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
 
         .modal-content {
             background: white;
@@ -384,16 +386,16 @@
             position: relative;
         }
 
-        .progress-fill::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-            animation: shimmer 2s infinite;
-        }
+            .progress-fill::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+                animation: shimmer 2s infinite;
+            }
 
         @keyframes shimmer {
             0% {
