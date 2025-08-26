@@ -33,12 +33,13 @@ namespace WebSockets.DemoServer
                 var assembly = Assembly.GetExecutingAssembly();
                 // Create the WebSocket server with multiple features
                 var server = WebSocketServerBuilder.Create()
+#if NET8_0_OR_GREATER
                     .UsePerMessageDeflate(x =>
                     {
                         x.ServerContextTakeover = ContextTakeoverMode.ForceDisabled;
                         x.ClientContextTakeover = ContextTakeoverMode.ForceDisabled;
                     })
-
+#endif
                     .UsePort(8080)
                     .UseDevCertificate()         // Enable SSL with ASP.NET Core dev cert
                     .UseLogging(loggerFactory)   // Log connections/disconnections/errors
@@ -55,10 +56,10 @@ namespace WebSockets.DemoServer
 
                         await next(webSocket, cancellationToken);
                     })
-                    .OnClose((webSocket, next, cancellationToken) =>
+                    .OnClose((webSocket, closeStatus, statusDescription, next, cancellationToken) =>
                     {
-                        logger.LogInformation("Client disconnected: {ConnectionId}", webSocket.Context.Guid);
-                        return next(webSocket, cancellationToken);
+                        logger.LogInformation("Client disconnected: {ConnectionId}: {StatusDescription}", webSocket.Context.Guid, statusDescription);
+                        return next(webSocket, closeStatus, statusDescription, cancellationToken);
                     })
                     .OnTextMessage(async (webSocket, message, cancellationToken) =>
                     {

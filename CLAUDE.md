@@ -95,3 +95,10 @@ The main library has minimal dependencies:
 - System.Buffers (for high-performance buffer management)
 - Microsoft.Extensions.Logging.Abstractions (for logging)
 - Uses ArrayPool&lt;byte&gt; extensively for memory efficiency
+
+## Code Style
+
+- Use `this.` instead of `_` prefix for private fields
+- Async functions should always have the `Async` suffix (except for `Main(string[])`)
+- Test methods that are async must also have the `Async` suffix (e.g., `MyTestAsync()`)
+- Nullable reference types are enabled (`<Nullable>enable</Nullable>`) - handle null values appropriately

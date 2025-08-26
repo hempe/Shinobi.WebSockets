@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -54,6 +55,8 @@ namespace Shinobi.WebSockets
         private readonly CertificateSelectionHandler SelectionCertificateAsync;
         private readonly HandshakeHandler OnHandshakeAsync;
         private readonly WebSocketConnectHandler OnConnectAsync;
+        private readonly WebSocketConnectHandler OnConnectedAsync;
+
         private readonly WebSocketCloseHandler OnCloseAsync;
         private readonly WebSocketErrorHandler OnErrorAsync;
         private readonly WebSocketMessageHandler OnMessageAsync;
@@ -73,6 +76,7 @@ namespace Shinobi.WebSockets
             this.SelectionCertificateAsync = Builder.BuildCertificateSelectionChain(this.SelectionCertificateCoreAsync, options.OnSelectionCertificate);
             this.OnHandshakeAsync = Builder.BuildHandshakeChain(this.HandshakeCoreAsync, options.OnHandshake);
             this.OnConnectAsync = Builder.BuildWebSocketConnectChain(options.OnConnect);
+            this.OnConnectedAsync = Builder.BuildWebSocketConnectChain(options.OnConnected);
             this.OnCloseAsync = Builder.BuildWebSocketCloseChain(options.OnClose);
             this.OnErrorAsync = Builder.BuildWebSocketErrorChain(options.OnError);
             this.OnMessageAsync = Builder.BuildWebSocketMessageChain(options.OnMessage);
@@ -107,8 +111,9 @@ namespace Shinobi.WebSockets
                 return Task.CompletedTask;
 
             this.runToken = new CancellationTokenSource();
-            this.runTask = this.ListenAsync(this.options.Port, this.runToken);
-            return Task.CompletedTask;
+            var tsc = new TaskCompletionSource<object?>();
+            this.runTask = this.ListenAsync(this.options.Port, this.runToken, tsc);
+            return tsc.Task;
         }
 
         public void Dispose()
@@ -152,7 +157,7 @@ namespace Shinobi.WebSockets
         /// </summary>
         /// <param name="port">Port to be listened to</param>
         /// <returns>returns the listener</returns>
-        private async Task ListenAsync(int port, CancellationTokenSource cancellationToken)
+        private async Task ListenAsync(int port, CancellationTokenSource cancellationToken, TaskCompletionSource<object?> startTcs)
         {
             using (cancellationToken)
             {
@@ -162,6 +167,7 @@ namespace Shinobi.WebSockets
                     this.listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     this.listener.Start();
                     this.logger?.LogInformation("Server started listening on port {Port}", port);
+                    startTcs.SetResult(null);
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
@@ -171,6 +177,7 @@ namespace Shinobi.WebSockets
                 }
                 catch (SocketException ex)
                 {
+                    startTcs?.SetException(ex);
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
@@ -257,7 +264,9 @@ namespace Shinobi.WebSockets
                             await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
                             webSocket = new ShinobiWebSocket(
                                 context,
+#if NET8_0_OR_GREATER
                                 handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtension(),
+#endif
                                 this.options.KeepAliveInterval,
                                 this.options.IncludeExceptionInCloseResponse,
                                 false,
@@ -265,6 +274,7 @@ namespace Shinobi.WebSockets
 
                             await this.OnConnectAsync(webSocket, source.Token);
                             this.clients[context.Guid] = webSocket;
+                            await this.OnConnectedAsync(webSocket, source.Token);
                             await this.HandleWebSocketAsync(webSocket, source.Token);
 
                         }
@@ -383,7 +393,9 @@ namespace Shinobi.WebSockets
 
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
-                            await this.OnCloseAsync(client, cancellationToken);
+                            var message = receiveBuffer.GetDataArraySegment();
+                            var (closeStatus, statusDescription) = Shared.ParseClosePayload(message, result.Count);
+                            await this.OnCloseAsync(client, closeStatus, statusDescription, cancellationToken);
                             return;
                         }
 
@@ -417,7 +429,7 @@ namespace Shinobi.WebSockets
             }
             catch when (cancellationToken.IsCancellationRequested)
             {
-                await this.OnCloseAsync(client, cancellationToken);
+                await this.OnCloseAsync(client, WebSocketCloseStatus.InternalServerError, "Server stopping", cancellationToken);
             }
             catch (Exception e)
             {
@@ -455,5 +467,6 @@ namespace Shinobi.WebSockets
                 this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
             }
         }
+
     }
 }

@@ -30,8 +30,15 @@ namespace Shinobi.WebSockets.Builders
         /// </summary>
         /// <param name="builder">The WebSocketServerBuilder instance</param>
         /// <returns>The WebSocketServerBuilder for method chaining</returns>
-        public static WebSocketServerBuilder UseDevCertificate(this WebSocketServerBuilder builder)
+        public static WebSocketServerBuilder UseDevCertificate(this WebSocketServerBuilder? builder)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(builder, nameof(builder));
+#else
+            if (builder is null)
+                throw new NullReferenceException(nameof(builder));
+
+#endif
             var certificate = GetAspNetCoreDevelopmentCertificate();
             if (certificate is null)
                 throw new InvalidOperationException("ASP.NET Core development certificate not found. Please ensure the development certificate is installed. Run 'dotnet dev-certs https --trust' to install and trust the development certificate.");

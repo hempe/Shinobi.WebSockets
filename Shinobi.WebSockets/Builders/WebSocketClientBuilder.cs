@@ -13,12 +13,12 @@ namespace Shinobi.WebSockets.Builders
     /// </summary>
     public class WebSocketClientBuilder
     {
-        private readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();
-        private readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
-        private readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
-        private readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
-        private ILogger<WebSocketClient>? logger;
-        private WebSocketClientOptions configuration = new WebSocketClientOptions();
+        internal readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();
+        internal readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
+        internal readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
+        internal readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
+        internal ILogger<WebSocketClient>? logger;
+        internal WebSocketClientOptions configuration = new WebSocketClientOptions();
 
         /// <summary>
         /// Sets the keep-alive interval for ping/pong messages
@@ -104,7 +104,7 @@ namespace Shinobi.WebSockets.Builders
             this.configuration.SecWebSocketExtensions = extensions;
             return this;
         }
-
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Enables per-message deflate compression
         /// </summary>
@@ -113,6 +113,7 @@ namespace Shinobi.WebSockets.Builders
             this.configuration.SecWebSocketExtensions = "permessage-deflate";
             return this;
         }
+#endif
 
         /// <summary>
         /// Configures WebSocket client options
@@ -125,6 +126,7 @@ namespace Shinobi.WebSockets.Builders
             configureOptions(this.configuration);
             return this;
         }
+
 
         /// <summary>
         /// Adds a handler for when a WebSocket connection is established
@@ -230,10 +232,10 @@ namespace Shinobi.WebSockets.Builders
                 return next(webSocket, cancellationToken);
             });
 
-            this.OnClose((webSocket, next, cancellationToken) =>
+            this.OnClose((webSocket, closeStatus, statusDescription, next, cancellationToken) =>
             {
-                this.logger.LogInformation("WebSocket client disconnected: {ConnectionId}", webSocket.Context.Guid);
-                return next(webSocket, cancellationToken);
+                this.logger.LogInformation("WebSocket client disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, {StatusDescription}", webSocket.Context.Guid, closeStatus, statusDescription);
+                return next(webSocket, closeStatus, statusDescription, cancellationToken);
             });
 
             this.OnError((webSocket, exception, next, cancellationToken) =>

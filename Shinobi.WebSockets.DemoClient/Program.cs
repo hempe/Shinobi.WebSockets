@@ -3,7 +3,9 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Logging;
+
 using Shinobi.WebSockets;
 using Shinobi.WebSockets.Builders;
 
@@ -21,7 +23,7 @@ namespace Shinobi.WebSockets.DemoClient
         private static DateTime? connectTime;
         private static Timer? connectionTimer;
         private static readonly CancellationTokenSource appCts = new CancellationTokenSource();
-        
+
         // Stress test variables
         private static bool stressTestRunning;
         private static int stressTestCount;
@@ -43,7 +45,7 @@ namespace Shinobi.WebSockets.DemoClient
             using var loggerFactory = LoggerFactory.Create(builder => builder
                 .SetMinimumLevel(LogLevel.Information)
                 .AddConsole());
-            
+
             logger = loggerFactory.CreateLogger<Program>();
 
             // Show banner
@@ -51,10 +53,10 @@ namespace Shinobi.WebSockets.DemoClient
             ShowHelp();
 
             // Main loop
-            await RunInteractiveLoop();
+            await RunInteractiveLoopAsync();
 
             // Cleanup
-            await DisconnectClient();
+            await DisconnectClientAsync();
             Console.WriteLine("\nGoodbye!");
         }
 
@@ -78,7 +80,7 @@ namespace Shinobi.WebSockets.DemoClient
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("Commands:");
             Console.ResetColor();
-            
+
             Console.WriteLine("  connect [url]     - Connect to WebSocket server (default: wss://localhost:8080)");
             Console.WriteLine("  disconnect        - Disconnect from server");
             Console.WriteLine("  send <message>    - Send a text message");
@@ -96,7 +98,7 @@ namespace Shinobi.WebSockets.DemoClient
             Console.WriteLine();
         }
 
-        private static async Task RunInteractiveLoop()
+        private static async Task RunInteractiveLoopAsync()
         {
             while (!appCts.Token.IsCancellationRequested)
             {
@@ -117,7 +119,7 @@ namespace Shinobi.WebSockets.DemoClient
 
                 try
                 {
-                    await ProcessCommand(command, args);
+                    await ProcessCommandAsync(command, args);
                 }
                 catch (Exception ex)
                 {
@@ -126,17 +128,17 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static async Task ProcessCommand(string command, string args)
+        private static async Task ProcessCommandAsync(string command, string args)
         {
             switch (command)
             {
                 case "connect":
                     var url = !string.IsNullOrEmpty(args) ? args : "wss://localhost:8080";
-                    await ConnectToServer(url);
+                    await ConnectToServerAsync(url);
                     break;
 
                 case "disconnect":
-                    await DisconnectClient();
+                    await DisconnectClientAsync();
                     break;
 
                 case "send":
@@ -145,7 +147,7 @@ namespace Shinobi.WebSockets.DemoClient
                         WriteError("Usage: send <message>");
                         return;
                     }
-                    await SendTextMessage(args);
+                    await SendTextMessageAsync(args);
                     break;
 
                 case "binary":
@@ -154,26 +156,26 @@ namespace Shinobi.WebSockets.DemoClient
                         WriteError("Usage: binary <message>");
                         return;
                     }
-                    await SendBinaryMessage(args);
+                    await SendBinaryMessageAsync(args);
                     break;
 
                 case "ping":
-                    await SendTextMessage("ping");
+                    await SendTextMessageAsync("ping");
                     break;
 
                 case "time":
-                    await SendTextMessage("time");
+                    await SendTextMessageAsync("time");
                     break;
 
                 case "serverhelp":
-                    await SendTextMessage("help");
+                    await SendTextMessageAsync("help");
                     break;
 
                 case "stress":
                     var count = 1000;
                     if (!string.IsNullOrEmpty(args) && int.TryParse(args, out var parsedCount))
                         count = parsedCount;
-                    await StartStressTest(count);
+                    await StartStressTestAsync(count);
                     break;
 
                 case "stopstress":
@@ -181,7 +183,7 @@ namespace Shinobi.WebSockets.DemoClient
                     break;
 
                 case "reconnect":
-                    await DemonstrateReconnect();
+                    await DemonstrateReconnectAsync();
                     break;
 
                 case "stats":
@@ -213,7 +215,7 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static async Task ConnectToServer(string url)
+        private static async Task ConnectToServerAsync(string url)
         {
             if (client?.ConnectionState == WebSocketConnectionState.Connected)
             {
@@ -238,12 +240,12 @@ namespace Shinobi.WebSockets.DemoClient
                         StartConnectionTimer();
                         await next(ws, ct);
                     })
-                    .OnClose(async (ws, next, ct) =>
+                    .OnClose(async (ws, closeStatus, statusDescription, next, ct) =>
                     {
-                        WriteWarning("✗ Connection closed");
+                        WriteWarning("✗ Connection closed: " + statusDescription);
                         StopConnectionTimer();
                         StopStressTest();
-                        await next(ws, ct);
+                        await next(ws, closeStatus, statusDescription, ct);
                     })
                     .OnError(async (ws, ex, next, ct) =>
                     {
@@ -253,29 +255,29 @@ namespace Shinobi.WebSockets.DemoClient
                     .OnTextMessage((ws, message, ct) =>
                     {
                         messagesReceived++;
-                        
+
                         if (stressTestRunning && awaitingStressResponse && message.StartsWith("STRESS_"))
                         {
-                            HandleStressTestResponse();
-                            return new ValueTask();
+                            HandleStressTestResponseAsync();
+                            return default(ValueTask);
                         }
-                        
+
                         WriteReceived($"▼ {message}");
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
                     .OnBinaryMessage((ws, data, ct) =>
                     {
                         messagesReceived++;
                         var message = Encoding.UTF8.GetString(data);
-                        
+
                         if (stressTestRunning && awaitingStressResponse && message.StartsWith("STRESS_"))
                         {
-                            HandleStressTestResponse();
-                            return new ValueTask();
+                            HandleStressTestResponseAsync();
+                            return default(ValueTask);
                         }
-                        
+
                         WriteReceived($"▼ [BINARY] {message}");
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
                     .Build();
 
@@ -304,7 +306,7 @@ namespace Shinobi.WebSockets.DemoClient
             };
 
             WriteColored($"[STATE] {e.PreviousState} → {e.NewState}", color);
-            
+
             if (e.Exception != null)
             {
                 WriteError($"[ERROR] {e.Exception.Message}");
@@ -316,7 +318,7 @@ namespace Shinobi.WebSockets.DemoClient
             WriteColored($"[RECONNECT] Attempting reconnection to {e.CurrentUri} in {e.Delay.TotalMilliseconds}ms (attempt {e.AttemptNumber})", ConsoleColor.Magenta);
         }
 
-        private static async Task DisconnectClient()
+        private static async Task DisconnectClientAsync()
         {
             if (client != null)
             {
@@ -334,7 +336,7 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static async Task SendTextMessage(string message)
+        private static async Task SendTextMessageAsync(string message)
         {
             if (client?.ConnectionState != WebSocketConnectionState.Connected)
             {
@@ -354,7 +356,7 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static async Task SendBinaryMessage(string message)
+        private static async Task SendBinaryMessageAsync(string message)
         {
             if (client?.ConnectionState != WebSocketConnectionState.Connected)
             {
@@ -375,7 +377,7 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static async Task StartStressTest(int count)
+        private static async Task StartStressTestAsync(int count)
         {
             if (client?.ConnectionState != WebSocketConnectionState.Connected)
             {
@@ -399,10 +401,10 @@ namespace Shinobi.WebSockets.DemoClient
             WriteInfo($"Starting stress test: {count} round-trip messages");
 
             // Start the stress test chain
-            await SendStressTestMessage();
+            await SendStressTestMessageAsync();
         }
 
-        private static async Task SendStressTestMessage()
+        private static async Task SendStressTestMessageAsync()
         {
             if (!stressTestRunning || stressTestCount >= stressTestTotal)
             {
@@ -421,11 +423,11 @@ namespace Shinobi.WebSockets.DemoClient
             {
                 var message = $"STRESS_{stressTestCount + 1}_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
                 var data = Encoding.UTF8.GetBytes(message);
-                
+
                 await client.SendBinaryAsync(data, appCts.Token);
                 awaitingStressResponse = true;
                 stressTestSendTime = DateTime.Now;
-                
+
                 // Show progress every 100 messages
                 if (stressTestCount % 100 == 0)
                 {
@@ -441,7 +443,7 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static async void HandleStressTestResponse()
+        private static async void HandleStressTestResponseAsync()
         {
             if (!awaitingStressResponse) return;
 
@@ -454,9 +456,9 @@ namespace Shinobi.WebSockets.DemoClient
 
             awaitingStressResponse = false;
             stressTestCount++;
-            
+
             // Continue the chain
-            await SendStressTestMessage();
+            await SendStressTestMessageAsync();
         }
 
         private static void CompleteStressTest()
@@ -464,10 +466,10 @@ namespace Shinobi.WebSockets.DemoClient
             var duration = DateTime.Now - stressTestStartTime;
             var rate = duration.TotalSeconds > 0 ? stressTestCount / duration.TotalSeconds : 0;
             var avgLatency = stressTestCount > 0 ? totalLatency / stressTestCount : 0;
-            
+
             WriteSuccess($"✓ Stress test completed: {stressTestCount} round-trips in {duration.TotalMilliseconds:F0}ms");
             WriteSuccess($"  Rate: {rate:F1} req/sec, Average latency: {avgLatency}ms");
-            
+
             StopStressTest();
         }
 
@@ -481,14 +483,14 @@ namespace Shinobi.WebSockets.DemoClient
             }
         }
 
-        private static async Task DemonstrateReconnect()
+        private static async Task DemonstrateReconnectAsync()
         {
             WriteInfo("Demonstrating auto-reconnect features...");
-            
+
             if (client != null)
             {
                 WriteInfo("Disconnecting current client...");
-                await DisconnectClient();
+                await DisconnectClientAsync();
             }
 
             try
@@ -509,16 +511,16 @@ namespace Shinobi.WebSockets.DemoClient
                         StartConnectionTimer();
                         await next(ws, ct);
                     })
-                    .OnClose(async (ws, next, ct) =>
+                    .OnClose(async (ws, closeStatus, statusDescription, next, ct) =>
                     {
                         WriteWarning("✗ Connection closed - auto-reconnect will attempt to reconnect");
-                        await next(ws, ct);
+                        await next(ws, closeStatus, statusDescription, ct);
                     })
                     .OnTextMessage((ws, message, ct) =>
                     {
                         messagesReceived++;
                         WriteReceived($"▼ {message}");
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
                     .Build();
 
@@ -526,7 +528,7 @@ namespace Shinobi.WebSockets.DemoClient
                 client.Reconnecting += OnReconnecting;
 
                 await client.StartAsync(new Uri("wss://localhost:8080"), appCts.Token);
-                
+
                 WriteInfo("✓ Client configured with auto-reconnect. Try stopping/starting the server to see reconnection in action!");
             }
             catch (Exception ex)
@@ -542,7 +544,7 @@ namespace Shinobi.WebSockets.DemoClient
             WriteColored("=== Connection Statistics ===", ConsoleColor.Cyan);
             Console.WriteLine($"Messages Sent:     {messagesSent}");
             Console.WriteLine($"Messages Received: {messagesReceived}");
-            
+
             if (connectTime.HasValue)
             {
                 var duration = DateTime.Now - connectTime.Value;
@@ -552,7 +554,7 @@ namespace Shinobi.WebSockets.DemoClient
             {
                 Console.WriteLine($"Connected Time:    Not connected");
             }
-            
+
             Console.WriteLine();
         }
 

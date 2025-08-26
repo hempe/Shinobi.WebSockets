@@ -24,7 +24,7 @@ namespace Shinobi.WebSockets.UnitTests
         public WebSocketClientTests()
         {
             using var loggerFactory = LoggerFactory.Create(builder => builder
-                    .SetMinimumLevel(LogLevel.Trace)
+                    .SetMinimumLevel(LogLevel.Warning)
                     .AddConsole());
             Events.Log = new Events(loggerFactory.CreateLogger<Events>());
             this.logger = loggerFactory.CreateLogger<WebSocketClientTests>();
@@ -236,7 +236,9 @@ namespace Shinobi.WebSockets.UnitTests
 
             return new ShinobiWebSocket(
                 new WebSocketHttpContext(null, HttpResponse.Create(101), mockNetworkStream, guid),
+#if NET8_0_OR_GREATER
                 permessageDeflate ? new WebSocketExtension() : null,
+#endif
                 keepAliveInterval,
                 includeExceptionInCloseResponse,
                 isClient,

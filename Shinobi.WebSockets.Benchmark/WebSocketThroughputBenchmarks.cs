@@ -323,20 +323,10 @@ public class WebSocketThroughputBenchmarks
 
     private static ArraySegment<byte>? HandleWebSocketMessage(ArrayPoolStream messageBuffer, WebSocketReceiveResult result)
     {
-        try
-        {
-            // If this completes the message, process it
-            if (result.EndOfMessage)
-            {
-                return messageBuffer.GetDataArraySegment();
-            }
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"WHY ARE YOU LIKE THIS?????????????: {ex.Message}");
-            throw;
-        }
+        // If this completes the message, process it
+        return result.EndOfMessage
+            ? messageBuffer.GetDataArraySegment()
+            : null;
     }
 
     private async Task EchoLoopAsync(WebSocket webSocket, CancellationToken cancellationToken, IDisposable[] disposables)

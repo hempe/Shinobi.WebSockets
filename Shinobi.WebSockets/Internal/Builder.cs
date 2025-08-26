@@ -73,7 +73,7 @@ namespace Shinobi.WebSockets.Internal
         public static WebSocketConnectHandler BuildWebSocketConnectChain(
             IEnumerable<WebSocketConnectInterceptor>? interceptors)
         {
-            WebSocketConnectHandler terminal = (webSocket, cancellationToken) => new ValueTask();
+            WebSocketConnectHandler terminal = (webSocket, cancellationToken) => default(ValueTask);
             if (interceptors == null)
                 return terminal;
 
@@ -93,7 +93,7 @@ namespace Shinobi.WebSockets.Internal
         public static WebSocketCloseHandler BuildWebSocketCloseChain(
             IEnumerable<WebSocketCloseInterceptor>? interceptors)
         {
-            WebSocketCloseHandler terminal = (webSocket, cancellationToken) => new ValueTask();
+            WebSocketCloseHandler terminal = (webSocket, closeStatus, statusDescription, cancellationToken) => default(ValueTask);
             if (interceptors == null)
                 return terminal;
 
@@ -101,7 +101,7 @@ namespace Shinobi.WebSockets.Internal
             foreach (var interceptor in interceptors.Reverse())
             {
                 var next = chain;
-                chain = (webSocket, cancellationToken) => interceptor(webSocket, next, cancellationToken);
+                chain = (webSocket, closeStatus, statusDescription, cancellationToken) => interceptor(webSocket, closeStatus, statusDescription, next, cancellationToken);
             }
 
             return chain;
@@ -113,7 +113,7 @@ namespace Shinobi.WebSockets.Internal
         public static WebSocketErrorHandler BuildWebSocketErrorChain(
             IEnumerable<WebSocketErrorInterceptor>? interceptors)
         {
-            WebSocketErrorHandler terminal = (webSocket, exception, cancellationToken) => new ValueTask();
+            WebSocketErrorHandler terminal = (webSocket, exception, cancellationToken) => default(ValueTask);
             if (interceptors == null)
                 return terminal;
 
@@ -133,7 +133,7 @@ namespace Shinobi.WebSockets.Internal
         public static WebSocketMessageHandler BuildWebSocketMessageChain(
             IEnumerable<WebSocketMessageInterceptor>? interceptors)
         {
-            WebSocketMessageHandler terminal = (webSocket, messageType, messageStream, cancellationToken) => new ValueTask();
+            WebSocketMessageHandler terminal = (webSocket, messageType, messageStream, cancellationToken) => default(ValueTask);
             if (interceptors == null)
                 return terminal;
 

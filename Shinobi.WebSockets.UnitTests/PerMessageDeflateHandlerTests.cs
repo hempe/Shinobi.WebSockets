@@ -24,7 +24,6 @@ namespace Shinobi.WebSockets.UnitTests
             var message = "Hello World";
             deflater.Write(new ArraySegment<byte>(Encoding.UTF8.GetBytes(message)));
             using var deflated = deflater.Read();
-            Console.WriteLine($"??? deflated {deflated.Position}: {deflated.Length}");
             inflater.Write(deflated.GetDataArraySegment());
 
             using var df = inflater.Read();

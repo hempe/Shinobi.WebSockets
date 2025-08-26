@@ -110,7 +110,7 @@ using var client = WebSocketClientBuilder.Create()
     .OnTextMessage((ws, message, ct) =>
     {
         Console.WriteLine($"Received: {message}");
-        return new ValueTask();
+        return default(ValueTask);
     })
     .Build();
 
@@ -136,7 +136,7 @@ using var client = WebSocketClientBuilder.Create()
     .OnTextMessage((message, ct) => // Simplified handler
     {
         Console.WriteLine($"Received: {message}");
-        return new ValueTask();
+        return default(ValueTask);
     })
     .Build();
 
@@ -153,7 +153,6 @@ using var client = WebSocketClientBuilder.Create()
         options.InitialDelay = TimeSpan.FromSeconds(2);
         options.MaxDelay = TimeSpan.FromMinutes(1);
         options.BackoffMultiplier = 2.0;
-        options.MaxAttempts = 5; // 0 = unlimited
         options.Jitter = 0.1; // Add 10% random jitter
     })
     .Build();
@@ -229,7 +228,6 @@ using var client = WebSocketClientBuilder.Create()
         maxDelay: TimeSpan.FromSeconds(30),
         multiplier: 2.0,
         jitter: 0.1)
-    .UseMaxReconnectAttempts(10)
     .OnConnect(async (ws, next, ct) =>
     {
         Console.WriteLine("Connected!");
@@ -248,12 +246,12 @@ using var client = WebSocketClientBuilder.Create()
     .OnTextMessage((ws, message, ct) =>
     {
         Console.WriteLine($"Text: {message}");
-        return new ValueTask();
+        return default(ValueTask);
     })
     .OnBinaryMessage((ws, data, ct) =>
     {
         Console.WriteLine($"Binary: {data.Length} bytes");
-        return new ValueTask();
+        return default(ValueTask);
     })
     .Build();
 ```

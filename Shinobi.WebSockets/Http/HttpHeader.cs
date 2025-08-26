@@ -173,7 +173,7 @@ namespace Shinobi.WebSockets.Http
                         }
                     }
 
-                    throw new HttpHeaderTooLargeException("Http header too large (16KB)");
+                    throw new HttpHeaderTooLargeException(totalHeaderBytes, MaxHeaderSize);
                 }
                 finally
                 {
@@ -187,7 +187,7 @@ namespace Shinobi.WebSockets.Http
                 // Only return the rented array for pre-.NET 9, since we're copying for .NET 9+
                 if (totalHeaderBytes == 0) // Only return if we didn't use it in the result
 #endif
-                    Shared.Return(headerBytes);
+                Shared.Return(headerBytes);
             }
         }
 

@@ -201,12 +201,12 @@ namespace Shinobi.WebSockets.UnitTests
                     {
                         this.logger.LogDebug($"[Server] Received {data.Length} bytes");
                         this.ReceivedMessages.Add(data);
-                        return new ValueTask();
+                        return default(ValueTask);
                     })
-                    .OnClose(async (webSocket, next, cancellationToken) =>
+                    .OnClose(async (webSocket, closeStatus, statusDescription, next, cancellationToken) =>
                     {
                         this.logger.LogDebug("[Server] WebSocket connection closed");
-                        await next(webSocket, cancellationToken);
+                        await next(webSocket, closeStatus, statusDescription, cancellationToken);
                     });
 
                 this.server = this.builder.Build();

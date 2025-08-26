@@ -110,16 +110,6 @@ namespace Shinobi.WebSockets.Builders
             });
         }
 
-        /// <summary>
-        /// Sets maximum number of reconnect attempts
-        /// </summary>
-        public static WebSocketClientBuilder UseMaxReconnectAttempts(this WebSocketClientBuilder builder, int maxAttempts)
-        {
-            return builder.UseAutoReconnect(options =>
-            {
-                options.MaxAttempts = maxAttempts;
-            });
-        }
 
         /// <summary>
         /// Adds connection state change monitoring
@@ -148,8 +138,7 @@ namespace Shinobi.WebSockets.Builders
                     initialDelay: TimeSpan.FromSeconds(1),
                     maxDelay: TimeSpan.FromSeconds(30),
                     multiplier: 2.0,
-                    jitter: 0.1)
-                .UseMaxReconnectAttempts(0); // Unlimited attempts
+                    jitter: 0.1);
         }
 
         /// <summary>

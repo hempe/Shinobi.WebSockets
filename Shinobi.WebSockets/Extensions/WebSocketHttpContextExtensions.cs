@@ -29,6 +29,8 @@ namespace Shinobi.WebSockets.Extensions
 
             // Handle per-message deflate negotiation
             string? perMessageDeflateResponse = null;
+
+#if NET8_0_OR_GREATER
             if (options.PerMessageDeflate.Enabled)
             {
                 var clientRequestsDeflate = context.HttpRequest!.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtension();
@@ -66,6 +68,7 @@ namespace Shinobi.WebSockets.Extensions
                     perMessageDeflateResponse = string.Join("; ", responseParams);
                 }
             }
+#endif
 
             return HttpResponse.Create(101)
                     .AddHeader("Connection", "Upgrade")
