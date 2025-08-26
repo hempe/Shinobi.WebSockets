@@ -157,6 +157,11 @@ namespace Shinobi.WebSockets
         public IEnumerable<WebSocketConnectInterceptor>? OnConnect { get; set; }
 
         /// <summary>
+        /// Handlers for after a WebSocket connection is established
+        /// </summary>
+        public IEnumerable<WebSocketConnectInterceptor>? OnConnected { get; set; }
+
+        /// <summary>
         /// Handlers for when a WebSocket connection is closed
         /// </summary>
         public IEnumerable<WebSocketCloseInterceptor>? OnClose { get; set; }

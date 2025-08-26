@@ -33,7 +33,7 @@ namespace Shinobi.WebSockets
         private Uri? currentUri;
         private CancellationTokenSource? connectionCancellationTokenSource;
         private Task? connectionTask;
-        private readonly BackoffCalculator backoffCalculator = new BackoffCalculator();
+        private IBackoffCalculator backoffCalculator = new BackoffCalculator();
 
         // Connection state management
         private WebSocketConnectionState connectionState = WebSocketConnectionState.Disconnected;
@@ -105,7 +105,7 @@ namespace Shinobi.WebSockets
             var initialConnectionTimeout = TimeSpan.FromSeconds(30);
             var timeoutTask = Task.Delay(initialConnectionTimeout, cancellationToken);
 
-            while (this.ConnectionState == WebSocketConnectionState.Connecting && !cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 var completedTask = await Task.WhenAny(timeoutTask, Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken));
                 if (completedTask == timeoutTask)
@@ -115,6 +115,10 @@ namespace Shinobi.WebSockets
                     break;
 
                 if (this.ConnectionState == WebSocketConnectionState.Failed && !this.options.ReconnectOptions.Enabled)
+                    throw new InvalidOperationException("Failed to establish WebSocket connection");
+
+                // If auto-reconnect is disabled and we're disconnected, fail
+                if (this.ConnectionState == WebSocketConnectionState.Disconnected && !this.options.ReconnectOptions.Enabled)
                     throw new InvalidOperationException("Failed to establish WebSocket connection");
             }
         }
@@ -218,16 +222,18 @@ namespace Shinobi.WebSockets
         private async Task ManageConnectionAsync(CancellationToken cancellationToken)
         {
             var attemptNumber = 0;
-            var needsReconnectDelay = false;
+            var reconnectAttemptNumber = 0;
 
             while (!cancellationToken.IsCancellationRequested)
             {
+                DateTime? connectionTime = null;
+
                 try
                 {
                     attemptNumber++;
 
                     // If this is a reconnection attempt, handle delay and events
-                    if (needsReconnectDelay && attemptNumber > 1)
+                    if (reconnectAttemptNumber > 0)
                     {
                         // Check if we should reconnect
                         if (!this.options.ReconnectOptions.Enabled)
@@ -238,18 +244,18 @@ namespace Shinobi.WebSockets
                         }
 
                         // Prepare for reconnect
-                        this.logger?.LogInformation("Starting auto-reconnect sequence (attempt {AttemptNumber})", attemptNumber);
+                        this.logger?.LogInformation("Starting auto-reconnect sequence (attempt {AttemptNumber})", reconnectAttemptNumber);
                         this.ChangeConnectionState(WebSocketConnectionState.Reconnecting);
 
                         // Calculate delay with exponential backoff and jitter
-                        var delay = this.CalculateReconnectDelay(attemptNumber - 1);
+                        var delay = this.CalculateReconnectDelay(reconnectAttemptNumber - 1);
 
                         // Allow URL modification through OnReconnecting handler
                         var reconnectUri = this.currentUri!;
                         if (this.options.OnReconnecting != null)
                         {
-                            this.logger?.LogDebug("Calling OnReconnecting handler for attempt {AttemptNumber}", attemptNumber);
-                            reconnectUri = await this.options.OnReconnecting(this.currentUri!, attemptNumber, cancellationToken);
+                            this.logger?.LogDebug("Calling OnReconnecting handler for attempt {AttemptNumber}", reconnectAttemptNumber);
+                            reconnectUri = await this.options.OnReconnecting(this.currentUri!, reconnectAttemptNumber, cancellationToken);
                             if (!reconnectUri.Equals(this.currentUri))
                             {
                                 this.logger?.LogInformation("OnReconnecting handler changed URI from {OldUri} to {NewUri}", this.currentUri, reconnectUri);
@@ -258,10 +264,10 @@ namespace Shinobi.WebSockets
                         }
 
                         // Raise reconnecting event
-                        this.Reconnecting?.Invoke(this, new WebSocketReconnectingEventArgs(reconnectUri, attemptNumber, delay));
+                        this.Reconnecting?.Invoke(this, new WebSocketReconnectingEventArgs(reconnectUri, reconnectAttemptNumber, delay));
 
                         this.logger?.LogInformation("Reconnecting to {Uri} in {Delay}ms (attempt {AttemptNumber})",
-                            reconnectUri, delay.TotalMilliseconds, attemptNumber);
+                            reconnectUri, delay.TotalMilliseconds, reconnectAttemptNumber);
 
                         // Wait before reconnecting
                         await Task.Delay(delay, cancellationToken);
@@ -269,24 +275,46 @@ namespace Shinobi.WebSockets
 
                     // Try to establish connection
                     await this.ConnectAsync(cancellationToken);
-
-                    // Connection successful, reset attempt counter and log success
-                    if (attemptNumber > 1)
+                    connectionTime = DateTime.Now;
+                    
+                    if (this.connectionState != WebSocketConnectionState.Connected)
                     {
-                        this.logger?.LogInformation("Successfully reconnected to {Uri} after {AttemptNumber} attempts", this.currentUri, attemptNumber);
+                        // Connection failed during ConnectAsync
+                        throw new InvalidOperationException("WebSocket connection failed during ConnectAsync");
                     }
-                    attemptNumber = 0;
-                    needsReconnectDelay = false;
+
+                    var bufferedReconnectAttemptNumber = reconnectAttemptNumber;
+                    
+                    // Connection successful, log success but don't reset reconnect attempt counter yet
+                    // (we'll reset it only if the connection turns out to be stable)
+                    if (reconnectAttemptNumber > 0)
+                    {
+                        this.logger?.LogInformation("Successfully reconnected to {Uri} after {AttemptNumber} attempts", this.currentUri, reconnectAttemptNumber);
+                    }
 
                     // Handle messages until disconnection
                     await this.HandleMessagesAsync(cancellationToken);
 
-                    // If we get here, connection was closed normally
+                    // If we get here, connection was closed
                     if (cancellationToken.IsCancellationRequested)
                         break;
 
-                    this.logger?.LogInformation("WebSocket connection closed normally");
-                    needsReconnectDelay = true;
+                    // Check if this connection was considered stable using the callback
+                    var connectionDuration = DateTime.Now - connectionTime.Value;
+                    var isStableConnection = this.options.ReconnectOptions.IsStableConnection(connectionDuration);
+
+                    if (!isStableConnection)
+                    {
+                        this.logger?.LogInformation("WebSocket connection closed after {Duration}ms - treating as connection failure (not considered stable)",
+                            connectionDuration.TotalMilliseconds);
+                        reconnectAttemptNumber = bufferedReconnectAttemptNumber + 1;
+                    }
+                    else
+                    {
+                        this.logger?.LogInformation("WebSocket connection closed normally after {Duration}ms - resetting backoff (considered stable)",
+                            connectionDuration.TotalMilliseconds);
+                        reconnectAttemptNumber = 0; // Reset to 0, so next attempt will be 1 and use BackoffCalculator with attempt 0
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -305,7 +333,16 @@ namespace Shinobi.WebSockets
 
                     // Error occurred, will retry with delay on next iteration
                     this.ChangeConnectionState(WebSocketConnectionState.Reconnecting, ex);
-                    needsReconnectDelay = true;
+
+                    // Set reconnect attempt number
+                    if (reconnectAttemptNumber == 0)
+                    {
+                        reconnectAttemptNumber = 1; // First reconnection attempt
+                    }
+                    else
+                    {
+                        reconnectAttemptNumber++; // Subsequent reconnection attempts
+                    }
                 }
             }
         }
@@ -335,13 +372,12 @@ namespace Shinobi.WebSockets
         private TimeSpan CalculateReconnectDelay(int attemptNumber)
         {
             return this.backoffCalculator.CalculateDelay(
-                attemptNumber - 1, // BackoffCalculator uses 0-based attempt numbers
+                attemptNumber, // attemptNumber is already 0-based when passed to this method
                 this.options.ReconnectOptions.InitialDelay,
                 this.options.ReconnectOptions.MaxDelay,
                 this.options.ReconnectOptions.Jitter,
                 this.options.ReconnectOptions.BackoffMultiplier);
         }
-
 
         private async Task HandleMessagesAsync(CancellationToken cancellationToken)
         {
@@ -583,6 +619,14 @@ namespace Shinobi.WebSockets
                 cancellationToken);
 
         #endregion
+
+        /// <summary>
+        /// Internal method for testing: allows replacement of the BackoffCalculator
+        /// </summary>
+        internal void WithBackoffCalculator(IBackoffCalculator calculator)
+        {
+            this.backoffCalculator = calculator ?? throw new ArgumentNullException(nameof(calculator));
+        }
 
         public void Dispose()
         {

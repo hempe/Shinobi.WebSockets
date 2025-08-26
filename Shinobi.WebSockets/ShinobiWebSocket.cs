@@ -436,6 +436,7 @@ namespace Shinobi.WebSockets
         /// </summary>
         public async override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
         {
+
             if (this.state != WebSocketState.Open)
             {
                 Events.Log?.InvalidStateBeforeClose(this.Context.Guid, this.state);
@@ -457,6 +458,36 @@ namespace Shinobi.WebSockets
             }
             await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
             this.state = WebSocketState.CloseSent;
+
+            // For server-side connections, wait for client to respond to close handshake with timeout
+            // If client doesn't respond within reasonable time, force cleanup to handle misbehaving clients
+            if (!this.isClient)
+            {
+                var closeHandshakeTimeout = TimeSpan.FromMilliseconds(100);
+                using var timeoutCts = new CancellationTokenSource(closeHandshakeTimeout);
+                using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+                
+                try
+                {
+                    // Wait for the client to close its side or timeout
+                    while (this.state == WebSocketState.CloseSent && !combinedCts.Token.IsCancellationRequested)
+                    {
+                        await Task.Delay(10, combinedCts.Token).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Client didn't respond to close handshake within timeout
+                    Events.Log?.CloseHandshakeTimedOut(this.Context.Guid, (int)closeHandshakeTimeout.TotalMilliseconds);
+                }
+                
+                // Force cleanup of misbehaving clients by disposing the underlying connection
+                if (this.state == WebSocketState.CloseSent)
+                {
+                    this.Context?.TcpClient?.Close();
+                    this.state = WebSocketState.Closed;
+                }
+            }
         }
 
         /// <summary>
@@ -464,33 +495,36 @@ namespace Shinobi.WebSockets
         /// </summary>
         public async override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
         {
-            if (this.state == WebSocketState.Open)
+            using (this)
             {
-                this.state = WebSocketState.Closed; // set this before we write to the network because the write may fail
-
-                using var stream = new ArrayPoolStream();
-                (var buffer, var doReturn) = BuildClosePayload(closeStatus, statusDescription);
-                try
+                if (this.state == WebSocketState.Open)
                 {
-                    WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
-                    Events.Log?.CloseOutputNoHandshake(this.Context.Guid, closeStatus, statusDescription);
-                    Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+                    this.state = WebSocketState.Closed; // set this before we write to the network because the write may fail
+
+                    using var stream = new ArrayPoolStream();
+                    (var buffer, var doReturn) = BuildClosePayload(closeStatus, statusDescription);
+                    try
+                    {
+                        WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
+                        Events.Log?.CloseOutputNoHandshake(this.Context.Guid, closeStatus, statusDescription);
+                        Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+                    }
+                    finally
+                    {
+                        if (doReturn)
+                            Shared.Return(buffer);
+                    }
+
+                    await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
-                finally
+                else
                 {
-                    if (doReturn)
-                        Shared.Return(buffer);
+                    Events.Log?.InvalidStateBeforeCloseOutput(this.Context.Guid, this.state);
                 }
 
-                await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+                // cancel pending reads
+                this.internalReadCts.Cancel();
             }
-            else
-            {
-                Events.Log?.InvalidStateBeforeCloseOutput(this.Context.Guid, this.state);
-            }
-
-            // cancel pending reads
-            this.internalReadCts.Cancel();
         }
 
         /// <summary>
@@ -696,10 +730,11 @@ namespace Shinobi.WebSockets
         private async ValueTask WriteStreamToNetworkAsync(ArrayPoolStream stream, CancellationToken cancellationToken)
         {
             var buffer = stream.GetDataArraySegment();
-            await this.semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.internalReadCts.Token, cancellationToken);
+            await this.semaphore.WaitAsync(linkedCts.Token).ConfigureAwait(false);
             try
             {
-                await this.Context.Stream.WriteAsync(buffer.Array!, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+                await this.Context.Stream.WriteAsync(buffer.Array!, buffer.Offset, buffer.Count, linkedCts.Token).ConfigureAwait(false);
             }
             finally
             {

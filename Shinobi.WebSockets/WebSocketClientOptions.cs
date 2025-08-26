@@ -36,6 +36,21 @@ namespace Shinobi.WebSockets
         /// Jitter to add randomness to backoff delays (0 = no jitter, 1 = up to 100% jitter)
         /// </summary>
         public double Jitter { get; set; } = 0.1;
+
+        /// <summary>
+        /// A callback function that determines if a connection should be considered "stable" based on its duration.
+        /// If this function returns true, the reconnection backoff counter is reset 
+        /// (treating it as a successful connection followed by a normal disconnect).
+        /// If this function returns false, it's treated as an immediate failure and 
+        /// backoff continues from the previous attempt count.
+        /// 
+        /// This helps distinguish between:
+        /// - Unstable connections (network issues, server problems) -> return false, continue backoff
+        /// - Stable connections that disconnect normally (server shutdown, etc.) -> return true, reset backoff
+        /// 
+        /// The default implementation considers connections stable after 3 seconds.
+        /// </summary>
+        public Func<TimeSpan, bool> IsStableConnection { get; set; } = duration => duration >= TimeSpan.FromSeconds(3);
     }
 
     /// <summary>

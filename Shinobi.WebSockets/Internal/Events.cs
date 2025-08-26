@@ -266,6 +266,12 @@ namespace Shinobi.WebSockets.Internal
                 this.logger.LogInformation("Close handshake complete for {Guid}", guid);
         }
 
+        internal void CloseHandshakeTimedOut(Guid guid, int timeoutSeconds)
+        {
+            if (this.logger.IsEnabled(LogLevel.Warning))
+                this.logger.LogWarning("Close handshake timed out after {TimeoutSeconds} seconds for {Guid}", timeoutSeconds, guid);
+        }
+
         internal void CloseFrameReceivedInUnexpectedState(Guid guid, WebSocketState state, WebSocketCloseStatus? closeStatus, string? statusDescription)
         {
             if (this.logger.IsEnabled(LogLevel.Warning))

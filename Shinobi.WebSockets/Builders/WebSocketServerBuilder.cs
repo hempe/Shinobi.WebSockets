@@ -18,6 +18,7 @@ namespace Shinobi.WebSockets.Builders
         private readonly List<CertificateSelectionInterceptor> onSelectionCertificate = new List<CertificateSelectionInterceptor>();
         private readonly List<HandshakeInterceptor> onHandshake = new List<HandshakeInterceptor>();
         private readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();
+        private readonly List<WebSocketConnectInterceptor> onConnected = new List<WebSocketConnectInterceptor>();
         private readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
         private readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
         private readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
@@ -166,6 +167,16 @@ namespace Shinobi.WebSockets.Builders
         public WebSocketServerBuilder OnConnect(WebSocketConnectInterceptor handler)
         {
             this.onConnect.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a handler for after a WebSocket connection is established
+        /// </summary>
+        /// <param name="handler">Connection handler</param>
+        public WebSocketServerBuilder OnConnected(WebSocketConnectInterceptor handler)
+        {
+            this.onConnected.Add(handler ?? throw new ArgumentNullException(nameof(handler)));
             return this;
         }
 
@@ -388,6 +399,7 @@ namespace Shinobi.WebSockets.Builders
             this.configuration.OnSelectionCertificate = this.onSelectionCertificate.Count > 0 ? this.onSelectionCertificate : null;
             this.configuration.OnHandshake = this.onHandshake.Count > 0 ? this.onHandshake : null;
             this.configuration.OnConnect = this.onConnect.Count > 0 ? this.onConnect : null;
+            this.configuration.OnConnected = this.onConnected.Count > 0 ? this.onConnected : null;
             this.configuration.OnClose = this.onClose.Count > 0 ? this.onClose : null;
             this.configuration.OnError = this.onError.Count > 0 ? this.onError : null;
             this.configuration.OnMessage = this.onMessage.Count > 0 ? this.onMessage : null;

@@ -55,6 +55,8 @@ namespace Shinobi.WebSockets
         private readonly CertificateSelectionHandler SelectionCertificateAsync;
         private readonly HandshakeHandler OnHandshakeAsync;
         private readonly WebSocketConnectHandler OnConnectAsync;
+        private readonly WebSocketConnectHandler OnConnectedAsync;
+
         private readonly WebSocketCloseHandler OnCloseAsync;
         private readonly WebSocketErrorHandler OnErrorAsync;
         private readonly WebSocketMessageHandler OnMessageAsync;
@@ -74,6 +76,7 @@ namespace Shinobi.WebSockets
             this.SelectionCertificateAsync = Builder.BuildCertificateSelectionChain(this.SelectionCertificateCoreAsync, options.OnSelectionCertificate);
             this.OnHandshakeAsync = Builder.BuildHandshakeChain(this.HandshakeCoreAsync, options.OnHandshake);
             this.OnConnectAsync = Builder.BuildWebSocketConnectChain(options.OnConnect);
+            this.OnConnectedAsync = Builder.BuildWebSocketConnectChain(options.OnConnected);
             this.OnCloseAsync = Builder.BuildWebSocketCloseChain(options.OnClose);
             this.OnErrorAsync = Builder.BuildWebSocketErrorChain(options.OnError);
             this.OnMessageAsync = Builder.BuildWebSocketMessageChain(options.OnMessage);
@@ -108,8 +111,9 @@ namespace Shinobi.WebSockets
                 return Task.CompletedTask;
 
             this.runToken = new CancellationTokenSource();
-            this.runTask = this.ListenAsync(this.options.Port, this.runToken);
-            return Task.CompletedTask;
+            var tsc = new TaskCompletionSource<object?>();
+            this.runTask = this.ListenAsync(this.options.Port, this.runToken, tsc);
+            return tsc.Task;
         }
 
         public void Dispose()
@@ -153,7 +157,7 @@ namespace Shinobi.WebSockets
         /// </summary>
         /// <param name="port">Port to be listened to</param>
         /// <returns>returns the listener</returns>
-        private async Task ListenAsync(int port, CancellationTokenSource cancellationToken)
+        private async Task ListenAsync(int port, CancellationTokenSource cancellationToken, TaskCompletionSource<object?> startTcs)
         {
             using (cancellationToken)
             {
@@ -163,6 +167,7 @@ namespace Shinobi.WebSockets
                     this.listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     this.listener.Start();
                     this.logger?.LogInformation("Server started listening on port {Port}", port);
+                    startTcs.SetResult(null);
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
@@ -172,6 +177,7 @@ namespace Shinobi.WebSockets
                 }
                 catch (SocketException ex)
                 {
+                    startTcs?.SetException(ex);
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
@@ -268,6 +274,7 @@ namespace Shinobi.WebSockets
 
                             await this.OnConnectAsync(webSocket, source.Token);
                             this.clients[context.Guid] = webSocket;
+                            await this.OnConnectedAsync(webSocket, source.Token);
                             await this.HandleWebSocketAsync(webSocket, source.Token);
 
                         }

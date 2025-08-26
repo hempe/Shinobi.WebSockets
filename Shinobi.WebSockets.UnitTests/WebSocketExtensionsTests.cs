@@ -219,7 +219,13 @@ namespace Shinobi.WebSockets.UnitTests
             // Verify the data was written to the stream
             arrayPoolStream.Position = 0;
             var readBuffer = new byte[5];
+#if NET8_0_OR_GREATER
+            await arrayPoolStream.ReadExactlyAsync(readBuffer, 0, readBuffer.Length);
+#else
             await arrayPoolStream.ReadAsync(readBuffer, 0, readBuffer.Length);
+#endif
+
+
             var expectedData = new byte[] { 0x48, 0x65, 0x6C, 0x6C, 0x6F }; // "Hello"
             Assert.Equal(expectedData, readBuffer);
         }

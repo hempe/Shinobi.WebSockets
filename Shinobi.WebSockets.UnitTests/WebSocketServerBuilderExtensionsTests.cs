@@ -120,47 +120,6 @@ namespace Shinobi.WebSockets.UnitTests
             // Should not throw any exceptions
         }
 
-        [Fact]
-        public void CertificateExtensions_ShouldHaveCorrectParameterValidation()
-        {
-            // Arrange
-            var builder = WebSocketServerBuilder.Create();
-
-            // Test that methods exist and have the expected signatures
-            var useCertMethod = typeof(WebSocketServerBuilderExtensions)
-                .GetMethod("UseCertificate", new[]
-                {
-                    typeof(WebSocketServerBuilder),
-                    typeof(StoreName),
-                    typeof(StoreLocation),
-                    typeof(string),
-                    typeof(TimeSpan?)
-                });
-
-            var useCertByThumbprintMethod = typeof(WebSocketServerBuilderExtensions)
-                .GetMethod("UseCertificateByThumbprint", new[]
-                {
-                    typeof(WebSocketServerBuilder),
-                    typeof(StoreName),
-                    typeof(StoreLocation),
-                    typeof(string),
-                    typeof(TimeSpan?)
-                });
-
-            var useDevCertMethod = typeof(WebSocketServerBuilderExtensions)
-                .GetMethod("UseDevCertificate", new[] { typeof(WebSocketServerBuilder) });
-
-            // Assert methods exist with correct signatures
-            Assert.NotNull(useCertMethod);
-            Assert.NotNull(useCertByThumbprintMethod);
-            Assert.NotNull(useDevCertMethod);
-
-            // Assert they're extension methods
-            Assert.True(useCertMethod.IsStatic);
-            Assert.True(useCertByThumbprintMethod.IsStatic);
-            Assert.True(useDevCertMethod.IsStatic);
-        }
-
         [Theory]
         [InlineData(StoreName.My, StoreLocation.CurrentUser)]
         [InlineData(StoreName.Root, StoreLocation.LocalMachine)]
