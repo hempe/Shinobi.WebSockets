@@ -326,7 +326,7 @@ public class WebSocketThroughputBenchmarks
         // If this completes the message, process it
         return result.EndOfMessage
             ? messageBuffer.GetDataArraySegment()
-            : null;
+            : (ArraySegment<byte>?)null;
     }
 
     private async Task EchoLoopAsync(WebSocket webSocket, CancellationToken cancellationToken, IDisposable[] disposables)
