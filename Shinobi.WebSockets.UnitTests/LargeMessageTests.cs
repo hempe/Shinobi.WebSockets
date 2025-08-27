@@ -393,52 +393,68 @@ namespace Shinobi.WebSockets.UnitTests
                 server.StartListener();
 
                 // Create client
-                WebSocket webSocket;
-                if (clientImpl == Implementation.Shinobi)
-                {
-                    var client = WebSocketClientBuilder.Create().Build();
-                    this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:Shinobi");
-                    await client.StartAsync(server.Address!, cts.Token);
-                    webSocket = client.webSocket!; // Access the internal websocket for compatibility
-                }
-                else if (clientImpl == Implementation.Ninja)
-                {
-                    var factory = new Ninja.WebSockets.WebSocketClientFactory();
-                    this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:Ninja");
-                    webSocket = await factory.ConnectAsync(server.Address!, new Ninja.WebSockets.WebSocketClientOptions(), cts.Token);
-                }
-                else
-                {
-                    var client = new ClientWebSocket();
-                    this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:");
-                    await client.ConnectAsync(server.Address!, cts.Token);
-                    webSocket = client;
-                }
 
-                this.logger.LogDebug("[Client] SendLargeBinaryMessage:Random");
-                var rand = new Random();
-                var message = new byte[32 * 1023];
-                Shared.NextBytes(message);
-                // Send large message
-                await this.SendBinaryMessageAsync(webSocket, message, 1024, cts.Token);
-
-                // Close
-                await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close", cts.Token);
-
-                // Wait for the server to receive our close message
-                var stopwatch = Stopwatch.StartNew();
-                while (server.State == WebSocketState.Open)
+                IDisposable? disposable = null;
+                try
                 {
-                    await Task.Delay(5);
-                    if (stopwatch.Elapsed.TotalSeconds > 10)
+                    WebSocket webSocket;
+                    if (clientImpl == Implementation.Shinobi)
                     {
-                        throw new TimeoutException("Timeout expired after waiting for close handshake to complete");
+                        var client = WebSocketClientBuilder.Create().Build();
+                        disposable = client;
+                        this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:Shinobi");
+                        await client.StartAsync(server.Address!, cts.Token);
+                        webSocket = client.webSocket!; // Access the internal websocket for compatibility
                     }
-                }
+                    else if (clientImpl == Implementation.Ninja)
+                    {
+                        var factory = new Ninja.WebSockets.WebSocketClientFactory();
+                        this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:Ninja");
+                        webSocket = await factory.ConnectAsync(server.Address!, new Ninja.WebSockets.WebSocketClientOptions(), cts.Token);
+                        disposable = webSocket;
+                    }
+                    else
+                    {
+                        var client = new ClientWebSocket();
+                        disposable = client;
+                        this.logger.LogDebug("[Client] SendLargeBinaryMessage:ConnectAsync:");
+                        await client.ConnectAsync(server.Address!, cts.Token);
+                        webSocket = client;
+                    }
 
-                await server.WaitAsync();
-                Assert.Single(server.ReceivedMessages);
-                Assert.Equal(message, server.ReceivedMessages[0]);
+                    this.logger.LogDebug("[Client] SendLargeBinaryMessage:Random");
+                    var rand = new Random();
+                    var message = new byte[32 * 1023];
+                    Shared.NextBytes(message);
+                    // Send large message
+                    await this.SendBinaryMessageAsync(webSocket, message, 1024, cts.Token);
+
+                    // Close
+                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Close", cts.Token);
+
+                    // Wait for the server to receive our close message
+                    var stopwatch = Stopwatch.StartNew();
+                    while (server.State == WebSocketState.Open)
+                    {
+                        await Task.Delay(5);
+                        if (stopwatch.Elapsed.TotalSeconds > 10)
+                        {
+                            throw new TimeoutException("Timeout expired after waiting for close handshake to complete");
+                        }
+                    }
+
+                    await server.WaitAsync();
+                    Assert.Single(server.ReceivedMessages);
+                    Assert.Equal(message, server.ReceivedMessages[0]);
+                }
+                finally
+                {
+                    try
+                    {
+                        disposable?.Dispose();
+                    }
+                    catch { }
+                }
             }
         }
     }
