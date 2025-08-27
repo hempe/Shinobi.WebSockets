@@ -32,7 +32,7 @@ namespace Shinobi.WebSockets.Internal
 {
     public sealed class Events
     {
-        private readonly ILogger<Events> logger;
+        internal readonly ILogger<Events> logger;
         internal static Events? Log { get; set; } = null;
 
         internal Events(ILogger<Events> logger)

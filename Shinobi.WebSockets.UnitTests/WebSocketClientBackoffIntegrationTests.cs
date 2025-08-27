@@ -89,26 +89,34 @@ namespace Shinobi.WebSockets.UnitTests
                         // Configure stability callback based on scenario
                         options.IsStableConnection = duration => scenario == FailureScenario.StableDisconnect;
                     })
+                    .UseKeepAlive(TimeSpan.FromSeconds(1))
                     .Build();
 
                 client.WithBackoffCalculator(testCalculator);
 
                 // Act
                 var uri = scenario == FailureScenario.ServerNotReachable
-                    ? new Uri("ws://localhost:9999/") // Unreachable
+                    ? new Uri($"ws://localhost:{this.testServerPort + 1}/") // Unreachable
                     : this.testServerUri;
 
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
                 var startTask = client.StartAsync(uri, cts.Token);
 
-                // Wait for test to complete (when TestBackoffCalculator signals done)  
-                await testCalculator.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                try
+                {
+                    // Wait for test to complete (when TestBackoffCalculator signals done)  
+                    await testCalculator.WaitForCompletionAsync(TimeSpan.FromSeconds(10));
+                }
+                catch (Exception e)
+                {
+                    throw new Exception($"State {client.ConnectionState}, null:{client.webSocket == null}, ws: {client.webSocket?.State}  {client.webSocket?.CloseStatus}, received: {testCalculator.ReceivedAttempts.Count}", e);
+                }
 
                 // Immediately stop client to prevent additional calls
                 await client.StopAsync();
 
                 // Assert
-this.output.WriteLine($"Expected attempts: [{string.Join(", ", expectedAttempts)}]");
+                this.output.WriteLine($"Expected attempts: [{string.Join(", ", expectedAttempts)}]");
                 this.output.WriteLine($"Actual attempts: [{string.Join(", ", testCalculator.ReceivedAttempts)}]");
 
                 // Allow for a small number of extra calls due to race conditions, but verify we got at least the expected calls
@@ -152,6 +160,7 @@ this.output.WriteLine($"Expected attempts: [{string.Join(", ", expectedAttempts)
                         // Note: Using basic 401 response without body for C# 8.0 compatibility
                         return new ValueTask<Http.HttpResponse>(response);
                     })
+                    .UseKeepAlive(TimeSpan.FromSeconds(1))
                     .Build(),
 
                 FailureScenario.ImmediateDisconnect => WebSocketServerBuilder.Create()
@@ -161,6 +170,7 @@ this.output.WriteLine($"Expected attempts: [{string.Join(", ", expectedAttempts)
                         await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.InternalServerError,
                             "Closing immediately", ct);
                     })
+                    .UseKeepAlive(TimeSpan.FromSeconds(1))
                     .Build(),
 
                 FailureScenario.StableDisconnect => WebSocketServerBuilder.Create()
@@ -173,6 +183,7 @@ this.output.WriteLine($"Expected attempts: [{string.Join(", ", expectedAttempts)
                         await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure,
                             "Normal closure after stable connection", ct);
                     })
+                    .UseKeepAlive(TimeSpan.FromSeconds(1))
                     .Build(),
 
                 _ => throw new ArgumentException($"Unknown scenario: {scenario}")
@@ -207,6 +218,7 @@ this.output.WriteLine($"Expected attempts: [{string.Join(", ", expectedAttempts)
         private readonly List<int> receivedAttempts = new List<int>();
         private readonly List<BackoffCall> receivedCalls = new List<BackoffCall>();
         private readonly TaskCompletionSource<bool> completionSource = new TaskCompletionSource<bool>();
+        private readonly object semaphore = new object();
         private int callCount = 0;
 
         public TestBackoffCalculator(int[] expectedAttempts)
@@ -219,18 +231,20 @@ this.output.WriteLine($"Expected attempts: [{string.Join(", ", expectedAttempts)
 
         public TimeSpan CalculateDelay(int attemptNumber, TimeSpan initialDelay, TimeSpan maxDelay, double jitterPercent, double backoffMultiplier)
         {
-            this.receivedAttempts.Add(attemptNumber);
-            this.receivedCalls.Add(new BackoffCall(attemptNumber, initialDelay, maxDelay, jitterPercent, backoffMultiplier));
-            this.callCount++;
-
-            // If we've received all expected calls, signal completion
-            if (this.callCount >= this.expectedAttempts.Length)
+            lock (this.semaphore)
             {
-                this.completionSource.TrySetResult(true);
+                this.receivedAttempts.Add(attemptNumber);
+                this.receivedCalls.Add(new BackoffCall(attemptNumber, initialDelay, maxDelay, jitterPercent, backoffMultiplier));
+                this.callCount++;
+
+                // If we've received all expected calls, signal completion
+                if (this.callCount >= this.expectedAttempts.Length)
+                {
+                    this.completionSource.TrySetResult(true);
+                }
             }
 
-            // Return small delay for fast but controlled testing
-            return TimeSpan.FromMilliseconds(1);
+            return TimeSpan.Zero;
         }
 
         public TimeSpan CalculateDelayWithoutJitter(int attemptNumber, TimeSpan initialDelay, TimeSpan maxDelay, double backoffMultiplier)
