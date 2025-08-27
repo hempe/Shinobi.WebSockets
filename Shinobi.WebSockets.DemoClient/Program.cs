@@ -1,12 +1,10 @@
 using System;
-using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
-using Shinobi.WebSockets;
 using Shinobi.WebSockets.Builders;
 
 namespace Shinobi.WebSockets.DemoClient
@@ -107,7 +105,8 @@ namespace Shinobi.WebSockets.DemoClient
                 Console.ResetColor();
 
                 var input = Console.ReadLine()?.Trim();
-                if (string.IsNullOrEmpty(input)) continue;
+                if (string.IsNullOrEmpty(input))
+                    continue;
 
 #if NET472
                 var parts = input!.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
@@ -233,6 +232,7 @@ namespace Shinobi.WebSockets.DemoClient
 
                 client = WebSocketClientBuilder.Create()
                     .UseLogging(loggerFactory)
+                    .UseReliableConnection()
                     .OnConnect(async (ws, next, ct) =>
                     {
                         WriteSuccess("✓ Connected to server!");
@@ -423,9 +423,8 @@ namespace Shinobi.WebSockets.DemoClient
             {
                 var message = $"STRESS_{stressTestCount + 1}_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
                 var data = Encoding.UTF8.GetBytes(message);
-
-                await client.SendBinaryAsync(data, appCts.Token);
                 awaitingStressResponse = true;
+                await client.SendBinaryAsync(data, appCts.Token);
                 stressTestSendTime = DateTime.Now;
 
                 // Show progress every 100 messages
@@ -445,7 +444,8 @@ namespace Shinobi.WebSockets.DemoClient
 
         private static async void HandleStressTestResponseAsync()
         {
-            if (!awaitingStressResponse) return;
+            if (!awaitingStressResponse)
+                return;
 
             // Calculate latency
             if (stressTestSendTime != default)
