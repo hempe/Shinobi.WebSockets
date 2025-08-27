@@ -4,8 +4,6 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Shinobi.WebSockets.Builders;
-
 // Extension methods for easier usage
 namespace Shinobi.WebSockets.Builders
 {
@@ -36,7 +34,7 @@ namespace Shinobi.WebSockets.Builders
             ArgumentNullException.ThrowIfNull(builder, nameof(builder));
 #else
             if (builder is null)
-                throw new NullReferenceException(nameof(builder));
+                throw new ArgumentNullException(nameof(builder));
 
 #endif
             var certificate = GetAspNetCoreDevelopmentCertificate();
@@ -235,7 +233,7 @@ namespace Shinobi.WebSockets.Builders
                     "localhost",
                     false);
 
-                foreach (X509Certificate2 cert in certificates)
+                foreach (var cert in certificates)
                 {
                     // Check if this is likely the ASP.NET Core dev certificate
                     if (cert.Subject.Contains("CN=localhost") &&
@@ -270,7 +268,7 @@ namespace Shinobi.WebSockets.Builders
                 "localhost",
                 false);
 
-            foreach (X509Certificate2 cert in machineCertificates)
+            foreach (var cert in machineCertificates)
             {
                 if (cert.Subject.Contains("CN=localhost") &&
                     cert.HasPrivateKey &&
