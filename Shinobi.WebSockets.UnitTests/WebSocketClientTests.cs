@@ -112,7 +112,7 @@ namespace Shinobi.WebSockets.UnitTests
 
 #if NET8_0_OR_GREATER
         [Fact]
-        public async Task PermessageDeflateAsync()
+        public async Task PerMessageDeflateAsync()
         {
             this.logger.LogDebug("PermessageDeflateSendAsync");
             using var theInternet = new TheInternet();
@@ -136,7 +136,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task PermessageDeflateGiantMessageAsync()
+        public async Task PerMessageDeflateGiantMessageAsync()
         {
             this.logger.LogDebug("PermessageDeflateGiantMessage");
             using var theInternet = new TheInternet();
@@ -161,7 +161,7 @@ namespace Shinobi.WebSockets.UnitTests
 
 
         [Fact]
-        public async Task ReceiveBufferTooSmallToFitWebsocketFrameTestAsync()
+        public async Task ReceiveBufferTooSmallToFitWebSocketFrameTestAsync()
         {
             this.logger.LogDebug("ReceiveBufferTooSmallToFitWebsocketFrameTest");
             var pipeName = Guid.NewGuid().ToString();

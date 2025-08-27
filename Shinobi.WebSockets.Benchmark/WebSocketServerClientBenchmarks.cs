@@ -61,7 +61,7 @@ public class WebSocketServerClientBenchmarks
             try
             {
                 // Signal that server is ready to accept connections
-                this.serverReadyTcs.SetResult(true);
+                this.serverReadyTcs.TrySetResult(true);
 
                 while (!this.serverCts.Token.IsCancellationRequested)
                 {
@@ -84,7 +84,7 @@ public class WebSocketServerClientBenchmarks
             {
                 if (!this.serverReadyTcs.Task.IsCompleted)
                 {
-                    this.serverReadyTcs.SetException(ex);
+                    this.serverReadyTcs.TrySetException(ex);
                 }
             }
             finally
@@ -237,7 +237,7 @@ public class WebSocketServerClientBenchmarks
                 finally
                 {
                     // Signal that this client has disconnected
-                    disconnectTcs.SetResult(true);
+                    disconnectTcs.TrySetResult(true);
                 }
             }
         }
@@ -266,7 +266,7 @@ public class WebSocketServerClientBenchmarks
             // Ensure disconnect is signaled even if there was an exception
             if (this.clientDisconnectTasks.TryGetValue(clientId, out var tcs) && !tcs.Task.IsCompleted)
             {
-                tcs.SetResult(true);
+                tcs.TrySetResult(true);
             }
         }
     }

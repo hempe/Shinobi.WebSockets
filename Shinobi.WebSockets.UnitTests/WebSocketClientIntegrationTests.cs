@@ -1,14 +1,10 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-
-using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Builders;
 
@@ -42,7 +38,7 @@ namespace Shinobi.WebSockets.UnitTests
             {
 #if !NETFRAMEWORK
 
-            listener.Dispose();
+                listener.Dispose();
 #endif
             }
         }
@@ -71,7 +67,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .OnTextMessage((ws, message, ct) =>
                 {
                     receivedMessage = message;
-                    messageReceived.SetResult(true);
+                    messageReceived.TrySetResult(true);
                     return default(ValueTask);
                 })
                 .Build();
@@ -107,13 +103,14 @@ namespace Shinobi.WebSockets.UnitTests
             // Arrange
             var testPort = GetAvailablePort();
             var testServer = WebSocketServerBuilder.Create()
-                .UsePort((ushort)testPort)
-                .OnTextMessage(async (ws, message, ct) =>
-                {
-                    var responseBytes = Encoding.UTF8.GetBytes($"Echo: {message}");
-                    await ws.SendAsync(new ArraySegment<byte>(responseBytes), WebSocketMessageType.Text, true, ct);
-                })
-                .Build();
+                 .UsePort((ushort)testPort)
+                 .OnTextMessage(async (ws, message, ct) =>
+                 {
+                     var responseBytes = Encoding.UTF8.GetBytes($"Echo: {message}");
+                     await ws.SendAsync(new ArraySegment<byte>(responseBytes), WebSocketMessageType.Text, true, ct);
+                 })
+                 .Build();
+
 
             await testServer.StartAsync();
             var testServerUri = new Uri($"ws://localhost:{testPort}/");
@@ -126,7 +123,7 @@ namespace Shinobi.WebSockets.UnitTests
                 .OnTextMessage((ws, message, ct) =>
                 {
                     receivedMessage = message;
-                    messageReceived.SetResult(true);
+                    messageReceived.TrySetResult(true);
                     return default(ValueTask);
                 })
                 .Build();

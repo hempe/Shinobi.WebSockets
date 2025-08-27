@@ -464,9 +464,8 @@ namespace Shinobi.WebSockets
             if (!this.isClient)
             {
                 var closeHandshakeTimeout = TimeSpan.FromMilliseconds(100);
-                using var timeoutCts = new CancellationTokenSource(closeHandshakeTimeout);
-                using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-                
+                using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
                 try
                 {
                     // Wait for the client to close its side or timeout
@@ -480,12 +479,12 @@ namespace Shinobi.WebSockets
                     // Client didn't respond to close handshake within timeout
                     Events.Log?.CloseHandshakeTimedOut(this.Context.Guid, (int)closeHandshakeTimeout.TotalMilliseconds);
                 }
-                
+
                 // Force cleanup of misbehaving clients by disposing the underlying connection
-                if (this.state == WebSocketState.CloseSent)
+                if (this.state != WebSocketState.Closed)
                 {
-                    this.Context?.TcpClient?.Close();
                     this.state = WebSocketState.Closed;
+                    this.Dispose();
                 }
             }
         }

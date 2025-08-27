@@ -83,7 +83,7 @@ public class WebSocketThroughputBenchmarks
                 {
                     var listener = new TcpListener(IPAddress.Loopback, this.port);
                     listener.Start();
-                    serverStarted.SetResult(true);
+                    serverStarted.TrySetResult(true);
                     for (var i = 0; i < this.ClientCount; i++)
                     {
                         var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
@@ -107,7 +107,7 @@ public class WebSocketThroughputBenchmarks
                         }
                     }
                     Console.WriteLine($"All {this.ClientCount} clients connected and ready for WebSocket communication.");
-                    serverReady.SetResult(true);
+                    serverReady.TrySetResult(true);
                     listener.Stop();
                 }
                 else if (this.Server == "Native")
@@ -115,7 +115,7 @@ public class WebSocketThroughputBenchmarks
                     var listener = new HttpListener();
                     listener.Prefixes.Add($"{(ssl ? "https" : "http")}://localhost:{this.port}/");
                     listener.Start();
-                    serverStarted.SetResult(true);
+                    serverStarted.TrySetResult(true);
                     for (var i = 0; i < this.ClientCount; i++)
                     {
                         var context = await listener.GetContextAsync();
@@ -126,7 +126,7 @@ public class WebSocketThroughputBenchmarks
                         }
                     }
                     Console.WriteLine($"All {this.ClientCount} clients connected and ready for WebSocket communication.");
-                    serverReady.SetResult(true);
+                    serverReady.TrySetResult(true);
                     cleanup = () => listener.Stop();
                 }
                 else if (this.Server == "Shinobi")
@@ -138,7 +138,7 @@ public class WebSocketThroughputBenchmarks
                         {
                             Interlocked.Increment(ref clients);
                             if (clients == this.ClientCount)
-                                serverReady.SetResult(true);
+                                serverReady.TrySetResult(true);
 
                             return next(client, cancellationToken);
                         })
@@ -153,7 +153,7 @@ public class WebSocketThroughputBenchmarks
                         }).Build();
 
                     await server.StartAsync();
-                    serverStarted.SetResult(true);
+                    serverStarted.TrySetResult(true);
                     cleanup = () =>
                     {
                         server.StopAsync().GetAwaiter().GetResult();
@@ -249,14 +249,10 @@ public class WebSocketThroughputBenchmarks
                 var res = await (this.serverTask?.WaitAsync(TimeSpan.FromSeconds(3)) ?? Task.FromResult<Action>(null)).ConfigureAwait(false);
                 res?.Invoke();
             }
-            catch (TimeoutException)
+            catch
             {
-                // Server task didn't complete in time, that's ok during cleanup
             }
-            catch (OperationCanceledException)
-            {
-                // Expected if server was cancelled
-            }
+
         }
         catch (Exception ex)
         {

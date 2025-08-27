@@ -276,7 +276,7 @@ namespace Shinobi.WebSockets
                     // Try to establish connection
                     await this.ConnectAsync(cancellationToken);
                     connectionTime = DateTime.Now;
-                    
+
                     if (this.connectionState != WebSocketConnectionState.Connected)
                     {
                         // Connection failed during ConnectAsync
@@ -284,7 +284,7 @@ namespace Shinobi.WebSockets
                     }
 
                     var bufferedReconnectAttemptNumber = reconnectAttemptNumber;
-                    
+
                     // Connection successful, log success but don't reset reconnect attempt counter yet
                     // (we'll reset it only if the connection turns out to be stable)
                     if (reconnectAttemptNumber > 0)
@@ -297,7 +297,7 @@ namespace Shinobi.WebSockets
 
                     // If we get here, connection was closed
                     if (cancellationToken.IsCancellationRequested)
-                        break;
+                        continue;
 
                     // Check if this connection was considered stable using the callback
                     var connectionDuration = DateTime.Now - connectionTime.Value;
@@ -319,7 +319,7 @@ namespace Shinobi.WebSockets
                 catch (OperationCanceledException)
                 {
                     this.logger?.LogInformation("WebSocket reconnection cancelled");
-                    break;
+                    continue;
                 }
                 catch (Exception ex)
                 {

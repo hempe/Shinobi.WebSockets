@@ -8,7 +8,6 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -167,7 +166,7 @@ namespace Shinobi.WebSockets
                     this.listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     this.listener.Start();
                     this.logger?.LogInformation("Server started listening on port {Port}", port);
-                    startTcs.SetResult(null);
+                    startTcs.TrySetResult(null);
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
@@ -177,11 +176,15 @@ namespace Shinobi.WebSockets
                 }
                 catch (SocketException ex)
                 {
-                    startTcs?.SetException(ex);
+                    startTcs?.TrySetException(ex);
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
                     this.logger?.LogError(ex, "Error listening on port {Port}. Make sure IIS or another application is not running and consuming your port.", port);
+                }
+                catch when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
                 }
             }
         }
