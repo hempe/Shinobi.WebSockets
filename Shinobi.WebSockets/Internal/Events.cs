@@ -250,7 +250,7 @@ namespace Shinobi.WebSockets.Internal
         [LoggerMessage(
             EventId = 3008,
             Level = LogLevel.Warning,
-            Message = "Close handshake timed out after {TimeoutSeconds} seconds for {Guid}")]
+            Message = "Close handshake timed out for {Guid} after {TimeoutSeconds}s")]
         public static partial void CloseHandshakeTimedOut(
             this ILogger logger, Guid guid, int timeoutSeconds);
 
@@ -391,7 +391,7 @@ namespace Shinobi.WebSockets.Internal
         [LoggerMessage(
             EventId = 5004,
             Level = LogLevel.Debug,
-            Message = "Http header contains no web socket upgrade request. Close")]
+            Message = "Server HTTP header contains no WebSocket upgrade request")]
         public static partial void NoWebSocketUpgradeRequest(
             this ILogger logger);
 
@@ -412,14 +412,14 @@ namespace Shinobi.WebSockets.Internal
         [LoggerMessage(
             EventId = 5007,
             Level = LogLevel.Debug,
-            Message = "Attempting to secure connection...")]
+            Message = "Server attempting to secure connection")]
         public static partial void AttemptingToSecureConnection(
             this ILogger logger);
 
         [LoggerMessage(
             EventId = 5008,
             Level = LogLevel.Debug,
-            Message = "Connection successfully secured")]
+            Message = "Server connection successfully secured")]
         public static partial void ConnectionSuccessfullySecured(
             this ILogger logger);
 
