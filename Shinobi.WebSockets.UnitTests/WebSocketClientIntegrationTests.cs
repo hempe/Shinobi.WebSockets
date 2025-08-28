@@ -111,11 +111,6 @@ namespace Shinobi.WebSockets.UnitTests
                      var responseBytes = Encoding.UTF8.GetBytes($"Echo: {message}");
                      await ws.SendAsync(new ArraySegment<byte>(responseBytes), WebSocketMessageType.Text, true, ct);
                  })
-                 .OnConnected((webSocket, next, cancellationToken) =>
-                 {
-                     connected.TrySetResult(true);
-                     return next(webSocket, cancellationToken);
-                 })
                  .Build();
 
 
@@ -132,6 +127,11 @@ namespace Shinobi.WebSockets.UnitTests
                     receivedMessage = message;
                     messageReceived.TrySetResult(true);
                     return default(ValueTask);
+                })
+                .OnConnect((webSocket, next, cancellationToken) =>
+                {
+                    connected.TrySetResult(true);
+                    return next(webSocket, cancellationToken);
                 })
                 .Build();
 
