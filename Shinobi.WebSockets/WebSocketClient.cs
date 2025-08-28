@@ -99,27 +99,26 @@ namespace Shinobi.WebSockets
 
             this.ChangeConnectionState(WebSocketConnectionState.Connecting);
 
-            this.connectionTask = Task.Run(async () => await this.ManageConnectionAsync(this.connectionCancellationTokenSource.Token));
-
-            // Wait for initial connection or failure
-            var initialConnectionTimeout = TimeSpan.FromSeconds(30);
-            var timeoutTask = Task.Delay(initialConnectionTimeout, cancellationToken);
-
-            while (!cancellationToken.IsCancellationRequested)
+            if (this.options.ReconnectOptions.Enabled)
             {
-                var completedTask = await Task.WhenAny(timeoutTask, Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken));
-                if (completedTask == timeoutTask)
-                    throw new TimeoutException("Initial connection attempt timed out");
+                // Start connection management in background for auto-reconnect scenarios
+                this.connectionTask = Task.Run(async () => await this.ManageConnectionAsync(this.connectionCancellationTokenSource.Token));
+            }
+            else
+            {
+                // Direct connection without auto-reconnect - throw exceptions on failure
+                try
+                {
+                    await this.ConnectAsync(cancellationToken);
+                }
+                catch (Exception)
+                {
+                    this.ChangeConnectionState(WebSocketConnectionState.Failed);
+                    throw;
+                }
 
-                if (this.ConnectionState == WebSocketConnectionState.Connected)
-                    break;
-
-                if (this.ConnectionState == WebSocketConnectionState.Failed && !this.options.ReconnectOptions.Enabled)
-                    throw new InvalidOperationException("Failed to establish WebSocket connection");
-
-                // If auto-reconnect is disabled and we're disconnected, fail
-                if (this.ConnectionState == WebSocketConnectionState.Disconnected && !this.options.ReconnectOptions.Enabled)
-                    throw new InvalidOperationException("Failed to establish WebSocket connection");
+                // Start message handling task
+                this.connectionTask = Task.Run(async () => await this.HandleMessagesAsync(this.connectionCancellationTokenSource.Token));
             }
         }
 
@@ -136,7 +135,8 @@ namespace Shinobi.WebSockets
             {
                 try
                 {
-                    await this.webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client stopping", CancellationToken.None);
+                    using var tsc = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    await this.webSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Client stopping", tsc.Token);
                 }
                 catch
                 {

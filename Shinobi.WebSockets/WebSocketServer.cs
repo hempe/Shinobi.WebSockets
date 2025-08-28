@@ -299,7 +299,8 @@ namespace Shinobi.WebSockets
 
                             if (webSocket?.State == WebSocketState.Open)
                             {
-                                await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, ex.Message, source.Token).ConfigureAwait(false);
+                                source.CancelAfter(TimeSpan.FromSeconds(5));
+                                await webSocket.CloseOutputAsync(WebSocketCloseStatus.InternalServerError, ex.Message, source.Token).ConfigureAwait(false);
                                 throw;
                             }
 
@@ -422,7 +423,6 @@ namespace Shinobi.WebSockets
                             receiveBuffer.Dispose();
                             receiveBuffer = new ArrayPoolStream();
                         }
-
                     }
                 }
                 finally
@@ -433,6 +433,17 @@ namespace Shinobi.WebSockets
             catch when (cancellationToken.IsCancellationRequested)
             {
                 await this.OnCloseAsync(client, WebSocketCloseStatus.InternalServerError, "Server stopping", cancellationToken);
+                if (client is null || client.State != WebSocketState.Open)
+                    return;
+
+                try
+                {
+                    using var tsc = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+                    await client.CloseOutputAsync(WebSocketCloseStatus.EndpointUnavailable, "Shutting down", tsc.Token);
+                }
+                catch
+                {
+                }
             }
             catch (Exception e)
             {

@@ -102,12 +102,19 @@ namespace Shinobi.WebSockets.UnitTests
         {
             // Arrange
             var testPort = GetAvailablePort();
+            var connected = new TaskCompletionSource<bool>();
+
             var testServer = WebSocketServerBuilder.Create()
                  .UsePort((ushort)testPort)
                  .OnTextMessage(async (ws, message, ct) =>
                  {
                      var responseBytes = Encoding.UTF8.GetBytes($"Echo: {message}");
                      await ws.SendAsync(new ArraySegment<byte>(responseBytes), WebSocketMessageType.Text, true, ct);
+                 })
+                 .OnConnected((webSocket, next, cancellationToken) =>
+                 {
+                     connected.TrySetResult(true);
+                     return next(webSocket, cancellationToken);
                  })
                  .Build();
 
@@ -130,8 +137,10 @@ namespace Shinobi.WebSockets.UnitTests
 
             try
             {
+
                 // Act
                 await client.StartAsync(testServerUri, this.cts.Token);
+                await connected.Task;
 
                 var messageToSend = "Hello Server!";
                 await client.SendTextAsync(messageToSend, this.cts.Token);

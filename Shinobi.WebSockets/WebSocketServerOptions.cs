@@ -182,7 +182,7 @@ namespace Shinobi.WebSockets
         public WebSocketServerOptions()
         {
             this.Port = 8080;
-            this.KeepAliveInterval = TimeSpan.FromSeconds(60);
+            this.KeepAliveInterval = TimeSpan.FromSeconds(30);
             this.IncludeExceptionInCloseResponse = false;
             this.SupportedSubProtocols = null;
         }
