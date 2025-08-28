@@ -213,7 +213,7 @@ namespace Shinobi.WebSockets
 
             if (previousState != newState)
             {
-                this.logger?.LogDebug("WebSocket connection state changed from {PreviousState} to {NewState}", previousState, newState);
+                this.logger?.ConnectionStateChanged(previousState, newState);
                 this.ConnectionStateChanged?.Invoke(this, new WebSocketConnectionStateChangedEventArgs(previousState, newState, exception));
             }
         }
@@ -240,13 +240,13 @@ namespace Shinobi.WebSockets
                         // Check if we should reconnect
                         if (!this.options.ReconnectOptions.Enabled)
                         {
-                            this.logger?.LogInformation("Auto-reconnect is disabled, staying disconnected");
+                            this.logger?.AutoReconnectDisabled();
                             this.ChangeConnectionState(WebSocketConnectionState.Disconnected);
                             break;
                         }
 
                         // Prepare for reconnect
-                        this.logger?.LogInformation("Starting auto-reconnect sequence (attempt {AttemptNumber})", reconnectAttemptNumber);
+                        this.logger?.StartingAutoReconnect(reconnectAttemptNumber);
                         this.ChangeConnectionState(WebSocketConnectionState.Reconnecting);
 
                         // Calculate delay with exponential backoff and jitter
@@ -256,11 +256,11 @@ namespace Shinobi.WebSockets
                         var reconnectUri = this.currentUri!;
                         if (this.options.OnReconnecting != null)
                         {
-                            this.logger?.LogDebug("Calling OnReconnecting handler for attempt {AttemptNumber}", reconnectAttemptNumber);
+                            this.logger?.CallingOnReconnectingHandler(reconnectAttemptNumber);
                             reconnectUri = await this.options.OnReconnecting(this.currentUri!, reconnectAttemptNumber, cancellationToken);
                             if (!reconnectUri.Equals(this.currentUri))
                             {
-                                this.logger?.LogInformation("OnReconnecting handler changed URI from {OldUri} to {NewUri}", this.currentUri, reconnectUri);
+                                this.logger?.ReconnectingUriChanged(this.currentUri!, reconnectUri);
                             }
                             this.currentUri = reconnectUri;
                         }
@@ -268,8 +268,7 @@ namespace Shinobi.WebSockets
                         // Raise reconnecting event
                         this.Reconnecting?.Invoke(this, new WebSocketReconnectingEventArgs(reconnectUri, reconnectAttemptNumber, delay));
 
-                        this.logger?.LogInformation("Reconnecting to {Uri} in {Delay}ms (attempt {AttemptNumber})",
-                            reconnectUri, delay.TotalMilliseconds, reconnectAttemptNumber);
+                        this.logger?.ReconnectingWithDelay(reconnectUri, (int)delay.TotalMilliseconds, reconnectAttemptNumber);
 
                         // Wait before reconnecting
                         await Task.Delay(delay, cancellationToken);
@@ -291,7 +290,7 @@ namespace Shinobi.WebSockets
                     // (we'll reset it only if the connection turns out to be stable)
                     if (reconnectAttemptNumber > 0)
                     {
-                        this.logger?.LogInformation("Successfully reconnected to {Uri} after {AttemptNumber} attempts", this.currentUri, reconnectAttemptNumber);
+                        this.logger?.ReconnectedSuccessfully(this.currentUri!, reconnectAttemptNumber);
                     }
 
                     // Handle messages until disconnection
@@ -307,28 +306,27 @@ namespace Shinobi.WebSockets
 
                     if (!isStableConnection)
                     {
-                        this.logger?.LogInformation("WebSocket connection closed after {Duration}ms - treating as connection failure (not considered stable)",
-                            connectionDuration.TotalMilliseconds);
+                        this.logger?.ConnectionClosedUnstable(connectionDuration.TotalMilliseconds);
                         reconnectAttemptNumber = bufferedReconnectAttemptNumber + 1;
                     }
                     else
                     {
-                        this.logger?.LogInformation("WebSocket connection closed normally after {Duration}ms - resetting backoff (considered stable)",
-                            connectionDuration.TotalMilliseconds);
+                        this.logger?.ConnectionClosedStable(connectionDuration.TotalMilliseconds);
                         reconnectAttemptNumber = 0; // Reset to 0, so next attempt will be 1 and use BackoffCalculator with attempt 0
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    this.logger?.LogInformation("WebSocket reconnection cancelled");
+                    this.logger?.ReconnectionCancelled();
                     continue;
                 }
                 catch (Exception ex)
                 {
-                    this.logger?.LogError(ex, "Connection error (attempt {AttemptNumber})", attemptNumber);
+                    this.logger?.ConnectionError(attemptNumber, ex);
 
                     if (!this.options.ReconnectOptions.Enabled)
                     {
+                        this.logger?.ConnectionFailedPermanently(ex);
                         this.ChangeConnectionState(WebSocketConnectionState.Failed, ex);
                         break;
                     }

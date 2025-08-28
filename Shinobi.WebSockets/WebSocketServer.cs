@@ -135,7 +135,7 @@ namespace Shinobi.WebSockets
                 .AddHeader("Content-Type", "text/plain")
                 .WithBody("WebSocket connection required. Use a WebSocket client.");
 
-            this.logger?.LogInformation("Http header contains no web socket upgrade request. Close");
+            this.logger?.NoWebSocketUpgradeRequest();
             return new ValueTask<HttpResponse>(response);
         }
 
@@ -164,11 +164,11 @@ namespace Shinobi.WebSockets
             {
                 try
                 {
-                    this.logger?.LogInformation("Server opening port {Port}", port);
+                    this.logger?.ServerOpeningPort(port);
                     this.listener = new TcpListener(IPAddress.Any, port);
                     this.listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     this.listener.Start();
-                    this.logger?.LogInformation("Server started listening on port {Port}", port);
+                    this.logger?.ServerStartedListening(port);
                     startTcs.TrySetResult(null);
 
                     while (!cancellationToken.IsCancellationRequested)
@@ -183,7 +183,7 @@ namespace Shinobi.WebSockets
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
-                    this.logger?.LogError(ex, "Error listening on port {Port}. Make sure IIS or another application is not running and consuming your port.", port);
+                    this.logger?.ListeningError(port, ex);
                 }
                 catch (Exception ex)
                 {
@@ -201,14 +201,14 @@ namespace Shinobi.WebSockets
             try
             {
                 var sslStream = new SslStream(stream, true);
-                this.logger?.LogInformation("Attempting to secure connection...");
+                this.logger?.AttemptingToSecureConnection();
 
 #if NET8_0_OR_GREATER
                 await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
 #else
                 await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
 #endif
-                this.logger?.LogInformation("Connection successfully secured");
+                this.logger?.ConnectionSuccessfullySecured();
                 return sslStream;
             }
             catch (ObjectDisposedException)
@@ -217,10 +217,10 @@ namespace Shinobi.WebSockets
             }
             catch (Exception e)
             {
-                this.logger?.LogError(e, "Failed to upgrade stream to ssl stream.");
+                this.logger?.FailedToUpgradeToSslStream(e);
                 if (e.InnerException != null)
                 {
-                    this.logger?.LogError(e.InnerException, "Failed to upgrade stream to ssl stream, inner exception: {Message}.", e.Message);
+                    this.logger?.FailedToUpgradeToSslStreamInner(e.Message, e.InnerException);
                 }
 
                 throw;
@@ -327,12 +327,14 @@ namespace Shinobi.WebSockets
                 }
                 catch (ObjectDisposedException)
                 {
-                    // do nothing. This will be thrown if the Listener has been stopped
+                    this.logger?.ListenerDisposed();
                 }
                 catch (Exception ex)
                 {
                     if (source.IsCancellationRequested)
                         return;
+
+                    this.logger?.TcpClientProcessingError(ex);
 
                     if (context != null && context.Stream.CanWrite)
                     {
@@ -343,11 +345,11 @@ namespace Shinobi.WebSockets
                         await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                     }
 
-                    this.logger?.LogError(ex, "Failure at the TCP connection");
+                    this.logger?.TcpConnectionFailure(ex);
                 }
                 finally
                 {
-                    this.logger?.LogInformation("Server: Connection closed");
+                    this.logger?.ServerConnectionClosed();
 
                     if (context is not null)
                         this.clients.TryRemove(context.Guid, out _);
@@ -383,7 +385,7 @@ namespace Shinobi.WebSockets
             }
             catch (Exception e)
             {
-                this.logger?.LogInformation("{Method} faild: {Message}", method, e.Message);
+                this.logger?.ServerMethodFailed(method, e);
             }
         }
 
@@ -472,11 +474,11 @@ namespace Shinobi.WebSockets
                             try
                             {
                                 await tcpClient.ConnectAsync("localhost", this.options.Port);
-                                this.logger?.LogDebug("Drain clients succeeded.");
+                                this.logger?.DrainClientsSucceeded();
                             }
                             catch (Exception e)
                             {
-                                this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
+                                this.logger?.DrainClientsFailed(e);
                             }
                         }
                     }
@@ -484,7 +486,7 @@ namespace Shinobi.WebSockets
             }
             catch (Exception e)
             {
-                this.logger?.LogDebug("Drain clients failed: {Message}", e.Message);
+                this.logger?.DrainClientsFailed(e);
             }
         }
 

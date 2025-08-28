@@ -1,27 +1,3 @@
-// ---------------------------------------------------------------------
-// Copyright 2018 David Haig
-// Copyright 2025 Hansueli Burri
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy 
-// of this software and associated documentation files (the "Software"), to deal 
-// in the Software without restriction, including without limitation the rights 
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
-// copies of the Software, and to permit persons to whom the Software is 
-// furnished to do so, subject to the following conditions:
-// 
-// The above copyright notice and this permission notice shall be included in 
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
-// THE SOFTWARE.
-// ---------------------------------------------------------------------
-
-
 using System;
 using System.Net.Security;
 using System.Net.WebSockets;
@@ -298,6 +274,203 @@ namespace Shinobi.WebSockets.Internal
             Message = "Invalid state before close output for {Guid}. State: {State}")]
         public static partial void InvalidStateBeforeCloseOutput(
             this ILogger logger, Guid guid, WebSocketState state);
+
+        #endregion
+
+        #region Client Connection Events (4000-4999)
+
+        [LoggerMessage(
+            EventId = 4001,
+            Level = LogLevel.Information,
+            Message = "WebSocket reconnection cancelled")]
+        public static partial void ReconnectionCancelled(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 4002,
+            Level = LogLevel.Warning,
+            Message = "Connection error (attempt {AttemptNumber})")]
+        public static partial void ConnectionError(
+            this ILogger logger, int attemptNumber, Exception exception);
+
+        [LoggerMessage(
+            EventId = 4003,
+            Level = LogLevel.Error,
+            Message = "WebSocket connection failed permanently - reconnection disabled")]
+        public static partial void ConnectionFailedPermanently(
+            this ILogger logger, Exception exception);
+
+        [LoggerMessage(
+            EventId = 4004,
+            Level = LogLevel.Information,
+            Message = "Successfully reconnected to {Uri} after {AttemptNumber} attempts")]
+        public static partial void ReconnectedSuccessfully(
+            this ILogger logger, Uri uri, int attemptNumber);
+
+        [LoggerMessage(
+            EventId = 4005,
+            Level = LogLevel.Information,
+            Message = "WebSocket connection closed after {Duration}ms - treating as connection failure (not considered stable)")]
+        public static partial void ConnectionClosedUnstable(
+            this ILogger logger, double duration);
+
+        [LoggerMessage(
+            EventId = 4006,
+            Level = LogLevel.Information,
+            Message = "WebSocket connection closed normally after {Duration}ms - resetting backoff (considered stable)")]
+        public static partial void ConnectionClosedStable(
+            this ILogger logger, double duration);
+
+        [LoggerMessage(
+            EventId = 4007,
+            Level = LogLevel.Debug,
+            Message = "WebSocket connection state changed from {PreviousState} to {NewState}")]
+        public static partial void ConnectionStateChanged(
+            this ILogger logger, WebSocketConnectionState previousState, WebSocketConnectionState newState);
+
+        [LoggerMessage(
+            EventId = 4008,
+            Level = LogLevel.Debug,
+            Message = "Auto-reconnect is disabled, staying disconnected")]
+        public static partial void AutoReconnectDisabled(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 4009,
+            Level = LogLevel.Debug,
+            Message = "Starting auto-reconnect sequence (attempt {AttemptNumber})")]
+        public static partial void StartingAutoReconnect(
+            this ILogger logger, int attemptNumber);
+
+        [LoggerMessage(
+            EventId = 4010,
+            Level = LogLevel.Debug,
+            Message = "Calling OnReconnecting handler for attempt {AttemptNumber}")]
+        public static partial void CallingOnReconnectingHandler(
+            this ILogger logger, int attemptNumber);
+
+        [LoggerMessage(
+            EventId = 4011,
+            Level = LogLevel.Debug,
+            Message = "OnReconnecting handler changed URI from {OldUri} to {NewUri}")]
+        public static partial void ReconnectingUriChanged(
+            this ILogger logger, Uri oldUri, Uri newUri);
+
+        [LoggerMessage(
+            EventId = 4012,
+            Level = LogLevel.Debug,
+            Message = "Reconnecting to {Uri} in {Delay}ms (attempt {AttemptNumber})")]
+        public static partial void ReconnectingWithDelay(
+            this ILogger logger, Uri uri, int delay, int attemptNumber);
+
+        #endregion
+
+        #region Server Events (5000-5999)
+
+        [LoggerMessage(
+            EventId = 5001,
+            Level = LogLevel.Error,
+            Message = "Error listening on port {Port}. Make sure IIS or another application is not running and consuming your port")]
+        public static partial void ListeningError(
+            this ILogger logger, int port, Exception exception);
+
+        [LoggerMessage(
+            EventId = 5002,
+            Level = LogLevel.Warning,
+            Message = "Server listener disposed while processing clients")]
+        public static partial void ListenerDisposed(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 5003,
+            Level = LogLevel.Error,
+            Message = "Unexpected error processing TCP client")]
+        public static partial void TcpClientProcessingError(
+            this ILogger logger, Exception exception);
+
+        [LoggerMessage(
+            EventId = 5004,
+            Level = LogLevel.Debug,
+            Message = "Http header contains no web socket upgrade request. Close")]
+        public static partial void NoWebSocketUpgradeRequest(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 5005,
+            Level = LogLevel.Debug,
+            Message = "Server opening port {Port}")]
+        public static partial void ServerOpeningPort(
+            this ILogger logger, int port);
+
+        [LoggerMessage(
+            EventId = 5006,
+            Level = LogLevel.Information,
+            Message = "Server started listening on port {Port}")]
+        public static partial void ServerStartedListening(
+            this ILogger logger, int port);
+
+        [LoggerMessage(
+            EventId = 5007,
+            Level = LogLevel.Debug,
+            Message = "Attempting to secure connection...")]
+        public static partial void AttemptingToSecureConnection(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 5008,
+            Level = LogLevel.Debug,
+            Message = "Connection successfully secured")]
+        public static partial void ConnectionSuccessfullySecured(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 5009,
+            Level = LogLevel.Error,
+            Message = "Failed to upgrade stream to ssl stream")]
+        public static partial void FailedToUpgradeToSslStream(
+            this ILogger logger, Exception exception);
+
+        [LoggerMessage(
+            EventId = 5010,
+            Level = LogLevel.Error,
+            Message = "Failed to upgrade stream to ssl stream, inner exception: {Message}")]
+        public static partial void FailedToUpgradeToSslStreamInner(
+            this ILogger logger, string message, Exception exception);
+
+        [LoggerMessage(
+            EventId = 5011,
+            Level = LogLevel.Error,
+            Message = "Failure at the TCP connection")]
+        public static partial void TcpConnectionFailure(
+            this ILogger logger, Exception exception);
+
+        [LoggerMessage(
+            EventId = 5012,
+            Level = LogLevel.Debug,
+            Message = "Server: Connection closed")]
+        public static partial void ServerConnectionClosed(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 5013,
+            Level = LogLevel.Warning,
+            Message = "{Method} failed")]
+        public static partial void ServerMethodFailed(
+            this ILogger logger, string method, Exception exception);
+
+        [LoggerMessage(
+            EventId = 5014,
+            Level = LogLevel.Debug,
+            Message = "Drain clients succeeded")]
+        public static partial void DrainClientsSucceeded(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 5015,
+            Level = LogLevel.Debug,
+            Message = "Drain clients failed")]
+        public static partial void DrainClientsFailed(
+            this ILogger logger, Exception exception);
 
         #endregion
 
