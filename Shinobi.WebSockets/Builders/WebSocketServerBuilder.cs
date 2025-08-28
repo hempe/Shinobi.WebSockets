@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Http;
+using Shinobi.WebSockets.Internal;
 
 namespace Shinobi.WebSockets.Builders
 {
@@ -270,25 +271,25 @@ namespace Shinobi.WebSockets.Builders
 
             this.OnAcceptStream((tcpClient, next, cancellationToken) =>
             {
-                logger.LogInformation("Server: Connection opened.");
+                logger.ServerConnectionOpened();
                 return next(tcpClient, cancellationToken);
             });
 
             this.OnConnect((webSocket, next, cancellationToken) =>
             {
-                logger.LogInformation("WebSocket connected: {ConnectionId}", webSocket.Context.Guid);
+                logger.WebSocketConnected(webSocket.Context.Guid);
                 return next(webSocket, cancellationToken);
             });
 
             this.OnClose((webSocket, closeStatus, statusDescription, next, cancellationToken) =>
             {
-                logger.LogInformation("WebSocket disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, {StatusDescription}", webSocket.Context.Guid, closeStatus, statusDescription);
+                logger.WebSocketDisconnected(webSocket.Context.Guid, closeStatus, statusDescription);
                 return next(webSocket, closeStatus, statusDescription, cancellationToken);
             });
 
             this.OnError((webSocket, exception, next, cancellationToken) =>
             {
-                logger.LogError(exception, "WebSocket error for connection: {ConnectionId}", webSocket.Context.Guid);
+                logger.WebSocketError(webSocket.Context.Guid, exception);
                 return next(webSocket, exception, cancellationToken);
             });
 

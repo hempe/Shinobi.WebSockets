@@ -5,6 +5,8 @@ using System.Text;
 
 using Microsoft.Extensions.Logging;
 
+using Shinobi.WebSockets.Internal;
+
 namespace Shinobi.WebSockets.Builders
 {
     /// <summary>
@@ -228,19 +230,19 @@ namespace Shinobi.WebSockets.Builders
 
             this.OnConnect((webSocket, next, cancellationToken) =>
             {
-                logger.LogInformation("WebSocket client connected: {ConnectionId}", webSocket.Context.Guid);
+                logger.WebSocketClientConnected(webSocket.Context.Guid);
                 return next(webSocket, cancellationToken);
             });
 
             this.OnClose((webSocket, closeStatus, statusDescription, next, cancellationToken) =>
             {
-                logger.LogInformation("WebSocket client disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, {StatusDescription}", webSocket.Context.Guid, closeStatus, statusDescription);
+                logger.WebSocketClientDisconnected(webSocket.Context.Guid, closeStatus, statusDescription);
                 return next(webSocket, closeStatus, statusDescription, cancellationToken);
             });
 
             this.OnError((webSocket, exception, next, cancellationToken) =>
             {
-                logger.LogError(exception, "WebSocket client error for connection: {ConnectionId}", webSocket.Context.Guid);
+                logger.WebSocketClientError(webSocket.Context.Guid, exception);
                 return next(webSocket, exception, cancellationToken);
             });
 

@@ -782,7 +782,7 @@ namespace Shinobi.WebSockets
             catch (Exception closeException)
             {
                 // do not throw an exception because that will mask the original exception
-                this.logger?.CloseOutputAutoTimeoutError(this.Context.Guid, closeException, closeStatus, statusDescription, ex);
+                this.logger?.CloseOutputAutoTimeoutError(this.Context.Guid, closeStatus, statusDescription, new AggregateException(closeException, ex));
             }
         }
     }

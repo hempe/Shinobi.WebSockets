@@ -32,7 +32,8 @@ namespace Shinobi.WebSockets.Internal
 {
     internal static partial class Events
     {
-        // Connection Events (1000-1999)
+        #region Connection Events (1000-1099)
+
         [LoggerMessage(
             EventId = 1001,
             Level = LogLevel.Information,
@@ -75,7 +76,10 @@ namespace Shinobi.WebSockets.Internal
         public static partial void SslCertificateError(
             this ILogger logger, SslPolicyErrors errors);
 
-        // Handshake Events (1100-1199)
+        #endregion
+
+        #region Handshake Events (1100-1199)
+
         [LoggerMessage(
             EventId = 1101,
             Level = LogLevel.Information,
@@ -146,39 +150,45 @@ namespace Shinobi.WebSockets.Internal
         public static partial void BadRequest(
             this ILogger logger, Guid guid, Exception exception);
 
-        // Compression Events (1200-1299)
+        #endregion
+
+        #region Compression Events (1200-1299)
+
         [LoggerMessage(
             EventId = 1201,
-            Level = LogLevel.Information,
+            Level = LogLevel.Debug,
             Message = "Client {Guid} using per-message deflate")]
         public static partial void UsePerMessageDeflate(
             this ILogger logger, Guid guid);
 
         [LoggerMessage(
             EventId = 1202,
-            Level = LogLevel.Information,
+            Level = LogLevel.Debug,
             Message = "Client {Guid} no message compression")]
         public static partial void NoMessageCompression(
             this ILogger logger, Guid guid);
 
-        // Keep-Alive Events (1300-1399)
+        #endregion
+
+        #region Keep-Alive Events (1300-1399)
+
         [LoggerMessage(
             EventId = 1301,
-            Level = LogLevel.Information,
+            Level = LogLevel.Debug,
             Message = "Client {Guid} keep-alive interval is zero")]
         public static partial void KeepAliveIntervalZero(
             this ILogger logger, Guid guid);
 
         [LoggerMessage(
             EventId = 1302,
-            Level = LogLevel.Information,
+            Level = LogLevel.Debug,
             Message = "PingPong manager started for {Guid} with interval {Seconds}s")]
         public static partial void PingPongStarted(
             this ILogger logger, Guid guid, int seconds);
 
         [LoggerMessage(
             EventId = 1303,
-            Level = LogLevel.Information,
+            Level = LogLevel.Debug,
             Message = "PingPong manager ended for {Guid}")]
         public static partial void PingPongEnded(
             this ILogger logger, Guid guid);
@@ -190,63 +200,69 @@ namespace Shinobi.WebSockets.Internal
         public static partial void KeepAliveIntervalExpired(
             this ILogger logger, Guid guid, int seconds);
 
-        // Frame Events (2000-2999)
+        #endregion
+
+        #region Frame Events (2000-2999)
+
         [LoggerMessage(
             EventId = 2001,
             Level = LogLevel.Trace,
-            Message = "Sending frame for {Guid}. OpCode: {OpCode}, FIN: {Fin}, Bytes: {Bytes}, Compressed: {Compressed}")]
+            Message = "Sending frame for {Guid}. OpCode: {OpCode}, FIN: {IsFinBitSet}, Bytes: {NumBytes}, Compressed: {IsPayloadCompressed}")]
         public static partial void SendingFrame(
-            this ILogger logger, Guid guid, WebSocketOpCode opCode, bool fin, int bytes, bool compressed);
+            this ILogger logger, Guid guid, WebSocketOpCode opCode, bool isFinBitSet, int numBytes, bool isPayloadCompressed);
 
         [LoggerMessage(
             EventId = 2002,
             Level = LogLevel.Trace,
-            Message = "Received frame for {Guid}. OpCode: {OpCode}, FIN: {Fin}, Bytes: {Bytes}")]
+            Message = "Received frame for {Guid}. OpCode: {OpCode}, FIN: {IsFinBitSet}, Bytes: {NumBytes}")]
         public static partial void ReceivedFrame(
-            this ILogger logger, Guid guid, WebSocketOpCode opCode, bool fin, int bytes);
+            this ILogger logger, Guid guid, WebSocketOpCode opCode, bool isFinBitSet, int numBytes);
 
-        // Close Events (3000-3999)
+        #endregion
+
+        #region Close Events (3000-3999)
+
         [LoggerMessage(
             EventId = 3001,
             Level = LogLevel.Warning,
-            Message = "Close output auto-timeout for {Guid}. Status: {Status}, Description: {Desc}")]
+            Message = "Close output auto-timeout for {Guid}. Status: {CloseStatus}, Description: {StatusDescription}")]
         public static partial void CloseOutputAutoTimeout(
-            this ILogger logger, Guid guid, WebSocketCloseStatus status, string desc, Exception exception);
+            this ILogger logger, Guid guid, WebSocketCloseStatus closeStatus, string statusDescription, Exception exception);
 
         [LoggerMessage(
             EventId = 3002,
             Level = LogLevel.Error,
-            Message = "Close output auto-timeout cancelled for {Guid} after {Seconds}s. Status: {Status}, Description: {Desc}")]
+            Message = "Close output auto-timeout cancelled for {Guid} after {TimeoutSeconds}s. Status: {CloseStatus}, Description: {StatusDescription}")]
         public static partial void CloseOutputAutoTimeoutCancelled(
-            this ILogger logger, Guid guid, int seconds, WebSocketCloseStatus status, string desc, Exception exception);
+            this ILogger logger, Guid guid, int timeoutSeconds, WebSocketCloseStatus closeStatus, string statusDescription, Exception exception);
 
         [LoggerMessage(
             EventId = 3003,
             Level = LogLevel.Error,
-            Message = "Close output auto-timeout error for {Guid}. Status: {Status}, Desc: {Desc}")]
+            Message = "Close output auto-timeout error for {Guid}. Status: {CloseStatus}, Description: {StatusDescription}")]
         public static partial void CloseOutputAutoTimeoutError(
-            this ILogger logger, Guid guid, Exception closeException, WebSocketCloseStatus status, string desc, Exception exception);
+            this ILogger logger, Guid guid, WebSocketCloseStatus closeStatus, string statusDescription, Exception exception);
 
         [LoggerMessage(
             EventId = 3004,
             Level = LogLevel.Information,
-            Message = "Close output with no handshake for {Guid}. Status: {Status}, Desc: {Desc}")]
+            Message = "Close output with no handshake for {Guid}. Status: {CloseStatus}, Description: {StatusDescription}")]
         public static partial void CloseOutputNoHandshake(
-            this ILogger logger, Guid guid, WebSocketCloseStatus? status, string? desc);
+            this ILogger logger, Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription);
 
         [LoggerMessage(
             EventId = 3005,
             Level = LogLevel.Information,
-            Message = "Close handshake started for {Guid}. Status: {Status}, Desc: {Desc}")]
+            Message = "Close handshake started for {Guid}. Status: {CloseStatus}, Description: {StatusDescription}")]
         public static partial void CloseHandshakeStarted(
-            this ILogger logger, Guid guid, WebSocketCloseStatus? status, string? desc);
+            this ILogger logger, Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription);
 
         [LoggerMessage(
             EventId = 3006,
             Level = LogLevel.Information,
-            Message = "Close handshake respond for {Guid}. Status: {Status}, Desc: {Desc}")]
+            Message = "Close handshake respond for {Guid}. Status: {CloseStatus}, Description: {StatusDescription}")]
         public static partial void CloseHandshakeRespond(
-            this ILogger logger, Guid guid, WebSocketCloseStatus? status, string? desc);
+            this ILogger logger, Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription);
 
         [LoggerMessage(
             EventId = 3007,
@@ -265,9 +281,9 @@ namespace Shinobi.WebSockets.Internal
         [LoggerMessage(
             EventId = 3009,
             Level = LogLevel.Warning,
-            Message = "Close frame received in unexpected state for {Guid}. State: {State}, Status: {Status}, Desc: {Desc}")]
+            Message = "Close frame received in unexpected state for {Guid}. State: {State}, Status: {CloseStatus}, Description: {StatusDescription}")]
         public static partial void CloseFrameReceivedInUnexpectedState(
-            this ILogger logger, Guid guid, WebSocketState state, WebSocketCloseStatus? status, string? desc);
+            this ILogger logger, Guid guid, WebSocketState state, WebSocketCloseStatus? closeStatus, string? statusDescription);
 
         [LoggerMessage(
             EventId = 3010,
@@ -283,10 +299,66 @@ namespace Shinobi.WebSockets.Internal
         public static partial void InvalidStateBeforeCloseOutput(
             this ILogger logger, Guid guid, WebSocketState state);
 
-        // Disposal Events (9000-9999)
+        #endregion
+
+        #region Builder Events (8000-8999)
+
+        [LoggerMessage(
+            EventId = 8001,
+            Level = LogLevel.Debug,
+            Message = "Server: Connection opened")]
+        public static partial void ServerConnectionOpened(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 8002,
+            Level = LogLevel.Information,
+            Message = "WebSocket connected: {ConnectionId}")]
+        public static partial void WebSocketConnected(
+            this ILogger logger, Guid connectionId);
+
+        [LoggerMessage(
+            EventId = 8003,
+            Level = LogLevel.Information,
+            Message = "WebSocket disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, StatusDescription: {StatusDescription}")]
+        public static partial void WebSocketDisconnected(
+            this ILogger logger, Guid connectionId, WebSocketCloseStatus? closeStatus, string? statusDescription);
+
+        [LoggerMessage(
+            EventId = 8004,
+            Level = LogLevel.Error,
+            Message = "WebSocket error for connection: {ConnectionId}")]
+        public static partial void WebSocketError(
+            this ILogger logger, Guid connectionId, Exception exception);
+
+        [LoggerMessage(
+            EventId = 8005,
+            Level = LogLevel.Information,
+            Message = "WebSocket client connected: {ConnectionId}")]
+        public static partial void WebSocketClientConnected(
+            this ILogger logger, Guid connectionId);
+
+        [LoggerMessage(
+            EventId = 8006,
+            Level = LogLevel.Information,
+            Message = "WebSocket client disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, StatusDescription: {StatusDescription}")]
+        public static partial void WebSocketClientDisconnected(
+            this ILogger logger, Guid connectionId, WebSocketCloseStatus? closeStatus, string? statusDescription);
+
+        [LoggerMessage(
+            EventId = 8007,
+            Level = LogLevel.Error,
+            Message = "WebSocket client error for connection: {ConnectionId}")]
+        public static partial void WebSocketClientError(
+            this ILogger logger, Guid connectionId, Exception exception);
+
+        #endregion
+
+        #region Disposal Events (9000-9999)
+
         [LoggerMessage(
             EventId = 9001,
-            Level = LogLevel.Information,
+            Level = LogLevel.Debug,
             Message = "WebSocket disposed for {Guid}. State: {State}")]
         public static partial void WebSocketDispose(
             this ILogger logger, Guid guid, WebSocketState state);
@@ -301,8 +373,10 @@ namespace Shinobi.WebSockets.Internal
         [LoggerMessage(
             EventId = 9003,
             Level = LogLevel.Error,
-            Message = "WebSocket dispose error for {Guid}. State: {State}, Exception: {Ex}")]
+            Message = "WebSocket dispose error for {Guid}. State: {State}")]
         public static partial void WebSocketDisposeError(
             this ILogger logger, Guid guid, WebSocketState state, Exception ex);
+
+        #endregion
     }
 }
