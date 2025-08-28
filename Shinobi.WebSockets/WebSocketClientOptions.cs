@@ -225,7 +225,7 @@ namespace Shinobi.WebSockets
         /// </summary>
         public WebSocketClientOptions()
         {
-            this.KeepAliveInterval = TimeSpan.FromSeconds(20);
+            this.KeepAliveInterval = TimeSpan.FromSeconds(30);
             this.NoDelay = true;
             this.AdditionalHttpHeaders = new Dictionary<string, string>();
             this.IncludeExceptionInCloseResponse = false;

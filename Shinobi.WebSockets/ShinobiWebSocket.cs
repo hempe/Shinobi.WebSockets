@@ -164,6 +164,8 @@ namespace Shinobi.WebSockets
                 {
                     // allow this operation to be cancelled from inside OR outside this instance
                     using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.internalReadCts.Token, cancellationToken);
+                    if (this.KeepAliveInterval.TotalMilliseconds > 0)
+                        linkedCts.CancelAfter(this.KeepAliveInterval + this.KeepAliveInterval);
 
                     WebSocketFrame frame;
 
@@ -416,7 +418,7 @@ namespace Shinobi.WebSockets
             }
             catch (Exception e)
             {
-                await this.CloseAsync(WebSocketCloseStatus.InternalServerError, e.Message, cancellationToken);
+                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Sending failed.", e);
                 throw;
             }
 
