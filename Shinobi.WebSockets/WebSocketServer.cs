@@ -109,9 +109,10 @@ namespace Shinobi.WebSockets
             if (this.runTask != null)
                 return Task.CompletedTask;
 
-            this.runToken = new CancellationTokenSource();
+            var runToken = new CancellationTokenSource();
             var tsc = new TaskCompletionSource<object?>();
-            this.runTask = this.ListenAsync(this.options.Port, this.runToken, tsc);
+            this.runToken = runToken;
+            this.runTask = Task.Run(() => this.ListenAsync(this.options.Port, runToken, tsc));
             return tsc.Task;
         }
 
@@ -162,6 +163,7 @@ namespace Shinobi.WebSockets
             {
                 try
                 {
+                    this.logger?.LogInformation("Server opening port {Port}", port);
                     this.listener = new TcpListener(IPAddress.Any, port);
                     this.listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     this.listener.Start();
@@ -176,15 +178,18 @@ namespace Shinobi.WebSockets
                 }
                 catch (SocketException ex)
                 {
-                    startTcs?.TrySetException(ex);
+                    startTcs.TrySetException(ex);
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
                     this.logger?.LogError(ex, "Error listening on port {Port}. Make sure IIS or another application is not running and consuming your port.", port);
                 }
-                catch when (cancellationToken.IsCancellationRequested)
+                catch (Exception ex)
                 {
-                    return;
+                    startTcs.TrySetException(ex);
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
+                    throw;
                 }
             }
         }
