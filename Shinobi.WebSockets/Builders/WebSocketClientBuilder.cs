@@ -17,8 +17,8 @@ namespace Shinobi.WebSockets.Builders
         internal readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
         internal readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
         internal readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
-        internal ILogger<WebSocketClient>? logger;
         internal WebSocketClientOptions configuration = new WebSocketClientOptions();
+        internal ILoggerFactory? loggerFactory;
 
         /// <summary>
         /// Sets the keep-alive interval for ping/pong messages
@@ -223,24 +223,24 @@ namespace Shinobi.WebSockets.Builders
         /// <returns></returns>
         public WebSocketClientBuilder UseLogging(ILoggerFactory loggerFactory)
         {
-            Internal.Events.Log = new Internal.Events(loggerFactory.CreateLogger<Internal.Events>());
-            this.logger = loggerFactory.CreateLogger<WebSocketClient>();
+            this.loggerFactory = loggerFactory;
+            var logger = loggerFactory.CreateLogger<WebSocketClient>();
 
             this.OnConnect((webSocket, next, cancellationToken) =>
             {
-                this.logger.LogInformation("WebSocket client connected: {ConnectionId}", webSocket.Context.Guid);
+                logger.LogInformation("WebSocket client connected: {ConnectionId}", webSocket.Context.Guid);
                 return next(webSocket, cancellationToken);
             });
 
             this.OnClose((webSocket, closeStatus, statusDescription, next, cancellationToken) =>
             {
-                this.logger.LogInformation("WebSocket client disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, {StatusDescription}", webSocket.Context.Guid, closeStatus, statusDescription);
+                logger.LogInformation("WebSocket client disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, {StatusDescription}", webSocket.Context.Guid, closeStatus, statusDescription);
                 return next(webSocket, closeStatus, statusDescription, cancellationToken);
             });
 
             this.OnError((webSocket, exception, next, cancellationToken) =>
             {
-                this.logger.LogError(exception, "WebSocket client error for connection: {ConnectionId}", webSocket.Context.Guid);
+                logger.LogError(exception, "WebSocket client error for connection: {ConnectionId}", webSocket.Context.Guid);
                 return next(webSocket, exception, cancellationToken);
             });
 
@@ -287,7 +287,7 @@ namespace Shinobi.WebSockets.Builders
             this.configuration.OnError = this.onError.Count > 0 ? this.onError : null;
             this.configuration.OnMessage = this.onMessage.Count > 0 ? this.onMessage : null;
 
-            return new WebSocketClient(this.configuration, this.logger);
+            return new WebSocketClient(this.configuration, this.loggerFactory);
         }
 
         /// <summary>

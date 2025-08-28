@@ -30,287 +30,279 @@ using Microsoft.Extensions.Logging;
 
 namespace Shinobi.WebSockets.Internal
 {
-    public sealed class Events
+    internal static partial class Events
     {
-        internal readonly ILogger<Events> logger;
-        internal static Events? Log { get; set; } = null;
+        // Connection Events (1000-1999)
+        [LoggerMessage(
+            EventId = 1001,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} connecting to IP {IpAddress}:{Port}")]
+        public static partial void ClientConnectingToIpAddress(
+            this ILogger logger, Guid guid, string ipAddress, int port);
 
-        internal Events(ILogger<Events> logger)
-        {
-            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
+        [LoggerMessage(
+            EventId = 1002,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} connecting to host {Host}:{Port}")]
+        public static partial void ClientConnectingToHost(
+            this ILogger logger, Guid guid, string host, int port);
 
-        internal void ClientConnectingToIpAddress(Guid guid, string ipAddress, int port)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} connecting to IP {IpAddress}:{Port}", guid, ipAddress, port);
-        }
+        [LoggerMessage(
+            EventId = 1003,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} attempting to secure SSL connection")]
+        public static partial void AttemptingToSecureSslConnection(
+            this ILogger logger, Guid guid);
 
-        internal void ClientConnectingToHost(Guid guid, string host, int port)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} connecting to host {Host}:{Port}", guid, host, port);
-        }
+        [LoggerMessage(
+            EventId = 1004,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} SSL connection secured")]
+        public static partial void ConnectionSecured(
+            this ILogger logger, Guid guid);
 
-        internal void AttemtingToSecureSslConnection(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} attempting to secure SSL connection", guid);
-        }
+        [LoggerMessage(
+            EventId = 1005,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} SSL connection not secure")]
+        public static partial void ConnectionNotSecure(
+            this ILogger logger, Guid guid);
 
-        internal void ConnectionSecured(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} SSL connection secured", guid);
-        }
+        [LoggerMessage(
+            EventId = 1006,
+            Level = LogLevel.Error,
+            Message = "SSL certificate error: {Errors}")]
+        public static partial void SslCertificateError(
+            this ILogger logger, SslPolicyErrors errors);
 
-        internal void ConnectionNotSecure(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} SSL connection not secure", guid);
-        }
+        // Handshake Events (1100-1199)
+        [LoggerMessage(
+            EventId = 1101,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} sent handshake: {HttpHeader}")]
+        public static partial void HandshakeSent(
+            this ILogger logger, Guid guid, string httpHeader);
 
-        internal void SslCertificateError(SslPolicyErrors sslPolicyErrors)
-        {
-            if (this.logger.IsEnabled(LogLevel.Error))
-                this.logger.LogError("SSL certificate error: {Errors}", sslPolicyErrors);
-        }
+        [LoggerMessage(
+            EventId = 1102,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} reading HTTP response")]
+        public static partial void ReadingHttpResponse(
+            this ILogger logger, Guid guid);
 
-        internal void HandshakeSent(Guid guid, string httpHeader)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} sent handshake: {HttpHeader}", guid, httpHeader);
-        }
+        [LoggerMessage(
+            EventId = 1103,
+            Level = LogLevel.Error,
+            Message = "Client {Guid} HTTP response error")]
+        public static partial void ReadHttpResponseError(
+            this ILogger logger, Guid guid, Exception exception);
 
-        internal void ReadingHttpResponse(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} reading HTTP response", guid);
-        }
+        [LoggerMessage(
+            EventId = 1104,
+            Level = LogLevel.Error,
+            Message = "Client {Guid} handshake failure: {Message}")]
+        public static partial void HandshakeFailure(
+            this ILogger logger, Guid guid, string message);
 
-        internal void ReadHttpResponseError(Guid guid, Exception exception)
-        {
-            if (this.logger.IsEnabled(LogLevel.Error))
-                this.logger.LogError(exception, "Client {Guid} HTTP response error.", guid);
-        }
+        [LoggerMessage(
+            EventId = 1105,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} handshake success")]
+        public static partial void ClientHandshakeSuccess(
+            this ILogger logger, Guid guid);
 
-        internal void HandshakeFailure(Guid guid, string message)
-        {
-            if (this.logger.IsEnabled(LogLevel.Error))
-                this.logger.LogError("Client {Guid} handshake failure: {Message}", guid, message);
-        }
+        [LoggerMessage(
+            EventId = 1106,
+            Level = LogLevel.Information,
+            Message = "Server {Guid} handshake success")]
+        public static partial void ServerHandshakeSuccess(
+            this ILogger logger, Guid guid);
 
-        internal void ClientHandshakeSuccess(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} handshake success", guid);
-        }
+        [LoggerMessage(
+            EventId = 1107,
+            Level = LogLevel.Information,
+            Message = "Server {Guid} started accepting WebSocket")]
+        public static partial void AcceptWebSocketStarted(
+            this ILogger logger, Guid guid);
 
-        internal void ServerHandshakeSuccess(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Server {Guid} handshake success", guid);
-        }
+        [LoggerMessage(
+            EventId = 1108,
+            Level = LogLevel.Information,
+            Message = "Server {Guid} sending handshake response, StatusCode: {StatusCode}")]
+        public static partial void SendingHandshakeResponse(
+            this ILogger logger, Guid guid, int statusCode);
 
-        internal void AcceptWebSocketStarted(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Server {Guid} started accepting WebSocket", guid);
-        }
+        [LoggerMessage(
+            EventId = 1109,
+            Level = LogLevel.Error,
+            Message = "Client {Guid} WebSocket version not supported")]
+        public static partial void WebSocketVersionNotSupported(
+            this ILogger logger, Guid guid, Exception exception);
 
-        internal void SendingHandshakeResponse(Guid guid, int statusCode)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Server {Guid} sending handshake response, StatusCode: {statusCode}", guid, statusCode);
-        }
+        [LoggerMessage(
+            EventId = 1110,
+            Level = LogLevel.Error,
+            Message = "Client {Guid} bad request")]
+        public static partial void BadRequest(
+            this ILogger logger, Guid guid, Exception exception);
 
-        internal void WebSocketVersionNotSupported(Guid guid, Exception exception)
-        {
-            if (this.logger.IsEnabled(LogLevel.Error))
-                this.logger.LogError(exception, "Client {Guid} WebSocket version not supported", guid);
-        }
+        // Compression Events (1200-1299)
+        [LoggerMessage(
+            EventId = 1201,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} using per-message deflate")]
+        public static partial void UsePerMessageDeflate(
+            this ILogger logger, Guid guid);
 
-        internal void BadRequest(Guid guid, Exception exception)
-        {
-            if (this.logger.IsEnabled(LogLevel.Error))
-                this.logger.LogError(exception, "Client {Guid} bad request", guid);
-        }
+        [LoggerMessage(
+            EventId = 1202,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} no message compression")]
+        public static partial void NoMessageCompression(
+            this ILogger logger, Guid guid);
 
-        internal void UsePerMessageDeflate(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} using per-message deflate", guid);
-        }
+        // Keep-Alive Events (1300-1399)
+        [LoggerMessage(
+            EventId = 1301,
+            Level = LogLevel.Information,
+            Message = "Client {Guid} keep-alive interval is zero")]
+        public static partial void KeepAliveIntervalZero(
+            this ILogger logger, Guid guid);
 
-        internal void NoMessageCompression(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} no message compression", guid);
-        }
+        [LoggerMessage(
+            EventId = 1302,
+            Level = LogLevel.Information,
+            Message = "PingPong manager started for {Guid} with interval {Seconds}s")]
+        public static partial void PingPongStarted(
+            this ILogger logger, Guid guid, int seconds);
 
-        internal void KeepAliveIntervalZero(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Client {Guid} keep-alive interval is zero", guid);
-        }
+        [LoggerMessage(
+            EventId = 1303,
+            Level = LogLevel.Information,
+            Message = "PingPong manager ended for {Guid}")]
+        public static partial void PingPongEnded(
+            this ILogger logger, Guid guid);
 
-        internal void PingPongStarted(Guid guid, int keepAliveIntervalSeconds)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("PingPong manager started for {Guid} with interval {Seconds}s", guid, keepAliveIntervalSeconds);
-        }
+        [LoggerMessage(
+            EventId = 1304,
+            Level = LogLevel.Warning,
+            Message = "Keep-alive interval expired for {Guid} after {Seconds}s")]
+        public static partial void KeepAliveIntervalExpired(
+            this ILogger logger, Guid guid, int seconds);
 
-        internal void PingPongEnded(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("PingPong manager ended for {Guid}", guid);
-        }
+        // Frame Events (2000-2999)
+        [LoggerMessage(
+            EventId = 2001,
+            Level = LogLevel.Trace,
+            Message = "Sending frame for {Guid}. OpCode: {OpCode}, FIN: {Fin}, Bytes: {Bytes}, Compressed: {Compressed}")]
+        public static partial void SendingFrame(
+            this ILogger logger, Guid guid, WebSocketOpCode opCode, bool fin, int bytes, bool compressed);
 
-        internal void KeepAliveIntervalExpired(Guid guid, int keepAliveIntervalSeconds)
-        {
-            if (this.logger.IsEnabled(LogLevel.Warning))
-                this.logger.LogWarning("Keep-alive interval expired for {Guid} after {Seconds}s", guid, keepAliveIntervalSeconds);
-        }
+        [LoggerMessage(
+            EventId = 2002,
+            Level = LogLevel.Trace,
+            Message = "Received frame for {Guid}. OpCode: {OpCode}, FIN: {Fin}, Bytes: {Bytes}")]
+        public static partial void ReceivedFrame(
+            this ILogger logger, Guid guid, WebSocketOpCode opCode, bool fin, int bytes);
 
-        internal void CloseOutputAutoTimeout(Guid guid, WebSocketCloseStatus closeStatus, string statusDescription, Exception exception)
-        {
-            if (this.logger.IsEnabled(LogLevel.Warning))
-                this.logger.LogWarning(
-                    exception,
-                    "Close output auto-timeout for {Guid}. Status: {Status}, Description: {Desc}",
-                    guid,
-                    closeStatus,
-                    statusDescription);
-        }
+        // Close Events (3000-3999)
+        [LoggerMessage(
+            EventId = 3001,
+            Level = LogLevel.Warning,
+            Message = "Close output auto-timeout for {Guid}. Status: {Status}, Description: {Desc}")]
+        public static partial void CloseOutputAutoTimeout(
+            this ILogger logger, Guid guid, WebSocketCloseStatus status, string desc, Exception exception);
 
-        internal void CloseOutputAutoTimeoutCancelled(Guid guid, int timeoutSeconds, WebSocketCloseStatus closeStatus, string statusDescription, Exception exception)
-        {
-            if (this.logger.IsEnabled(LogLevel.Error))
-                this.logger.LogError(
-                    exception,
-                    "Close output auto-timeout cancelled for {Guid} after {Seconds}s. Status: {Status}, Description: {Desc}",
-                    guid,
-                    timeoutSeconds,
-                    closeStatus,
-                    statusDescription);
+        [LoggerMessage(
+            EventId = 3002,
+            Level = LogLevel.Error,
+            Message = "Close output auto-timeout cancelled for {Guid} after {Seconds}s. Status: {Status}, Description: {Desc}")]
+        public static partial void CloseOutputAutoTimeoutCancelled(
+            this ILogger logger, Guid guid, int seconds, WebSocketCloseStatus status, string desc, Exception exception);
 
-        }
+        [LoggerMessage(
+            EventId = 3003,
+            Level = LogLevel.Error,
+            Message = "Close output auto-timeout error for {Guid}. Status: {Status}, Desc: {Desc}")]
+        public static partial void CloseOutputAutoTimeoutError(
+            this ILogger logger, Guid guid, Exception closeException, WebSocketCloseStatus status, string desc, Exception exception);
 
-        internal void CloseOutputAutoTimeoutError(Guid guid, Exception closeException, WebSocketCloseStatus closeStatus, string statusDescription, Exception exception)
-        {
-            if (this.logger.IsEnabled(LogLevel.Error))
-                this.logger.LogError(
-                    new AggregateException(closeException, exception),
-                    "Close output auto-timeout error for {Guid}. Status: {Status}, Desc: {Desc}",
-                    guid,
-                    closeStatus,
-                    statusDescription);
-        }
+        [LoggerMessage(
+            EventId = 3004,
+            Level = LogLevel.Information,
+            Message = "Close output with no handshake for {Guid}. Status: {Status}, Desc: {Desc}")]
+        public static partial void CloseOutputNoHandshake(
+            this ILogger logger, Guid guid, WebSocketCloseStatus? status, string? desc);
 
-        internal void SendingFrame(Guid guid, WebSocketOpCode opCode, bool isFinBitSet, int numBytes, bool isPayloadCompressed)
-        {
-            if (this.logger.IsEnabled(LogLevel.Trace))
-                this.logger.LogTrace(
-                    "Sending frame for {Guid}. OpCode: {OpCode}, FIN: {Fin}, Bytes: {Bytes}, Compressed: {Compressed}",
-                    guid,
-                    opCode,
-                    isFinBitSet,
-                    numBytes,
-                    isPayloadCompressed);
-        }
+        [LoggerMessage(
+            EventId = 3005,
+            Level = LogLevel.Information,
+            Message = "Close handshake started for {Guid}. Status: {Status}, Desc: {Desc}")]
+        public static partial void CloseHandshakeStarted(
+            this ILogger logger, Guid guid, WebSocketCloseStatus? status, string? desc);
 
-        internal void ReceivedFrame(Guid guid, WebSocketOpCode opCode, bool isFinBitSet, int numBytes)
-        {
-            if (this.logger.IsEnabled(LogLevel.Trace))
-                this.logger.LogTrace(
-                    "Received frame for {Guid}. OpCode: {OpCode}, FIN: {Fin}, Bytes: {Bytes}",
-                    guid,
-                    opCode,
-                    isFinBitSet,
-                    numBytes);
-        }
+        [LoggerMessage(
+            EventId = 3006,
+            Level = LogLevel.Information,
+            Message = "Close handshake respond for {Guid}. Status: {Status}, Desc: {Desc}")]
+        public static partial void CloseHandshakeRespond(
+            this ILogger logger, Guid guid, WebSocketCloseStatus? status, string? desc);
 
-        internal void CloseOutputNoHandshake(Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation(
-                    "Close output with no handshake for {Guid}. Status: {Status}, Desc: {Desc}",
-                    guid,
-                    closeStatus,
-                    statusDescription);
-        }
+        [LoggerMessage(
+            EventId = 3007,
+            Level = LogLevel.Information,
+            Message = "Close handshake complete for {Guid}")]
+        public static partial void CloseHandshakeComplete(
+            this ILogger logger, Guid guid);
 
-        internal void CloseHandshakeStarted(Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation(
-                    "Close handshake started for {Guid}. Status: {Status}, Desc: {Desc}",
-                    guid,
-                    closeStatus,
-                    statusDescription);
-        }
+        [LoggerMessage(
+            EventId = 3008,
+            Level = LogLevel.Warning,
+            Message = "Close handshake timed out after {TimeoutSeconds} seconds for {Guid}")]
+        public static partial void CloseHandshakeTimedOut(
+            this ILogger logger, Guid guid, int timeoutSeconds);
 
-        internal void CloseHandshakeRespond(Guid guid, WebSocketCloseStatus? closeStatus, string? statusDescription)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation(
-                    "Close handshake respond for {Guid}. Status: {Status}, Desc: {Desc}",
-                    guid,
-                    closeStatus,
-                    statusDescription);
-        }
+        [LoggerMessage(
+            EventId = 3009,
+            Level = LogLevel.Warning,
+            Message = "Close frame received in unexpected state for {Guid}. State: {State}, Status: {Status}, Desc: {Desc}")]
+        public static partial void CloseFrameReceivedInUnexpectedState(
+            this ILogger logger, Guid guid, WebSocketState state, WebSocketCloseStatus? status, string? desc);
 
-        internal void CloseHandshakeComplete(Guid guid)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("Close handshake complete for {Guid}", guid);
-        }
+        [LoggerMessage(
+            EventId = 3010,
+            Level = LogLevel.Warning,
+            Message = "Invalid state before close for {Guid}. State: {State}")]
+        public static partial void InvalidStateBeforeClose(
+            this ILogger logger, Guid guid, WebSocketState state);
 
-        internal void CloseHandshakeTimedOut(Guid guid, int timeoutSeconds)
-        {
-            if (this.logger.IsEnabled(LogLevel.Warning))
-                this.logger.LogWarning("Close handshake timed out after {TimeoutSeconds} seconds for {Guid}", timeoutSeconds, guid);
-        }
+        [LoggerMessage(
+            EventId = 3011,
+            Level = LogLevel.Warning,
+            Message = "Invalid state before close output for {Guid}. State: {State}")]
+        public static partial void InvalidStateBeforeCloseOutput(
+            this ILogger logger, Guid guid, WebSocketState state);
 
-        internal void CloseFrameReceivedInUnexpectedState(Guid guid, WebSocketState state, WebSocketCloseStatus? closeStatus, string? statusDescription)
-        {
-            if (this.logger.IsEnabled(LogLevel.Warning))
-                this.logger.LogWarning(
-                    "Close frame received in unexpected state for {Guid}. State: {State}, Status: {Status}, Desc: {Desc}",
-                    guid,
-                    state,
-                    closeStatus,
-                    statusDescription);
-        }
+        // Disposal Events (9000-9999)
+        [LoggerMessage(
+            EventId = 9001,
+            Level = LogLevel.Information,
+            Message = "WebSocket disposed for {Guid}. State: {State}")]
+        public static partial void WebSocketDispose(
+            this ILogger logger, Guid guid, WebSocketState state);
 
-        internal void WebSocketDispose(Guid guid, WebSocketState state)
-        {
-            if (this.logger.IsEnabled(LogLevel.Information))
-                this.logger.LogInformation("WebSocket disposed for {Guid}. State: {State}", guid, state);
-        }
+        [LoggerMessage(
+            EventId = 9002,
+            Level = LogLevel.Warning,
+            Message = "WebSocket dispose due to close timeout for {Guid}. State: {State}")]
+        public static partial void WebSocketDisposeCloseTimeout(
+            this ILogger logger, Guid guid, WebSocketState state);
 
-        internal void WebSocketDisposeCloseTimeout(Guid guid, WebSocketState state)
-        {
-            if (this.logger.IsEnabled(LogLevel.Warning))
-                this.logger.LogWarning("WebSocket dispose due to close timeout for {Guid}. State: {State}", guid, state);
-        }
-
-        internal void WebSocketDisposeError(Guid guid, WebSocketState state, Exception exception)
-        {
-            if (this.logger.IsEnabled(LogLevel.Error))
-                this.logger.LogError("WebSocket dispose error for {Guid}. State: {State}, Exception: {Ex}", guid, state, exception);
-        }
-
-        internal void InvalidStateBeforeClose(Guid guid, WebSocketState state)
-        {
-            if (this.logger.IsEnabled(LogLevel.Warning))
-                this.logger.LogWarning("Invalid state before close for {Guid}. State: {State}", guid, state);
-        }
-
-        internal void InvalidStateBeforeCloseOutput(Guid guid, WebSocketState state)
-        {
-            if (this.logger.IsEnabled(LogLevel.Warning))
-                this.logger.LogWarning("Invalid state before close output for {Guid}. State: {State}", guid, state);
-        }
+        [LoggerMessage(
+            EventId = 9003,
+            Level = LogLevel.Error,
+            Message = "WebSocket dispose error for {Guid}. State: {State}, Exception: {Ex}")]
+        public static partial void WebSocketDisposeError(
+            this ILogger logger, Guid guid, WebSocketState state, Exception ex);
     }
 }

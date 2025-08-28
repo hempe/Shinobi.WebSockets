@@ -12,14 +12,6 @@ namespace Shinobi.WebSockets.UnitTests
 {
     public class TheInternetTests
     {
-        public TheInternetTests()
-        {
-            using var loggerFactory = LoggerFactory.Create(builder => builder
-                    .SetMinimumLevel(LogLevel.Warning)
-                    .AddConsole());
-            Internal.Events.Log = new Internal.Events(loggerFactory.CreateLogger<Internal.Events>());
-        }
-
         [Fact]
         public async Task ClientToServerTestAsync()
         {

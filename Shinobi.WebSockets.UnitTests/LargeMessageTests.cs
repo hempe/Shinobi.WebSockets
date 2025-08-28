@@ -32,6 +32,7 @@ namespace Shinobi.WebSockets.UnitTests
     public class LargeMessageTests
     {
         private ILogger<WebSocketClientTests> logger;
+        private readonly ILoggerFactory loggerFactory;
 
         private interface IServer : IDisposable
         {
@@ -342,11 +343,15 @@ namespace Shinobi.WebSockets.UnitTests
 
         public LargeMessageTests()
         {
-            using var loggerFactory = LoggerFactory.Create(builder => builder
+            this.loggerFactory = LoggerFactory.Create(builder => builder
                     .SetMinimumLevel(LogLevel.Error)
                     .AddConsole());
-            Events.Log = new Events(loggerFactory.CreateLogger<Events>());
-            this.logger = loggerFactory.CreateLogger<WebSocketClientTests>();
+            this.logger = this.loggerFactory.CreateLogger<WebSocketClientTests>();
+        }
+
+        public void Dispose()
+        {
+            this.loggerFactory.Dispose();
         }
 
         private async Task SendBinaryMessageAsync(WebSocket client, byte[] message, int sendBufferLength, CancellationToken cancellationToken)

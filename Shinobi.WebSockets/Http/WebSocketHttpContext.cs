@@ -8,6 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 
+using Microsoft.Extensions.Logging;
+
 namespace Shinobi.WebSockets.Http
 {
 
@@ -86,14 +88,17 @@ namespace Shinobi.WebSockets.Http
         /// </remarks>
         public readonly IDictionary<string, object> Metadata = new Dictionary<string, object>();
 
+        internal ILoggerFactory? LoggerFactory { get; }
+
         /// <summary>
         /// Initialises a new instance of the WebSocketHttpContext class
         /// </summary>
         /// <param name="httpHeader">The raw http request extracted from the stream</param>
         /// <param name="stream">The stream AFTER the header has already been read</param>
         /// <param name="guid">Connection identifier</param>
-        public WebSocketHttpContext(TcpClient? tcpClient, HttpHeader httpHeader, Stream stream, Guid guid)
+        public WebSocketHttpContext(TcpClient? tcpClient, HttpHeader httpHeader, Stream stream, Guid guid, ILoggerFactory? loggerFactory = null)
         {
+            this.LoggerFactory = loggerFactory;
             this.TcpClient = tcpClient;
             this.Guid = guid;
             this.IsWebSocketRequest = httpHeader.GetHeaderValue("Upgrade") == "websocket";
@@ -102,8 +107,8 @@ namespace Shinobi.WebSockets.Http
             this.Stream = stream;
         }
 
-        public WebSocketHttpContext(TcpClient? tcpClient, HttpRequest httpRequest, Stream stream, Guid guid)
-            : this(tcpClient, (HttpHeader)httpRequest, stream, guid)
+        public WebSocketHttpContext(TcpClient? tcpClient, HttpRequest httpRequest, Stream stream, Guid guid, ILoggerFactory? loggerFactory = null)
+            : this(tcpClient, (HttpHeader)httpRequest, stream, guid, loggerFactory)
         {
 
             this.Path = httpRequest.Path;

@@ -30,6 +30,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using Shinobi.WebSockets.Http;
 using Shinobi.WebSockets.Internal;
 
@@ -51,6 +53,7 @@ namespace Shinobi.WebSockets
         private readonly Stopwatch stopwatch;
         private readonly bool includeExceptionInCloseResponse;
         private readonly bool isClient;
+        private readonly ILogger? logger;
         private readonly CancellationTokenSource internalReadCts;
 
         private WebSocketState state;
@@ -86,6 +89,7 @@ namespace Shinobi.WebSockets
             this.Context = context;
             this.isClient = isClient;
             this.SubProtocol = subProtocol;
+            this.logger = context.LoggerFactory?.CreateLogger<ShinobiWebSocket>();
             this.internalReadCts = new CancellationTokenSource();
             this.state = WebSocketState.Open;
             this.stopwatch = Stopwatch.StartNew();
@@ -98,16 +102,16 @@ namespace Shinobi.WebSockets
                 var inflaterNoContextTakeover = isClient ? "server_no_context_takeover" : "client_no_context_takeover";
                 this.deflater = new WebSocketDeflater(secWebSocketExtensions?.Parameters.ContainsKey(deflaterNoContextTakeover) == true);
                 this.inflater = new WebSocketInflater(secWebSocketExtensions?.Parameters.ContainsKey(inflaterNoContextTakeover) == true);
-                Events.Log?.UsePerMessageDeflate(context.Guid);
+                this.logger?.UsePerMessageDeflate(context.Guid);
             }
             else
             {
                 this.deflater = null;
                 this.inflater = null;
-                Events.Log?.NoMessageCompression(context.Guid);
+                this.logger?.NoMessageCompression(context.Guid);
             }
 #else
-            Events.Log?.NoMessageCompression(context.Guid);
+            this.logger?.NoMessageCompression(context.Guid);
 #endif
 
             this.KeepAliveInterval = keepAliveInterval;
@@ -119,7 +123,7 @@ namespace Shinobi.WebSockets
 
             if (keepAliveInterval == TimeSpan.Zero)
             {
-                Events.Log?.KeepAliveIntervalZero(context.Guid);
+                this.logger?.KeepAliveIntervalZero(context.Guid);
             }
             else
             {
@@ -180,7 +184,7 @@ namespace Shinobi.WebSockets
                         {
                             this.readCursor = await WebSocketFrameReader.ReadAsync(this.Context.Stream, buffer, linkedCts.Token).ConfigureAwait(false);
                             frame = this.readCursor.Value.WebSocketFrame;
-                            Events.Log?.ReceivedFrame(this.Context.Guid, frame.OpCode, frame.IsFinBitSet, frame.Count);
+                            this.logger?.ReceivedFrame(this.Context.Guid, frame.OpCode, frame.IsFinBitSet, frame.Count);
                         }
                     }
                     catch (InternalBufferOverflowException ex)
@@ -396,7 +400,7 @@ namespace Shinobi.WebSockets
                         using var stream = new ArrayPoolStream();
                         WebSocketFrameWriter.Write(opCode, frame, stream, endOfMessage, this.isClient, true, !this.isContinuationFrame);
                         var arr = stream.GetDataArraySegment();
-                        Events.Log?.SendingFrame(this.Context.Guid, opCode, endOfMessage, frame.Count, true);
+                        this.logger?.SendingFrame(this.Context.Guid, opCode, endOfMessage, frame.Count, true);
                         await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                     }
                 }
@@ -405,13 +409,13 @@ namespace Shinobi.WebSockets
 
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient, false, !this.isContinuationFrame);
-                    Events.Log?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
+                    this.logger?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
 #else
                 using var stream = new ArrayPoolStream();
                 WebSocketFrameWriter.Write(msOpCode, buffer, stream, endOfMessage, this.isClient, false, !this.isContinuationFrame);
-                Events.Log?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
+                this.logger?.SendingFrame(this.Context.Guid, msOpCode, endOfMessage, buffer.Count, false);
                 await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 #endif
                 this.isContinuationFrame = !endOfMessage;
@@ -441,7 +445,7 @@ namespace Shinobi.WebSockets
 
             if (this.state != WebSocketState.Open)
             {
-                Events.Log?.InvalidStateBeforeClose(this.Context.Guid, this.state);
+                this.logger?.InvalidStateBeforeClose(this.Context.Guid, this.state);
                 return;
             }
 
@@ -450,14 +454,15 @@ namespace Shinobi.WebSockets
             try
             {
                 WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
-                Events.Log?.CloseHandshakeStarted(this.Context.Guid, closeStatus, statusDescription);
-                Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+                this.logger?.CloseHandshakeStarted(this.Context.Guid, closeStatus, statusDescription);
+                this.logger?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
             }
             finally
             {
                 if (doReturn)
                     Shared.Return(buffer);
             }
+
             await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
             this.state = WebSocketState.CloseSent;
 
@@ -479,7 +484,7 @@ namespace Shinobi.WebSockets
                 catch (OperationCanceledException)
                 {
                     // Client didn't respond to close handshake within timeout
-                    Events.Log?.CloseHandshakeTimedOut(this.Context.Guid, (int)closeHandshakeTimeout.TotalMilliseconds);
+                    this.logger?.CloseHandshakeTimedOut(this.Context.Guid, (int)closeHandshakeTimeout.TotalMilliseconds);
                 }
 
                 // Force cleanup of misbehaving clients by disposing the underlying connection
@@ -507,8 +512,8 @@ namespace Shinobi.WebSockets
                     try
                     {
                         WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.isClient);
-                        Events.Log?.CloseOutputNoHandshake(this.Context.Guid, closeStatus, statusDescription);
-                        Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+                        this.logger?.CloseOutputNoHandshake(this.Context.Guid, closeStatus, statusDescription);
+                        this.logger?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
                     }
                     finally
                     {
@@ -520,7 +525,7 @@ namespace Shinobi.WebSockets
                 }
                 else
                 {
-                    Events.Log?.InvalidStateBeforeCloseOutput(this.Context.Guid, this.state);
+                    this.logger?.InvalidStateBeforeCloseOutput(this.Context.Guid, this.state);
                 }
 
                 // cancel pending reads
@@ -533,28 +538,14 @@ namespace Shinobi.WebSockets
         /// </summary>
         public override void Dispose()
         {
-            Events.Log?.WebSocketDispose(this.Context.Guid, this.state);
+            this.logger?.WebSocketDispose(this.Context.Guid, this.state);
 
             try
             {
-                if (this.state == WebSocketState.Open)
-                {
-                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                    try
-                    {
-                        // TODO: I Don't like that we don't await this.
-                        // Now we can't dispose the semaphor and internalReadCts.
-                        this.CloseOutputAsync(WebSocketCloseStatus.EndpointUnavailable, "Service is Disposed", cts.Token).Wait();
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // log don't throw
-                        Events.Log?.WebSocketDisposeCloseTimeout(this.Context.Guid, this.state);
-                    }
-                }
-
-                // cancel pending reads - usually does nothing
+                // cancel pending reads and dispose resources
                 this.internalReadCts.Cancel();
+                this.internalReadCts.Dispose();
+                this.semaphore.Dispose();
                 this.Context.Stream.Close();
 
 #if NET8_0_OR_GREATER
@@ -566,13 +557,13 @@ namespace Shinobi.WebSockets
             catch (Exception ex)
             {
                 // log dont throw
-                Events.Log?.WebSocketDisposeError(this.Context.Guid, this.state, ex);
+                this.logger?.WebSocketDisposeError(this.Context.Guid, this.state, ex);
             }
         }
 
         private async ValueTask PingForeverAsync(CancellationToken cancellationToken)
         {
-            Events.Log?.PingPongStarted(this.Context.Guid, (int)this.KeepAliveInterval.TotalSeconds);
+            this.logger?.PingPongStarted(this.Context.Guid, (int)this.KeepAliveInterval.TotalSeconds);
 
             try
             {
@@ -585,7 +576,7 @@ namespace Shinobi.WebSockets
 
                     if (this.pingSentTicks != 0)
                     {
-                        Events.Log?.KeepAliveIntervalExpired(this.Context.Guid, (int)this.KeepAliveInterval.TotalSeconds);
+                        this.logger?.KeepAliveIntervalExpired(this.Context.Guid, (int)this.KeepAliveInterval.TotalSeconds);
                         await this.CloseAsync(
                             WebSocketCloseStatus.NormalClosure,
                             "No Pong message received in response to a Ping after KeepAliveInterval {this.KeepAliveInterval}",
@@ -610,7 +601,7 @@ namespace Shinobi.WebSockets
             }
             finally
             {
-                Events.Log?.PingPongEnded(this.Context.Guid);
+                this.logger?.PingPongEnded(this.Context.Guid);
             }
         }
 
@@ -624,7 +615,7 @@ namespace Shinobi.WebSockets
             {
                 using var stream = new ArrayPoolStream();
                 WebSocketFrameWriter.Write(WebSocketOpCode.Ping, payload, stream, true, this.isClient);
-                Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.Ping, true, payload.Count, false);
+                this.logger?.SendingFrame(this.Context.Guid, WebSocketOpCode.Ping, true, payload.Count, false);
                 await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -674,7 +665,7 @@ namespace Shinobi.WebSockets
                 {
                     using var stream = new ArrayPoolStream();
                     WebSocketFrameWriter.Write(WebSocketOpCode.Pong, payload, stream, true, this.isClient);
-                    Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.Pong, true, payload.Count, false);
+                    this.logger?.SendingFrame(this.Context.Guid, WebSocketOpCode.Pong, true, payload.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -698,7 +689,7 @@ namespace Shinobi.WebSockets
             {
                 // this is a response to close handshake initiated by this instance
                 this.state = WebSocketState.Closed;
-                Events.Log?.CloseHandshakeComplete(this.Context.Guid);
+                this.logger?.CloseHandshakeComplete(this.Context.Guid);
             }
             else if (this.state == WebSocketState.Open)
             {
@@ -706,18 +697,18 @@ namespace Shinobi.WebSockets
                 // However, the same CloseStatus as recieved should be sent back.
                 var closePayload = new ArraySegment<byte>(EMPTY, 0, 0);
                 this.state = WebSocketState.CloseReceived;
-                Events.Log?.CloseHandshakeRespond(this.Context.Guid, frame.CloseStatus, frame.CloseStatusDescription);
+                this.logger?.CloseHandshakeRespond(this.Context.Guid, frame.CloseStatus, frame.CloseStatusDescription);
 
                 using (var stream = new ArrayPoolStream())
                 {
                     WebSocketFrameWriter.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.isClient);
-                    Events.Log?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
+                    this.logger?.SendingFrame(this.Context.Guid, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
                     await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
             {
-                Events.Log?.CloseFrameReceivedInUnexpectedState(this.Context.Guid, this.state, frame.CloseStatus, frame.CloseStatusDescription);
+                this.logger?.CloseFrameReceivedInUnexpectedState(this.Context.Guid, this.state, frame.CloseStatus, frame.CloseStatusDescription);
             }
 
             return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Close, frame.IsFinBitSet, frame.CloseStatus, frame.CloseStatusDescription);
@@ -770,7 +761,7 @@ namespace Shinobi.WebSockets
         private async ValueTask CloseOutputAutoTimeoutAsync(WebSocketCloseStatus closeStatus, string statusDescription, Exception ex)
         {
             var timeSpan = TimeSpan.FromSeconds(5);
-            Events.Log?.CloseOutputAutoTimeout(this.Context.Guid, closeStatus, statusDescription, ex);
+            this.logger?.CloseOutputAutoTimeout(this.Context.Guid, closeStatus, statusDescription, ex);
 
             try
             {
@@ -786,12 +777,12 @@ namespace Shinobi.WebSockets
             catch (OperationCanceledException)
             {
                 // do not throw an exception because that will mask the original exception
-                Events.Log?.CloseOutputAutoTimeoutCancelled(this.Context.Guid, (int)timeSpan.TotalSeconds, closeStatus, statusDescription, ex);
+                this.logger?.CloseOutputAutoTimeoutCancelled(this.Context.Guid, (int)timeSpan.TotalSeconds, closeStatus, statusDescription, ex);
             }
             catch (Exception closeException)
             {
                 // do not throw an exception because that will mask the original exception
-                Events.Log?.CloseOutputAutoTimeoutError(this.Context.Guid, closeException, closeStatus, statusDescription, ex);
+                this.logger?.CloseOutputAutoTimeoutError(this.Context.Guid, closeException, closeStatus, statusDescription, ex);
             }
         }
     }

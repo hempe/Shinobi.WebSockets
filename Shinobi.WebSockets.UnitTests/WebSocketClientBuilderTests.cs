@@ -23,7 +23,7 @@ namespace Shinobi.WebSockets.UnitTests
             Assert.Empty(builder.onClose);
             Assert.Empty(builder.onError);
             Assert.Empty(builder.onMessage);
-            Assert.Null(builder.logger);
+            Assert.Null(builder.loggerFactory);
         }
 
         [Fact]
@@ -300,7 +300,7 @@ namespace Shinobi.WebSockets.UnitTests
 
             builder.UseLogging(loggerFactory);
 
-            Assert.NotNull(builder.logger);
+            Assert.NotNull(builder.loggerFactory);
             Assert.Single(builder.onConnect); // Logging adds 1 connect handler
             Assert.Single(builder.onClose); // Logging adds 1 close handler  
             Assert.Single(builder.onError); // Logging adds 1 error handler
@@ -356,7 +356,7 @@ namespace Shinobi.WebSockets.UnitTests
 #endif
             Assert.Equal("TestClient/1.0", builder.configuration.AdditionalHttpHeaders["User-Agent"]);
             Assert.Equal("Bearer test-token", builder.configuration.AdditionalHttpHeaders["Authorization"]);
-            Assert.NotNull(builder.logger);
+            Assert.NotNull(builder.loggerFactory);
             Assert.Equal(2, builder.onConnect.Count); // 1 user + 1 logging handler
             Assert.Equal(2, builder.onClose.Count); // 1 user + 1 logging handler
             Assert.Single(builder.onError); // 1 logging handler

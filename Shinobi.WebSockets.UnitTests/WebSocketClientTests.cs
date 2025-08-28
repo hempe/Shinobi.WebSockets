@@ -18,18 +18,23 @@ using Xunit;
 
 namespace Shinobi.WebSockets.UnitTests
 {
-    public class WebSocketClientTests
+    public class WebSocketClientTests : IDisposable
     {
         private readonly ILogger logger;
+        private readonly ILoggerFactory loggerFactory;
+
         public WebSocketClientTests()
         {
-            using var loggerFactory = LoggerFactory.Create(builder => builder
+            this.loggerFactory = LoggerFactory.Create(builder => builder
                     .SetMinimumLevel(LogLevel.Warning)
                     .AddConsole());
-            Events.Log = new Events(loggerFactory.CreateLogger<Events>());
-            this.logger = loggerFactory.CreateLogger<WebSocketClientTests>();
+            this.logger = this.loggerFactory.CreateLogger<WebSocketClientTests>();
         }
 
+        public void Dispose()
+        {
+            this.loggerFactory.Dispose();
+        }
 
         [Fact]
         public async Task CanCancelReceiveAsync()
@@ -235,7 +240,7 @@ namespace Shinobi.WebSockets.UnitTests
         {
 
             return new ShinobiWebSocket(
-                new WebSocketHttpContext(null, HttpResponse.Create(101), mockNetworkStream, guid),
+                new WebSocketHttpContext(null, HttpResponse.Create(101), mockNetworkStream, guid, this.loggerFactory),
 #if NET8_0_OR_GREATER
                 permessageDeflate ? new WebSocketExtension() : null,
 #endif

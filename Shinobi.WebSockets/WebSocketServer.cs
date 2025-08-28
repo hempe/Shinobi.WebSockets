@@ -49,7 +49,7 @@ namespace Shinobi.WebSockets
         private bool isDisposed;
         private readonly ILogger<WebSocketServer>? logger;
         private readonly WebSocketServerOptions options;
-
+        private readonly ILoggerFactory? loggerFactory;
         private readonly AcceptStreamHandler OnConnectStreamsAsync;
         private readonly CertificateSelectionHandler SelectionCertificateAsync;
         private readonly HandshakeHandler OnHandshakeAsync;
@@ -65,10 +65,11 @@ namespace Shinobi.WebSockets
 
         public WebSocketServer(
             WebSocketServerOptions options,
-            ILogger<WebSocketServer>? logger = null)
+            ILoggerFactory? loggerFactory = null)
         {
-            this.logger = logger;
+            this.logger = loggerFactory?.CreateLogger<WebSocketServer>();
             this.options = options;
+            this.loggerFactory = loggerFactory;
 
             // Use the specific builders
             this.OnConnectStreamsAsync = Builder.BuildAcceptStreamChain(this.AcceptStreamCoreAsync, options.OnAcceptStream);
@@ -260,15 +261,15 @@ namespace Shinobi.WebSockets
                     }
 
                     var guid = Guid.NewGuid();
-                    Events.Log?.AcceptWebSocketStarted(guid);
-                    context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid);
+                    this.logger?.AcceptWebSocketStarted(guid);
+                    context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid, this.loggerFactory);
                     var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
                     if (handshakeResponse.StatusCode == 101)
                     {
                         ShinobiWebSocket? webSocket = null;
                         try
                         {
-                            Events.Log?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
+                            this.logger?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
                             await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
                             webSocket = new ShinobiWebSocket(
                                 context,
@@ -289,18 +290,18 @@ namespace Shinobi.WebSockets
                         catch (WebSocketVersionNotSupportedException ex)
                         {
                             this.clients.TryRemove(context.Guid, out _);
-                            Events.Log?.WebSocketVersionNotSupported(guid, ex);
+                            this.logger?.WebSocketVersionNotSupported(guid, ex);
                             var response = HttpResponse.Create(426)
                                 .AddHeader("Sec-WebSocket-Version", "13")
                                 .WithBody(ex.Message);
-                            Events.Log?.SendingHandshakeResponse(guid, response.StatusCode);
+                            this.logger?.SendingHandshakeResponse(guid, response.StatusCode);
                             await context.TerminateAsync(response, source.Token).ConfigureAwait(false);
                             throw;
                         }
                         catch (Exception ex)
                         {
                             this.clients.TryRemove(context.Guid, out _);
-                            Events.Log?.BadRequest(guid, ex);
+                            this.logger?.BadRequest(guid, ex);
 
                             if (webSocket?.State == WebSocketState.Open)
                             {
@@ -312,7 +313,7 @@ namespace Shinobi.WebSockets
                             var response = HttpResponse.Create(400)
                                 .WithBody(ex.Message);
 
-                            Events.Log?.SendingHandshakeResponse(guid, response.StatusCode);
+                            this.logger?.SendingHandshakeResponse(guid, response.StatusCode);
                             await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                             throw;
                         }
@@ -320,7 +321,7 @@ namespace Shinobi.WebSockets
                     else
                     {
                         this.clients.TryRemove(context.Guid, out _);
-                        Events.Log?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
+                        this.logger?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
                         await context.TerminateAsync(handshakeResponse, source.Token).ConfigureAwait(false);
                     }
                 }
