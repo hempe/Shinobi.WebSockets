@@ -167,7 +167,7 @@ namespace Shinobi.WebSockets.UnitTests
                     .UsePort((ushort)this.testServerPort)
                     .OnConnect(async (ws, _next, ct) =>
                     {
-                        await ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.InternalServerError,
+                        await ws.CloseOutputAsync(System.Net.WebSockets.WebSocketCloseStatus.InternalServerError,
                             "Closing immediately", ct);
                     })
                     .UseKeepAlive(TimeSpan.FromSeconds(1))

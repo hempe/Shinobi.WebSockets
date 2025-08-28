@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 using Shinobi.WebSockets.Http;
+using Shinobi.WebSockets.Internal;
 
 namespace Shinobi.WebSockets.Builders
 {
@@ -22,7 +23,7 @@ namespace Shinobi.WebSockets.Builders
         private readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
         private readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
         private readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
-        private ILogger<WebSocketServer>? logger;
+        private ILoggerFactory? loggerFactory;
         private WebSocketServerOptions configuration = new WebSocketServerOptions();
 
         /// <summary>
@@ -265,30 +266,30 @@ namespace Shinobi.WebSockets.Builders
         /// <returns></returns>
         public WebSocketServerBuilder UseLogging(ILoggerFactory loggerFactory)
         {
-            Internal.Events.Log = new Internal.Events(loggerFactory.CreateLogger<Internal.Events>());
-            this.logger = loggerFactory.CreateLogger<WebSocketServer>();
+            this.loggerFactory = loggerFactory;
+            var logger = loggerFactory.CreateLogger<WebSocketServer>();
 
             this.OnAcceptStream((tcpClient, next, cancellationToken) =>
             {
-                this.logger.LogInformation("Server: Connection opened.");
+                logger.ServerConnectionOpened();
                 return next(tcpClient, cancellationToken);
             });
 
             this.OnConnect((webSocket, next, cancellationToken) =>
             {
-                this.logger.LogInformation("WebSocket connected: {ConnectionId}", webSocket.Context.Guid);
+                logger.WebSocketConnected(webSocket.Context.Guid);
                 return next(webSocket, cancellationToken);
             });
 
             this.OnClose((webSocket, closeStatus, statusDescription, next, cancellationToken) =>
             {
-                this.logger.LogInformation("WebSocket disconnected: {ConnectionId}, CloseStatus: {CloseStatus}, {StatusDescription}", webSocket.Context.Guid, closeStatus, statusDescription);
+                logger.WebSocketDisconnected(webSocket.Context.Guid, closeStatus, statusDescription);
                 return next(webSocket, closeStatus, statusDescription, cancellationToken);
             });
 
             this.OnError((webSocket, exception, next, cancellationToken) =>
             {
-                this.logger.LogError(exception, "WebSocket error for connection: {ConnectionId}", webSocket.Context.Guid);
+                logger.WebSocketError(webSocket.Context.Guid, exception);
                 return next(webSocket, exception, cancellationToken);
             });
 
@@ -404,7 +405,7 @@ namespace Shinobi.WebSockets.Builders
             this.configuration.OnError = this.onError.Count > 0 ? this.onError : null;
             this.configuration.OnMessage = this.onMessage.Count > 0 ? this.onMessage : null;
 
-            return new WebSocketServer(this.configuration, this.logger);
+            return new WebSocketServer(this.configuration, this.loggerFactory);
         }
 
         /// <summary>

@@ -30,6 +30,7 @@ namespace Shinobi.WebSockets
         private bool isDisposed;
         private readonly ILogger<WebSocketClient>? logger;
         private readonly WebSocketClientOptions options;
+        private readonly ILoggerFactory? loggerFactory;
         private Uri? currentUri;
         private CancellationTokenSource? connectionCancellationTokenSource;
         private Task? connectionTask;
@@ -73,13 +74,14 @@ namespace Shinobi.WebSockets
         /// Initializes a new instance of the WebSocketClient class.
         /// </summary>
         /// <param name="options">Configuration options for the WebSocket client</param>
-        /// <param name="logger">Optional logger for client operations</param>
+        /// <param name="loggerFactory">Optional logger factory</param>
         public WebSocketClient(
             WebSocketClientOptions options,
-            ILogger<WebSocketClient>? logger = null)
+            ILoggerFactory? loggerFactory = null)
         {
-            this.logger = logger;
+            this.logger = loggerFactory?.CreateLogger<WebSocketClient>();
             this.options = options;
+            this.loggerFactory = loggerFactory;
             // Use the specific builders to create handler chains
             this.OnConnectAsync = Builder.BuildWebSocketConnectChain(options.OnConnect);
             this.OnCloseAsync = Builder.BuildWebSocketCloseChain(options.OnClose);
@@ -211,7 +213,7 @@ namespace Shinobi.WebSockets
 
             if (previousState != newState)
             {
-                this.logger?.LogDebug("WebSocket connection state changed from {PreviousState} to {NewState}", previousState, newState);
+                this.logger?.ConnectionStateChanged(previousState, newState);
                 this.ConnectionStateChanged?.Invoke(this, new WebSocketConnectionStateChangedEventArgs(previousState, newState, exception));
             }
         }
@@ -238,13 +240,13 @@ namespace Shinobi.WebSockets
                         // Check if we should reconnect
                         if (!this.options.ReconnectOptions.Enabled)
                         {
-                            this.logger?.LogInformation("Auto-reconnect is disabled, staying disconnected");
+                            this.logger?.AutoReconnectDisabled();
                             this.ChangeConnectionState(WebSocketConnectionState.Disconnected);
                             break;
                         }
 
                         // Prepare for reconnect
-                        this.logger?.LogInformation("Starting auto-reconnect sequence (attempt {AttemptNumber})", reconnectAttemptNumber);
+                        this.logger?.StartingAutoReconnect(reconnectAttemptNumber);
                         this.ChangeConnectionState(WebSocketConnectionState.Reconnecting);
 
                         // Calculate delay with exponential backoff and jitter
@@ -254,11 +256,11 @@ namespace Shinobi.WebSockets
                         var reconnectUri = this.currentUri!;
                         if (this.options.OnReconnecting != null)
                         {
-                            this.logger?.LogDebug("Calling OnReconnecting handler for attempt {AttemptNumber}", reconnectAttemptNumber);
+                            this.logger?.CallingOnReconnectingHandler(reconnectAttemptNumber);
                             reconnectUri = await this.options.OnReconnecting(this.currentUri!, reconnectAttemptNumber, cancellationToken);
                             if (!reconnectUri.Equals(this.currentUri))
                             {
-                                this.logger?.LogInformation("OnReconnecting handler changed URI from {OldUri} to {NewUri}", this.currentUri, reconnectUri);
+                                this.logger?.ReconnectingUriChanged(this.currentUri!, reconnectUri);
                             }
                             this.currentUri = reconnectUri;
                         }
@@ -266,8 +268,7 @@ namespace Shinobi.WebSockets
                         // Raise reconnecting event
                         this.Reconnecting?.Invoke(this, new WebSocketReconnectingEventArgs(reconnectUri, reconnectAttemptNumber, delay));
 
-                        this.logger?.LogInformation("Reconnecting to {Uri} in {Delay}ms (attempt {AttemptNumber})",
-                            reconnectUri, delay.TotalMilliseconds, reconnectAttemptNumber);
+                        this.logger?.ReconnectingWithDelay(reconnectUri, (int)delay.TotalMilliseconds, reconnectAttemptNumber);
 
                         // Wait before reconnecting
                         await Task.Delay(delay, cancellationToken);
@@ -289,7 +290,7 @@ namespace Shinobi.WebSockets
                     // (we'll reset it only if the connection turns out to be stable)
                     if (reconnectAttemptNumber > 0)
                     {
-                        this.logger?.LogInformation("Successfully reconnected to {Uri} after {AttemptNumber} attempts", this.currentUri, reconnectAttemptNumber);
+                        this.logger?.ReconnectedSuccessfully(this.currentUri!, reconnectAttemptNumber);
                     }
 
                     // Handle messages until disconnection
@@ -305,28 +306,27 @@ namespace Shinobi.WebSockets
 
                     if (!isStableConnection)
                     {
-                        this.logger?.LogInformation("WebSocket connection closed after {Duration}ms - treating as connection failure (not considered stable)",
-                            connectionDuration.TotalMilliseconds);
+                        this.logger?.ConnectionClosedUnstable(connectionDuration.TotalMilliseconds);
                         reconnectAttemptNumber = bufferedReconnectAttemptNumber + 1;
                     }
                     else
                     {
-                        this.logger?.LogInformation("WebSocket connection closed normally after {Duration}ms - resetting backoff (considered stable)",
-                            connectionDuration.TotalMilliseconds);
+                        this.logger?.ConnectionClosedStable(connectionDuration.TotalMilliseconds);
                         reconnectAttemptNumber = 0; // Reset to 0, so next attempt will be 1 and use BackoffCalculator with attempt 0
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    this.logger?.LogInformation("WebSocket reconnection cancelled");
+                    this.logger?.ReconnectionCancelled();
                     continue;
                 }
                 catch (Exception ex)
                 {
-                    this.logger?.LogError(ex, "Connection error (attempt {AttemptNumber})", attemptNumber);
+                    this.logger?.ConnectionError(attemptNumber, ex);
 
                     if (!this.options.ReconnectOptions.Enabled)
                     {
+                        this.logger?.ConnectionFailedPermanently(ex);
                         this.ChangeConnectionState(WebSocketConnectionState.Failed, ex);
                         break;
                     }
@@ -470,7 +470,7 @@ namespace Shinobi.WebSockets
         /// </summary>
         private async ValueTask<ShinobiWebSocket> ConnectAsync(TcpClient tcpClient, Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string? secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
         {
-            Events.Log?.ReadingHttpResponse(guid);
+            this.logger?.ReadingHttpResponse(guid);
             HttpResponse? response;
 
             try
@@ -479,7 +479,7 @@ namespace Shinobi.WebSockets
             }
             catch (Exception ex)
             {
-                Events.Log?.ReadHttpResponseError(guid, ex);
+                this.logger?.ReadHttpResponseError(guid, ex);
                 throw new WebSocketHandshakeFailedException("Handshake unexpected failure", ex);
             }
 
@@ -487,7 +487,7 @@ namespace Shinobi.WebSockets
             this.ThrowIfInvalidAcceptString(guid, response!, secWebSocketKey);
 
             return new ShinobiWebSocket(
-                new WebSocketHttpContext(tcpClient, response!, responseStream, guid),
+                new WebSocketHttpContext(tcpClient, response!, responseStream, guid, this.loggerFactory),
 #if NET8_0_OR_GREATER
                 response!.GetHeaderValuesCombined("Sec-WebSocket-Extensions")?.ParseExtension(),
 #endif
@@ -507,11 +507,11 @@ namespace Shinobi.WebSockets
             if (expectedAcceptString != actualAcceptString)
             {
                 var warning = $"Handshake failed because the accept string from the server '{expectedAcceptString}' was not the expected string '{actualAcceptString}'";
-                Events.Log?.HandshakeFailure(guid, warning);
+                this.logger?.HandshakeFailure(guid, warning);
                 throw new WebSocketHandshakeFailedException(warning);
             }
 
-            Events.Log?.ClientHandshakeSuccess(guid);
+            this.logger?.ClientHandshakeSuccess(guid);
         }
 
         private void ThrowIfInvalidResponseCode(HttpResponse? repsonse)
@@ -537,12 +537,12 @@ namespace Shinobi.WebSockets
 
                 if (IPAddress.TryParse(host, out var ipAddress))
                 {
-                    Events.Log?.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
+                    this.logger?.ClientConnectingToIpAddress(loggingGuid, ipAddress.ToString(), port);
                     await tcpClient.ConnectAsync(ipAddress, port).ConfigureAwait(false);
                 }
                 else
                 {
-                    Events.Log?.ClientConnectingToHost(loggingGuid, host, port);
+                    this.logger?.ClientConnectingToHost(loggingGuid, host, port);
                     await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
                 }
 
@@ -551,16 +551,16 @@ namespace Shinobi.WebSockets
 
                 if (isSecure)
                 {
-                    var sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(ValidateServerCertificate), null);
-                    Events.Log?.AttemtingToSecureSslConnection(loggingGuid);
+                    var sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(this.ValidateServerCertificate), null);
+                    this.logger?.AttemptingToSecureSslConnection(loggingGuid);
 
                     // This will throw an AuthenticationException if the certificate is not valid
                     this.TlsAuthenticateAsClient(sslStream, host);
-                    Events.Log?.ConnectionSecured(loggingGuid);
+                    this.logger?.ConnectionSecured(loggingGuid);
                     return (sslStream, tcpClient);
                 }
 
-                Events.Log?.ConnectionNotSecure(loggingGuid);
+                this.logger?.ConnectionNotSecure(loggingGuid);
                 return (stream, tcpClient);
             }
         }
@@ -569,12 +569,12 @@ namespace Shinobi.WebSockets
         /// Invoked by the RemoteCertificateValidationDelegate
         /// If you want to ignore certificate errors (for debugging) then return true
         /// </summary>
-        private static bool ValidateServerCertificate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+        private bool ValidateServerCertificate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
             if (sslPolicyErrors == SslPolicyErrors.None)
                 return true;
 
-            Events.Log?.SslCertificateError(sslPolicyErrors);
+            this.logger?.SslCertificateError(sslPolicyErrors);
             // TODO: Add option on new server to "ignore certificate errors"
 
             // Do not allow this client to communicate with unauthenticated servers.
@@ -600,7 +600,7 @@ namespace Shinobi.WebSockets
 
             var httpRequest = Encoding.UTF8.GetBytes(handshakeHttpRequest);
             stream.Write(httpRequest, 0, httpRequest.Length);
-            Events.Log?.HandshakeSent(guid, handshakeHttpRequest);
+            this.logger?.HandshakeSent(guid, handshakeHttpRequest);
             return this.ConnectAsync(tcpClient, stream, secWebSocketKey, options, cancellationToken);
         }
 

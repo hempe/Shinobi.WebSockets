@@ -27,6 +27,8 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using Shinobi.WebSockets.Exceptions;
 using Shinobi.WebSockets.Http;
 using Shinobi.WebSockets.Internal;
@@ -36,7 +38,7 @@ namespace Shinobi.WebSockets.Extensions
     /// <summary>
     /// Web socket server factory used to open web socket server connections
     /// </summary>
-    public static class WebSocketServerFactoryExtnesions
+    public static class WebSocketServerFactoryExtensions
     {
         /// <summary>
         /// Accept web socket with options specified
@@ -48,9 +50,10 @@ namespace Shinobi.WebSockets.Extensions
         public static async ValueTask<ShinobiWebSocket> AcceptWebSocketAsync(this WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken))
         {
             var guid = Guid.NewGuid();
-            Events.Log?.AcceptWebSocketStarted(guid);
+            var logger = context.LoggerFactory?.CreateLogger<ShinobiWebSocket>();
+            logger?.AcceptWebSocketStarted(guid);
             var response = await PerformHandshakeAsync(guid, options, context, cancellationToken).ConfigureAwait(false);
-            Events.Log?.ServerHandshakeSuccess(guid);
+            logger?.ServerHandshakeSuccess(guid);
             return new ShinobiWebSocket(
                 context,
 #if NET8_0_OR_GREATER
@@ -64,23 +67,24 @@ namespace Shinobi.WebSockets.Extensions
 
         private static async ValueTask<HttpResponse> PerformHandshakeAsync(Guid guid, WebSocketServerOptions options, WebSocketHttpContext context, CancellationToken cancellationToken)
         {
+            var logger = context.LoggerFactory?.CreateLogger<ShinobiWebSocket>();
             try
             {
                 var response = context.HandshakeResponse(options);
-                Events.Log?.SendingHandshakeResponse(guid, response.StatusCode);
+                logger?.SendingHandshakeResponse(guid, response.StatusCode);
                 await response.WriteToStreamAsync(context.Stream, cancellationToken).ConfigureAwait(false);
                 return response;
             }
             catch (WebSocketVersionNotSupportedException ex)
             {
-                Events.Log?.WebSocketVersionNotSupported(guid, ex);
+                logger?.WebSocketVersionNotSupported(guid, ex);
                 var response = HttpResponse.Create(426).AddHeader("Sec-WebSocket-Version", "13").WithBody(ex.Message);
                 await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                 throw;
             }
             catch (Exception ex)
             {
-                Events.Log?.BadRequest(guid, ex);
+                logger?.BadRequest(guid, ex);
                 var response = HttpResponse.Create(400);
                 await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                 throw;
