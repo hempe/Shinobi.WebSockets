@@ -169,7 +169,7 @@ namespace Shinobi.WebSockets
                     this.listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                     this.listener.Start();
                     this.logger?.ServerStartedListening(port);
-                    startTcs.TrySetResult(null);
+                    _ = Task.Run(() => startTcs.TrySetResult(null));
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
@@ -179,7 +179,7 @@ namespace Shinobi.WebSockets
                 }
                 catch (SocketException ex)
                 {
-                    startTcs.TrySetException(ex);
+                    _ = Task.Run(() => startTcs.TrySetException(ex));
                     if (cancellationToken.IsCancellationRequested)
                         return;
 
@@ -187,7 +187,7 @@ namespace Shinobi.WebSockets
                 }
                 catch (Exception ex)
                 {
-                    startTcs.TrySetException(ex);
+                    _ = Task.Run(() => startTcs.TrySetException(ex));
                     if (cancellationToken.IsCancellationRequested)
                         return;
                     throw;
