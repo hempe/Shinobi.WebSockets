@@ -90,6 +90,13 @@ namespace Shinobi.WebSockets.Http
 
         internal ILoggerFactory? LoggerFactory { get; }
 
+        private static bool IsValidWebSocketRequest(HttpHeader httpHeader)
+        {
+            // Check if it's a WebSocket upgrade request - only validate Upgrade header here
+            // Method and Connection header validation is handled in HandshakeCoreAsync with proper HTTP responses
+            return string.Equals(httpHeader.GetHeaderValue("Upgrade"), "websocket", StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         /// Initialises a new instance of the WebSocketHttpContext class
         /// </summary>
@@ -101,7 +108,7 @@ namespace Shinobi.WebSockets.Http
             this.LoggerFactory = loggerFactory;
             this.TcpClient = tcpClient;
             this.Guid = guid;
-            this.IsWebSocketRequest = httpHeader.GetHeaderValue("Upgrade") == "websocket";
+            this.IsWebSocketRequest = IsValidWebSocketRequest(httpHeader);
             this.WebSocketRequestedProtocols = httpHeader.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
             this.WebSocketExtensions = httpHeader.GetHeaderValues("Sec-WebSocket-Extensions").ToList();
             this.Stream = stream;

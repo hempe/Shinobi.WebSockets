@@ -127,17 +127,41 @@ namespace Shinobi.WebSockets
 
         private ValueTask<HttpResponse> HandshakeCoreAsync(WebSocketHttpContext context, CancellationToken cancellationToken)
         {
+            // Validate HTTP method
+            if (context.HttpRequest != null && !string.Equals(context.HttpRequest.Method, "GET", StringComparison.OrdinalIgnoreCase))
+            {
+                var response = HttpResponse.Create(405)
+                    .AddHeader("Allow", "GET")
+                    .AddHeader("Connection", "close")
+                    .AddHeader("Content-Type", "text/plain")
+                    .WithBody($"Method {context.HttpRequest.Method} not allowed. WebSocket handshake requires GET method.");
+
+                return new ValueTask<HttpResponse>(response);
+            }
+
+            // Validate Connection header
+            if (context.HttpRequest != null &&
+               !context.HttpRequest.GetHeaderValue("Connection")?.Contains("Upgrade", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                var response = HttpResponse.Create(400)
+                    .AddHeader("Connection", "close")
+                    .AddHeader("Content-Type", "text/plain")
+                    .WithBody("Bad Request: Missing or invalid Connection header. Expected 'Connection: Upgrade'.");
+
+                return new ValueTask<HttpResponse>(response);
+            }
+
             if (context.IsWebSocketRequest)
                 return new ValueTask<HttpResponse>(context.HandshakeResponse(this.options));
 
-            var response = HttpResponse.Create(426)
+            var notWebSocketResponse = HttpResponse.Create(426)
                 .AddHeader("Upgrade", "websocket")
                 .AddHeader("Connection", "close")
                 .AddHeader("Content-Type", "text/plain")
                 .WithBody("WebSocket connection required. Use a WebSocket client.");
 
             this.logger?.NoWebSocketUpgradeRequest();
-            return new ValueTask<HttpResponse>(response);
+            return new ValueTask<HttpResponse>(notWebSocketResponse);
         }
 
         private ValueTask<X509Certificate2?> SelectionCertificateCoreAsync(TcpClient tcpClient, CancellationToken _cancellationToken)
@@ -362,7 +386,8 @@ namespace Shinobi.WebSockets
                     {
                         var response = HttpResponse.Create(500)
                             .AddHeader("Content-Type", "text/plain")
-                            .WithBody(ex.Message);
+                            .AddHeader("Connection", "close")
+                            .WithBody(this.options.IncludeExceptionInCloseResponse ? ex.Message : string.Empty);
 
                         await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                     }

@@ -205,23 +205,5 @@ namespace Shinobi.WebSockets.Http
         public static HttpRequest Create(string method, string path)
             => new HttpRequest(method, path, new Dictionary<string, HashSet<string>>());
 
-        /// <summary>
-        /// Validate WebSocket handshake request
-        /// </summary>
-        /// <exception cref="InvalidOperationException">Thrown when handshake validation fails</exception>
-        public void ValidateWebSocketHandshakeRequest()
-        {
-            if (!string.Equals(this.Method, "GET", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException($"WebSocket handshake failed: Expected GET method, got {this.Method}");
-
-            if (!this.HasHeader("Upgrade") || !string.Equals(this.GetHeaderValue("Upgrade"), "websocket", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("WebSocket handshake failed: Missing or invalid Upgrade header");
-
-            if (!this.HasHeader("Connection") || !this.GetHeaderValue("Connection")?.Contains("Upgrade", StringComparison.OrdinalIgnoreCase) == true)
-                throw new InvalidOperationException("WebSocket handshake failed: Missing or invalid Connection header");
-
-            if (!this.HasHeader("Sec-WebSocket-Key"))
-                throw new InvalidOperationException("WebSocket handshake failed: Missing Sec-WebSocket-Key header");
-        }
     }
 }
