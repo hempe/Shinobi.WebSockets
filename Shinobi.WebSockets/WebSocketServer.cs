@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -173,6 +174,7 @@ namespace Shinobi.WebSockets
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
+                        var w = Stopwatch.StartNew();
                         var tcpClient = await this.listener.AcceptTcpClientAsync();
                         _ = Task.Run(() => this.ProcessTcpClientAsync(tcpClient, cancellationToken.Token));
                     }
@@ -235,9 +237,11 @@ namespace Shinobi.WebSockets
 
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)
         {
+            var keepAlive = true;
             using (tcpClient)
             using (var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
+
                 WebSocketHttpContext? context = null;
                 try
                 {
@@ -249,80 +253,98 @@ namespace Shinobi.WebSockets
                     // The server is disposed
 
                     var stream = await this.OnConnectStreamsAsync(tcpClient, source.Token);
-
-                    var httpRequest = await HttpRequest.ReadAsync(stream, source.Token).ConfigureAwait(false);
-                    if (httpRequest is null)
+                    while (keepAlive)
                     {
-                        var response = HttpResponse.Create(400).AddHeader("Content-Type", "text/plain");
-
-                        await response.WriteToStreamAsync(stream, source.Token).ConfigureAwait(false);
-                        stream.Close();
-                        return;
-                    }
-
-                    var guid = Guid.NewGuid();
-                    this.logger?.AcceptWebSocketStarted(guid);
-                    context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid, this.loggerFactory);
-                    var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
-                    if (handshakeResponse.StatusCode == 101)
-                    {
-                        ShinobiWebSocket? webSocket = null;
-                        try
+                        this.ThrowIfDisposed();
+                        var httpRequest = await HttpRequest.ReadAsync(stream, source.Token).ConfigureAwait(false);
+                        if (httpRequest is null)
                         {
-                            this.logger?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
-                            await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
-                            webSocket = new ShinobiWebSocket(
-                                context,
-#if NET8_0_OR_GREATER
-                                handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtension(),
-#endif
-                                this.options.KeepAliveInterval,
-                                this.options.IncludeExceptionInCloseResponse,
-                                false,
-                                handshakeResponse.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
+                            var response = HttpResponse.Create(400).AddHeader("Content-Type", "text/plain");
 
-                            await this.OnConnectAsync(webSocket, source.Token);
-                            this.clients[context.Guid] = webSocket;
-                            await this.OnConnectedAsync(webSocket, source.Token);
-                            await this.HandleWebSocketAsync(webSocket, source.Token);
-
+                            await response.WriteToStreamAsync(stream, source.Token).ConfigureAwait(false);
+                            stream.Close();
+                            return;
                         }
-                        catch (WebSocketVersionNotSupportedException ex)
-                        {
-                            this.clients.TryRemove(context.Guid, out _);
-                            this.logger?.WebSocketVersionNotSupported(guid, ex);
-                            var response = HttpResponse.Create(426)
-                                .AddHeader("Sec-WebSocket-Version", "13")
-                                .WithBody(ex.Message);
-                            this.logger?.SendingHandshakeResponse(guid, response.StatusCode);
-                            await context.TerminateAsync(response, source.Token).ConfigureAwait(false);
-                            throw;
-                        }
-                        catch (Exception ex)
-                        {
-                            this.clients.TryRemove(context.Guid, out _);
-                            this.logger?.BadRequest(guid, ex);
 
-                            if (webSocket?.State == WebSocketState.Open)
+                        keepAlive = httpRequest.GetHeaderValue("Connection") == "keep-alive";
+                        var guid = Guid.NewGuid();
+                        this.logger?.AcceptWebSocketStarted(guid);
+                        context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid, this.loggerFactory);
+                        var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
+                        if (handshakeResponse.StatusCode == 101)
+                        {
+                            keepAlive = false;
+                            ShinobiWebSocket? webSocket = null;
+                            try
                             {
-                                source.CancelAfter(TimeSpan.FromSeconds(5));
-                                await webSocket.CloseOutputAsync(WebSocketCloseStatus.InternalServerError, ex.Message, source.Token).ConfigureAwait(false);
+                                this.logger?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
+                                await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
+                                webSocket = new ShinobiWebSocket(
+                                    context,
+#if NET8_0_OR_GREATER
+                                    handshakeResponse.GetHeaderValue("Sec-WebSocket-Extensions").ParseExtension(),
+#endif
+                                    this.options.KeepAliveInterval,
+                                    this.options.IncludeExceptionInCloseResponse,
+                                    false,
+                                    handshakeResponse.GetHeaderValuesCombined("Sec-WebSocket-Protocol"));
+
+                                await this.OnConnectAsync(webSocket, source.Token);
+                                this.clients[context.Guid] = webSocket;
+                                await this.OnConnectedAsync(webSocket, source.Token);
+                                await this.HandleWebSocketAsync(webSocket, source.Token);
+
+                            }
+                            catch (WebSocketVersionNotSupportedException ex)
+                            {
+                                this.clients.TryRemove(context.Guid, out _);
+                                this.logger?.WebSocketVersionNotSupported(guid, ex);
+                                var response = HttpResponse.Create(426)
+                                    .AddHeader("Sec-WebSocket-Version", "13")
+                                    .WithBody(ex.Message)
+                                    .AddHeader("Connection", "close");
+
+                                this.logger?.SendingHandshakeResponse(guid, response.StatusCode);
+                                await context.TerminateAsync(response, source.Token).ConfigureAwait(false);
                                 throw;
                             }
+                            catch (Exception ex)
+                            {
+                                this.clients.TryRemove(context.Guid, out _);
+                                this.logger?.BadRequest(guid, ex);
 
-                            var response = HttpResponse.Create(400)
-                                .WithBody(ex.Message);
+                                if (webSocket?.State == WebSocketState.Open)
+                                {
+                                    source.CancelAfter(TimeSpan.FromSeconds(5));
+                                    await webSocket.CloseOutputAsync(WebSocketCloseStatus.InternalServerError, ex.Message, source.Token).ConfigureAwait(false);
+                                    throw;
+                                }
 
-                            this.logger?.SendingHandshakeResponse(guid, response.StatusCode);
-                            await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
-                            throw;
+                                var response = HttpResponse.Create(400)
+                                    .WithBody(ex.Message)
+                                    .AddHeader("Connection", "close");
+
+                                this.logger?.SendingHandshakeResponse(guid, response.StatusCode);
+                                await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
+                                throw;
+                            }
                         }
-                    }
-                    else
-                    {
-                        this.clients.TryRemove(context.Guid, out _);
-                        this.logger?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
-                        await context.TerminateAsync(handshakeResponse, source.Token).ConfigureAwait(false);
+                        else
+                        {
+                            this.clients.TryRemove(context.Guid, out _);
+                            this.logger?.SendingHandshakeResponse(guid, handshakeResponse.StatusCode);
+
+                            if (context.Stream.CanWrite)
+                            {
+                                handshakeResponse = handshakeResponse.AddHeaderIf(!handshakeResponse.HasHeader("Connection"), "Connection", keepAlive ? "keep-alive" : "close");
+                                keepAlive = handshakeResponse.GetHeaderValue("Connection") == "keep-alive";
+                                await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                keepAlive = false;
+                            }
+                        }
                     }
                 }
                 catch (ObjectDisposedException)

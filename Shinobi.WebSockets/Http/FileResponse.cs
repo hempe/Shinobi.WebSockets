@@ -36,7 +36,6 @@ namespace Shinobi.WebSockets.Http
 
             return HttpResponse.Create(200)
                 .AddHeader("Content-Type", contentType)
-                .AddHeader("Content-Length", stream.Length.ToString())
                 .WithBody(stream);
         }
 
