@@ -91,10 +91,10 @@ namespace WebSockets.DemoServer
                         if (!context.IsWebSocketRequest)
                         {
                             if (context.Path == "/")
-                                return new ValueTask<HttpResponse>(FileResponse.CreateFromEmbeddedResource(assembly, "Shinobi.WebSockets.DemoServer.Client.html"));
+                                return new ValueTask<HttpResponse>(context.HttpRequest.CreateEmbeddedResourceResponse(assembly, "Shinobi.WebSockets.DemoServer.Client.html"));
 
                             if (context.Path == "/favicon.ico")
-                                return new ValueTask<HttpResponse>(FileResponse.CreateFromEmbeddedResource(assembly, "Shinobi.WebSockets.DemoServer.favicon.ico"));
+                                return new ValueTask<HttpResponse>(context.HttpRequest.CreateEmbeddedResourceResponse(assembly, "Shinobi.WebSockets.DemoServer.favicon.ico"));
                         }
 
                         logger.LogInformation("Path: {Path}", context.Path);

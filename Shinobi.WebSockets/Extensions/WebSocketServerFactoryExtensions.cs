@@ -78,7 +78,9 @@ namespace Shinobi.WebSockets.Extensions
             catch (WebSocketVersionNotSupportedException ex)
             {
                 logger?.WebSocketVersionNotSupported(guid, ex);
-                var response = HttpResponse.Create(426).AddHeader("Sec-WebSocket-Version", "13").WithBody(ex.Message);
+                var response = HttpResponse.Create(426)
+                    .AddHeader("Sec-WebSocket-Version", "13")
+                    .WithBody(ex.Message);
                 await context.TerminateAsync(response, cancellationToken).ConfigureAwait(false);
                 throw;
             }

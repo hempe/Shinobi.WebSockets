@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 #if NET8_0_OR_GREATER
 using System.Buffers.Text;
@@ -16,7 +17,6 @@ namespace Shinobi.WebSockets.Http
     /// </summary>
     public static class HttpRequestBuilder
     {
-
         /// <summary>
         /// Add a header with a single value
         /// </summary>
