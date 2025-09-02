@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 
 
@@ -16,6 +17,29 @@ namespace Shinobi.WebSockets.Http
     /// </summary>
     public static class HttpResponseBuilder
     {
+
+        /// <summary>
+        /// Creates an HTTP response from a file path
+        /// </summary>
+        public static HttpResponse CreateFileResponse(
+            this HttpRequest? @this,
+            string filePath,
+            string? contentType = null)
+        {
+            return FileResponse.CreateFromFile(filePath, contentType, @this);
+        }
+
+        /// <summary>
+        /// Creates an HTTP response from an embedded resource
+        /// </summary>
+        public static HttpResponse CreateEmbeddedResourceResponse(
+            this HttpRequest? @this,
+            Assembly assembly,
+            string resourceName,
+            string? contentType = null)
+        {
+            return FileResponse.CreateFromEmbeddedResource(assembly, resourceName, contentType, @this);
+        }
 
         /// <summary>
         /// Sets the body content for the HTTP response.

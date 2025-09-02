@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Reflection;
 
 namespace Shinobi.WebSockets.Http
@@ -8,22 +9,82 @@ namespace Shinobi.WebSockets.Http
         /// <summary>
         /// Creates an HTTP response from a file path with custom content type
         /// </summary>
-        public static HttpResponse Create(string filePath, string? contentType = null)
+        public static HttpResponse CreateFromFile(
+            string filePath,
+            string? contentType = null,
+            HttpRequest? request = null)
         {
+            if (request != null && !string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
+            {
+                return HttpResponse.Create(405)
+                    .AddHeader("Allow", "GET")
+                    .AddHeader("Connection", "close")
+                    .AddHeader("Content-Type", "text/plain")
+                    .WithBody($"Method {request.Method} not allowed. File serving requires GET method.");
+            }
+
             if (!File.Exists(filePath))
                 return HttpResponse.Create(404);
 
+            var fileInfo = new FileInfo(filePath);
+            var lastModified = fileInfo.LastWriteTimeUtc;
+
+            if (request != null && request.GetHeaderValue("Cache-Control")?.Contains("no-cache") != true)
+            {
+                if (request.HasHeader("If-Modified-Since"))
+                {
+                    var ifModifiedSinceValue = request.GetHeaderValue("If-Modified-Since");
+                    if (DateTime.TryParse(ifModifiedSinceValue, out var ifModifiedSince)
+                       && lastModified <= ifModifiedSince.ToUniversalTime())
+                    {
+                        return HttpResponse.Create(304);
+                    }
+                }
+            }
+
             var bytes = File.ReadAllBytes(filePath);
-            return CreateFromBytes(bytes, contentType ?? GetContentType(filePath));
+            var response = CreateFromBytes(bytes, contentType ?? GetContentType(filePath));
+
+            response.AddHeader("Last-Modified", lastModified.ToString("R"));
+            return response;
         }
 
         /// <summary>
         /// Creates an HTTP response from an embedded resource with custom content type
         /// </summary>
-        public static HttpResponse CreateFromEmbeddedResource(Assembly assembly, string resourceName, string? contentType = null)
+        public static HttpResponse CreateFromEmbeddedResource(
+            Assembly assembly,
+            string resourceName,
+            string? contentType = null,
+            HttpRequest? request = null)
         {
+            if (request != null && !string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
+            {
+                return HttpResponse.Create(405)
+                    .AddHeader("Allow", "GET")
+                    .AddHeader("Connection", "close")
+                    .AddHeader("Content-Type", "text/plain")
+                    .WithBody($"Method {request.Method} not allowed. Resource serving requires GET method.");
+            }
+
+            var assemblyVersion = assembly.GetName().Version?.ToString() ?? "1.0.0.0";
+            var etag = $"\"{assemblyVersion}\"";
+
+            if (request != null && request.GetHeaderValue("Cache-Control")?.Contains("no-cache") != true
+               && request.HasHeader("If-None-Match"))
+            {
+                var ifNoneMatchValue = request.GetHeaderValue("If-None-Match");
+                if (ifNoneMatchValue == etag)
+                {
+                    return HttpResponse.Create(304).AddHeader("ETag", etag);
+                }
+            }
+
             var stream = assembly.GetManifestResourceStream(resourceName);
-            return CreateFromStream(stream, contentType ?? GetContentTypeFromResourceName(resourceName));
+            var response = CreateFromStream(stream, contentType ?? GetContentTypeFromResourceName(resourceName));
+
+            response.AddHeader("ETag", etag);
+            return response;
         }
 
         /// <summary>
