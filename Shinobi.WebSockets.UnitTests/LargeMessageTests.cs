@@ -29,7 +29,7 @@ namespace Shinobi.WebSockets.UnitTests
         Shinobi
     }
 
-    public class LargeMessageTests
+    public sealed class LargeMessageTests
     {
         private ILogger<WebSocketClientTests> logger;
         private readonly ILoggerFactory loggerFactory;
@@ -222,7 +222,7 @@ namespace Shinobi.WebSockets.UnitTests
             }
         }
 
-        private class NinjaServer : IServer
+        private sealed class NinjaServer : IServer
         {
             private TcpListener? listener;
             private Task? connectionPointTask;
@@ -268,7 +268,7 @@ namespace Shinobi.WebSockets.UnitTests
                     using var tcpClient = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
                     using var str = tcpClient.GetStream();
 
-                    var httpRequest = await HttpRequest.ReadAsync(str, cancellationToken);
+                    using var httpRequest = await HttpRequest.ReadAsync(str, cancellationToken);
                     if (httpRequest == null)
                         throw new System.Exception("This should not happen");
                     var context = new WebSocketHttpContext(tcpClient, httpRequest, str, Guid.NewGuid());

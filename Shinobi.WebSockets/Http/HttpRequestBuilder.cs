@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
+using System.Text;
 
 #if NET8_0_OR_GREATER
 using System.Buffers.Text;
@@ -118,6 +120,107 @@ namespace Shinobi.WebSockets.Http
                 }
             }
             return @this;
+        }
+
+        /// <summary>
+        /// Sets the body content for the HTTP request from a string.
+        /// Automatically sets Content-Type to text/plain and Content-Length.
+        /// </summary>
+        /// <param name="this">The HTTP request instance.</param>
+        /// <param name="body">The string content to be included as the request body.</param>
+        /// <param name="contentType">Content type (defaults to text/plain; charset=utf-8)</param>
+        /// <returns>Returns the current instance of <see cref="HttpRequest"/> to allow method chaining.</returns>
+        public static HttpRequest WithBody(this HttpRequest @this, string? body, string contentType = "text/plain; charset=utf-8")
+        {
+            if (body == null)
+            {
+                return @this;
+            }
+
+            var bodyBytes = Encoding.UTF8.GetBytes(body);
+            return @this.WithBody(bodyBytes, contentType);
+        }
+
+        /// <summary>
+        /// Sets the body content for the HTTP request from a byte array.
+        /// Automatically sets Content-Length header.
+        /// </summary>
+        /// <param name="this">The HTTP request instance.</param>
+        /// <param name="body">The byte array containing the body content.</param>
+        /// <param name="contentType">Content type (defaults to application/octet-stream)</param>
+        /// <returns>Returns the current instance of <see cref="HttpRequest"/> to allow method chaining.</returns>
+        public static HttpRequest WithBody(this HttpRequest @this, byte[]? body, string contentType = "application/octet-stream")
+        {
+            if (body == null || body.Length == 0)
+            {
+                return @this;
+            }
+
+            var bodyStream = new MemoryStream(body, false);
+            @this.Body = bodyStream;
+            
+            // Remove existing headers and set new ones
+            @this.headers.Remove("Content-Type");
+            @this.headers.Remove("Content-Length");
+            @this.AddHeader("Content-Type", contentType);
+            @this.AddHeader("Content-Length", body.Length.ToString());
+            
+            return @this;
+        }
+
+        /// <summary>
+        /// Sets the body content for the HTTP request from a stream.
+        /// Note: If the stream has a known length, Content-Length will be set automatically.
+        /// </summary>
+        /// <param name="this">The HTTP request instance.</param>
+        /// <param name="body">The stream containing the body content.</param>
+        /// <param name="contentType">Content type (defaults to application/octet-stream)</param>
+        /// <returns>Returns the current instance of <see cref="HttpRequest"/> to allow method chaining.</returns>
+        public static HttpRequest WithBody(this HttpRequest @this, Stream? body, string contentType = "application/octet-stream")
+        {
+            if (body == null)
+            {
+                return @this;
+            }
+
+            @this.Body = body;
+            
+            // Remove existing headers and set new ones
+            @this.headers.Remove("Content-Type");
+            @this.headers.Remove("Content-Length");
+            @this.AddHeader("Content-Type", contentType);
+            
+            // Set Content-Length if the stream has a known length
+            if (body.CanSeek)
+            {
+                @this.AddHeader("Content-Length", body.Length.ToString());
+            }
+            
+            return @this;
+        }
+
+        /// <summary>
+        /// Sets JSON body content for the HTTP request.
+        /// Automatically sets Content-Type to application/json and Content-Length.
+        /// </summary>
+        /// <param name="this">The HTTP request instance.</param>
+        /// <param name="json">The JSON string to be included as the request body.</param>
+        /// <returns>Returns the current instance of <see cref="HttpRequest"/> to allow method chaining.</returns>
+        public static HttpRequest WithJsonBody(this HttpRequest @this, string json)
+        {
+            return @this.WithBody(json, "application/json; charset=utf-8");
+        }
+
+        /// <summary>
+        /// Sets form data body content for the HTTP request.
+        /// Automatically sets Content-Type to application/x-www-form-urlencoded and Content-Length.
+        /// </summary>
+        /// <param name="this">The HTTP request instance.</param>
+        /// <param name="formData">The form data string to be included as the request body.</param>
+        /// <returns>Returns the current instance of <see cref="HttpRequest"/> to allow method chaining.</returns>
+        public static HttpRequest WithFormBody(this HttpRequest @this, string formData)
+        {
+            return @this.WithBody(formData, "application/x-www-form-urlencoded; charset=utf-8");
         }
     }
 }

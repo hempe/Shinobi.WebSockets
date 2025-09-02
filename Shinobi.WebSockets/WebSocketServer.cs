@@ -281,7 +281,7 @@ namespace Shinobi.WebSockets
             {
                 using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(source.Token);
                 timeoutSource.CancelAfter(this.options.KeepAliveTimeout);
-                
+
                 try
                 {
                     return await HttpRequest.ReadAsync(stream, timeoutSource.Token).ConfigureAwait(false);
@@ -349,7 +349,7 @@ namespace Shinobi.WebSockets
             var keepAlive = true;
             var connectionId = Guid.NewGuid();
             var isKeepAliveRegistered = false;
-            
+
             using (tcpClient)
             using (var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
@@ -362,8 +362,8 @@ namespace Shinobi.WebSockets
                     while (keepAlive)
                     {
                         this.ThrowIfDisposed();
-                        
-                        var httpRequest = await this.ReadHttpRequestWithTimeoutAsync(stream, isKeepAliveRegistered, source).ConfigureAwait(false);
+
+                        using var httpRequest = await this.ReadHttpRequestWithTimeoutAsync(stream, isKeepAliveRegistered, source).ConfigureAwait(false);
                         if (httpRequest is null)
                         {
                             var response = HttpResponse.Create(400).AddHeader("Content-Type", "text/plain");
@@ -373,7 +373,7 @@ namespace Shinobi.WebSockets
                         }
 
                         keepAlive = httpRequest.GetHeaderValue("Connection") == "keep-alive";
-                        
+
                         // Register as keep-alive connection if needed
                         if (keepAlive && !isKeepAliveRegistered)
                         {
@@ -389,7 +389,7 @@ namespace Shinobi.WebSockets
                         this.logger?.AcceptWebSocketStarted(guid);
                         context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid, this.loggerFactory);
                         var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
-                        
+
                         if (handshakeResponse.StatusCode == 101)
                         {
                             // WebSocket upgrade - no longer a keep-alive HTTP connection
@@ -399,7 +399,7 @@ namespace Shinobi.WebSockets
                                 this.UnregisterKeepAliveConnection(connectionId);
                                 isKeepAliveRegistered = false;
                             }
-                            
+
                             ShinobiWebSocket? webSocket = null;
                             try
                             {
