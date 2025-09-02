@@ -228,26 +228,15 @@ namespace Shinobi.WebSockets.Http
         /// <returns>Complete HTTP response string</returns>
         public string Build()
         {
-#if NET8_0_OR_GREATER
-            var builder = new StringBuilder();
-            builder.Append($"HTTP/1.1 {this.StatusCode} {this.reasonPhrase}\r\n");
+            using var headerStream = new MemoryStream();
+            this.WriteHeadersToStream(headerStream);
 
-            if (this.headers != null)
-            {
-                foreach (var header in this.headers)
-                {
-                    foreach (var value in header.Value)
-                    {
-                        builder.Append($"{header.Key}: {value}\r\n");
-                    }
-                }
-            }
+            headerStream.Position = 0;
+            using var headerReader = new StreamReader(headerStream);
+            var builder = new StringBuilder(headerReader.ReadToEnd());
 
             if (this.body is not null)
             {
-                builder.Append($"Content-Length: {this.body.Length}\r\n");
-                builder.Append("\r\n");
-
                 try
                 {
                     using var reader = new StreamReader(this.body);
@@ -258,55 +247,13 @@ namespace Shinobi.WebSockets.Http
                     builder.Append($"[BINARY BODY - {this.body.Length} bytes]");
                 }
             }
-            else
-            {
-                builder.Append("\r\n");
-            }
 
             return builder.ToString();
-#else
-            var builder = new StringBuilder();
-            builder.AppendFormat("HTTP/1.1 {0} {1}\r\n", this.StatusCode, this.reasonPhrase);
-
-            if (this.headers != null)
-            {
-                foreach (var header in this.headers)
-                {
-                    foreach (var value in header.Value)
-                    {
-                        builder.AppendFormat("{0}: {1}\r\n", header.Key, value);
-                    }
-                }
-            }
-
-            if (this.body is not null)
-            {
-                builder.Append($"Content-Length: {this.body.Length}\r\n");
-                builder.Append("\r\n");
-
-                try
-                {
-                    using var reader = new StreamReader(this.body);
-                    builder.Append(reader.ReadToEnd());
-                }
-                catch
-                {
-                    builder.Append($"[BINARY BODY - {this.body.Length} bytes]");
-                }
-            }
-            else
-            {
-                builder.Append("\r\n");
-            }
-
-            return builder.ToString();
-#endif
         }
-        public async ValueTask WriteToStreamAsync(Stream stream, CancellationToken cancellationToken)
-        {
-            // Create your pooled buffer stream
-            using var bufferStream = new ArrayPoolStream();
 
+
+        private void WriteHeadersToStream(Stream bufferStream)
+        {
             // Helper local to encode & write a string chunk
             void EncodeAndWrite(string text)
             {
@@ -320,6 +267,12 @@ namespace Shinobi.WebSockets.Http
             // Write status line
             EncodeAndWrite($"HTTP/1.1 {this.StatusCode} {this.reasonPhrase}\r\n");
 
+            // Add Date header if not present
+            if (!this.HasHeader("Date"))
+            {
+                EncodeAndWrite($"Date: {DateTime.UtcNow:R}\r\n");
+            }
+
             // Write headers
             if (this.headers != null)
             {
@@ -332,17 +285,28 @@ namespace Shinobi.WebSockets.Http
                 }
             }
 
+            // Write Content-Length if body exists
             if (this.body is not null)
             {
                 EncodeAndWrite($"Content-Length: {this.body.Length}\r\n");
-                // Blank line to separate headers and body
-                EncodeAndWrite("\r\n");
-                this.body.CopyTo(bufferStream);
             }
-            else
+
+            // Blank line to separate headers and body
+            EncodeAndWrite("\r\n");
+        }
+
+        public async ValueTask WriteToStreamAsync(Stream stream, CancellationToken cancellationToken)
+        {
+            // Create your pooled buffer stream
+            using var bufferStream = new ArrayPoolStream();
+
+            // Write common headers (includes Content-Length and header separator)
+            this.WriteHeadersToStream(bufferStream);
+
+            // Write body if present
+            if (this.body is not null)
             {
-                // Blank line to separate headers and body
-                EncodeAndWrite("\r\n");
+                this.body.CopyTo(bufferStream);
             }
 
             // Get the buffered data segment

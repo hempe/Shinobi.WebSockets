@@ -10,33 +10,18 @@ This document outlines additional testing opportunities to improve code coverage
 ## 🍎 Low Hanging Fruit (Easy Wins)
 
 ### ✅ COMPLETED
-- [x] **Exception Classes Tests** (`WebSocketExceptionTests.cs`) - 12 tests
-- [x] **WebSocketServerOptions Tests** (`WebSocketServerOptionsTests.cs`) - 11 tests
+- [x] **Exception Classes Tests** (`WebSocketExceptionTests.cs`) - Exception handling tests
+- [x] **Builder Pattern Tests** (`WebSocketServerBuilderTests.cs`, `WebSocketServerBuilderExtensionsTests.cs`) - Server builder API tests
+- [x] **Extension Method Tests** (`WebSocketExtensionsTests.cs`, `WebSocketHttpContextExtensionsTests.cs`) - Extension method tests
 
 ### 🟡 EASY (30-60 minutes each)
 
-#### **1. Enum/Constant Classes**
+#### **1. WebSocketServerOptions Tests**
 ```csharp
-// File: WebSocketEnumTests.cs
-- MessageType enum (Text, Binary, Close, etc.)
-- WebSocketOpCode enum (if exists)
-- Any other enums/constants
-```
-
-#### **2. Extension Method Tests**
-```csharp
-// File: WebSocketExtensionTests.cs  
-- WebSocketExtensions.cs methods
-- WebSocketHttpContextExtensions.cs methods
-- HttpHeaderExtensions.cs methods (if not covered)
-```
-
-#### **3. Builder Pattern Tests**
-```csharp
-// File: WebSocketServerBuilderTests.cs
-- WebSocketServerBuilder fluent API
-- WebSocketServerBuilderExtensions methods
-- Configuration method chaining
+// File: WebSocketServerOptionsTests.cs
+- WebSocketServerOptions property validation
+- Configuration edge cases  
+- Default value verification
 ```
 
 ## 🟡 Medium Effort (2-4 hours each)
@@ -50,20 +35,12 @@ This document outlines additional testing opportunities to improve code coverage
 - Frame validation and error cases
 ```
 
-### **5. HTTP Processing Tests**
-```csharp
-// File: HttpRequestResponseTests.cs
-- HttpRequest parsing and creation
-- HttpResponse parsing and creation
-- HttpHeader manipulation beyond current tests
-```
-
-### **6. WebSocket Context Tests**
+### **5. WebSocket Context Tests**
 ```csharp
 // File: WebSocketContextTests.cs
-- WebSocketHttpContext creation and properties
+- WebSocketHttpContext creation and validation logic
 - Context state management
-- Context extension methods
+- Error handling scenarios
 ```
 
 ## 🔴 High Effort (1-2 days each)
@@ -129,9 +106,9 @@ This document outlines additional testing opportunities to improve code coverage
 
 ## 🎯 Recommended Next Steps
 
-1. **Immediate (this week)**: Add the "Easy" tests above (~2-3 hours total)
-2. **Short-term (next sprint)**: Focus on WebSocketServer core tests 
-3. **Medium-term**: Add frame processing and context tests
+1. **Immediate**: WebSocketServerOptions Tests (~30 minutes)
+2. **Short-term**: WebSocketServer core tests (high priority)
+3. **Medium-term**: Frame processing and context tests
 4. **Long-term**: Integration and performance test suite
 
 ## 📝 Notes

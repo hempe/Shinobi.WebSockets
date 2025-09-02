@@ -118,6 +118,20 @@ namespace Shinobi.WebSockets
         public bool IncludeExceptionInCloseResponse { get; set; }
 
         /// <summary>
+        /// Timeout for keep-alive HTTP connections. If a client doesn't send a request
+        /// within this timespan, the connection will be closed.
+        /// The default is 30 seconds. Set to TimeSpan.Zero to disable timeout.
+        /// </summary>
+        public TimeSpan KeepAliveTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>
+        /// Maximum number of concurrent HTTP keep-alive connections allowed.
+        /// When this limit is reached, new connections will be rejected with a 503 status.
+        /// The default is 1000. Set to 0 for unlimited connections.
+        /// </summary>
+        public int MaxKeepAliveConnections { get; set; } = 1000;
+
+        /// <summary>
         /// Specifies the supported sub protocols for WebSocket handshake negotiation.
         /// The server will intersect this list with the client's requested protocols
         /// and select the first matching protocol from the client's preference order.
@@ -184,6 +198,8 @@ namespace Shinobi.WebSockets
             this.Port = 8080;
             this.KeepAliveInterval = TimeSpan.FromSeconds(30);
             this.IncludeExceptionInCloseResponse = false;
+            this.KeepAliveTimeout = TimeSpan.FromSeconds(30);
+            this.MaxKeepAliveConnections = 1000;
             this.SupportedSubProtocols = null;
         }
     }

@@ -13,6 +13,8 @@ namespace WebSockets.DemoServer
 {
     internal static class Program
     {
+        private const string DEMO_TOKEN = "demo-token-12345";
+        
         private static async Task Main(string[] args)
         {
             var loggerFactory = LoggerFactory.Create(builder => builder
@@ -31,6 +33,7 @@ namespace WebSockets.DemoServer
             try
             {
                 var assembly = Assembly.GetExecutingAssembly();
+                
                 // Create the WebSocket server with multiple features
                 var server = WebSocketServerBuilder.Create()
 #if NET8_0_OR_GREATER
@@ -46,8 +49,12 @@ namespace WebSockets.DemoServer
                     .UseCors("*")                // Allow all origins
                     .OnConnect(async (webSocket, next, cancellationToken) =>
                     {
-                        logger.LogInformation("New client connected: {ConnectionId}", webSocket.Context.Guid);
-                        await webSocket.SendTextAsync("Welcome to the WebSocket Demo Server!", cancellationToken);
+                        // Authentication is now handled in OnHandshake - this only runs for authenticated connections
+                        var authMethod = !string.IsNullOrEmpty(webSocket.SubProtocol) && webSocket.SubProtocol.StartsWith("Authorization:") 
+                            ? "Authorization subprotocol" 
+                            : "Authorization header";
+                            
+                        logger.LogInformation("New client connected: {ConnectionId} (auth: {AuthMethod})", webSocket.Context.Guid, authMethod);
                         await webSocket.SendTextAsync("Welcome to the WebSocket Demo Server!", cancellationToken);
                         await webSocket.SendTextAsync("Available commands:", cancellationToken);
                         await webSocket.SendTextAsync("- time: Get server time", cancellationToken);
@@ -85,20 +92,73 @@ namespace WebSockets.DemoServer
                     .OnBinaryMessage((webSocket, bytes, cancellationToken) =>
                         webSocket.SendBinaryAsync(bytes, cancellationToken)
                     )
-                    .OnHandshake((context, next, cancellationToken) =>
+                    .OnHandshake(async (context, next, cancellationToken) =>
                     {
                         // This is not a hardened web server, but for testing this seem fine:
                         if (!context.IsWebSocketRequest)
                         {
                             if (context.Path == "/")
-                                return new ValueTask<HttpResponse>(context.HttpRequest.CreateEmbeddedResourceResponse(assembly, "Shinobi.WebSockets.DemoServer.Client.html"));
+                                return context.HttpRequest.CreateEmbeddedResourceResponse(assembly, "Shinobi.WebSockets.DemoServer.Client.html");
 
                             if (context.Path == "/favicon.ico")
-                                return new ValueTask<HttpResponse>(context.HttpRequest.CreateEmbeddedResourceResponse(assembly, "Shinobi.WebSockets.DemoServer.favicon.ico"));
+                                return context.HttpRequest.CreateEmbeddedResourceResponse(assembly, "Shinobi.WebSockets.DemoServer.favicon.ico");
+                        }
+
+                        // Handle authentication during handshake
+                        var isAuthenticated = false;
+                        string? selectedProtocol = null;
+                        
+                        // Check Authorization header (C# clients)
+                        var authHeader = context.HttpRequest?.GetHeaderValue("Authorization");
+                        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var token = authHeader.Substring("Bearer ".Length);
+                            if (ValidateToken(token))
+                            {
+                                isAuthenticated = true;
+                                logger.LogInformation("Valid Authorization header provided: {ConnectionId}", context.Guid);
+                            }
+                        }
+                        
+                        // Check Authorization:[Token] subprotocol (JS clients)
+                        if (!isAuthenticated)
+                        {
+                            var requestedProtocols = context.WebSocketRequestedProtocols;
+                            foreach (var protocol in requestedProtocols)
+                            {
+                                if (protocol.StartsWith("Authorization:", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var token = protocol.Substring("Authorization:".Length);
+                                    if (ValidateToken(token))
+                                    {
+                                        selectedProtocol = protocol;
+                                        isAuthenticated = true;
+                                        logger.LogInformation("Valid Authorization subprotocol provided: {ConnectionId}", context.Guid);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (!isAuthenticated)
+                        {
+                            logger.LogWarning("Unauthorized handshake attempt: {ConnectionId}", context.Guid);
+                            return HttpResponse.Create(401)
+                                .AddHeader("Connection", "close")
+                                .AddHeader("Content-Type", "text/plain")
+                                .WithBody("Authentication required. Use Authorization header or 'Authorization:[token]' subprotocol");
                         }
 
                         logger.LogInformation("Path: {Path}", context.Path);
-                        return next(context, cancellationToken);
+                        var response = await next(context, cancellationToken);
+                        
+                        // Add the selected Authorization protocol to response
+                        if (!string.IsNullOrEmpty(selectedProtocol))
+                        {
+                            response = response.AddHeader("Sec-WebSocket-Protocol", selectedProtocol);
+                        }
+                        
+                        return response;
                     })
                     .Build();
 
@@ -132,6 +192,28 @@ namespace WebSockets.DemoServer
             {
                 loggerFactory.Dispose();
             }
+        }
+
+        private static bool ValidateToken(string token)
+        {
+            // Demo validation - in real apps, validate JWT, check database, etc.
+            if (string.IsNullOrEmpty(token))
+                return false;
+
+            // For demo: accept the hardcoded token or validate JWT-like structure
+            if (token == DEMO_TOKEN)
+                return true;
+
+            // Example: Basic JWT-like validation (check format)
+            var parts = token.Split('.');
+            if (parts.Length == 3)
+            {
+                // Could decode and validate JWT claims here
+                // For demo, just check if it looks like a JWT
+                return parts[0].Length > 0 && parts[1].Length > 0 && parts[2].Length > 0;
+            }
+
+            return false;
         }
     }
 }

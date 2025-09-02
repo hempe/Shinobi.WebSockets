@@ -79,6 +79,26 @@ namespace Shinobi.WebSockets.Builders
         }
 
         /// <summary>
+        /// Sets the timeout for HTTP keep-alive connections
+        /// </summary>
+        /// <param name="timeout">Keep-alive timeout (TimeSpan.Zero to disable)</param>
+        public WebSocketServerBuilder UseKeepAliveTimeout(TimeSpan timeout)
+        {
+            this.configuration.KeepAliveTimeout = timeout;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the maximum number of concurrent HTTP keep-alive connections
+        /// </summary>
+        /// <param name="maxConnections">Maximum connections (0 for unlimited)</param>
+        public WebSocketServerBuilder UseMaxKeepAliveConnections(int maxConnections)
+        {
+            this.configuration.MaxKeepAliveConnections = maxConnections;
+            return this;
+        }
+
+        /// <summary>
         /// Configures whether to include full exception details in close responses
         /// </summary>
         /// <param name="includeException">True to include exception details</param>
