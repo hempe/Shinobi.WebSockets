@@ -118,8 +118,9 @@ namespace Shinobi.WebSockets
         public bool IncludeExceptionInCloseResponse { get; set; } = false;
 
         /// <summary>
-        /// Timeout for keep-alive HTTP connections. If a client doesn't send a request
-        /// within this timespan, the connection will be closed.
+        /// Timeout for detecting idle keep-alive HTTP connections. If a client doesn't start
+        /// sending data (first byte) within this timespan, the connection will be closed.
+        /// Once data starts flowing, the timeout no longer applies to the full request.
         /// The default is 5 seconds. Set to TimeSpan.Zero to disable timeout.
         /// </summary>
         public TimeSpan KeepAliveTimeout { get; set; } = TimeSpan.FromSeconds(5);

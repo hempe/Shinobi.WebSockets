@@ -79,9 +79,9 @@ namespace Shinobi.WebSockets.Builders
         }
 
         /// <summary>
-        /// Sets the timeout for HTTP keep-alive connections
+        /// Sets the timeout for detecting idle HTTP keep-alive connections (first-byte timeout only)
         /// </summary>
-        /// <param name="timeout">Keep-alive timeout (TimeSpan.Zero to disable)</param>
+        /// <param name="timeout">Keep-alive idle detection timeout (TimeSpan.Zero to disable)</param>
         public WebSocketServerBuilder UseKeepAliveTimeout(TimeSpan timeout)
         {
             this.configuration.KeepAliveTimeout = timeout;
