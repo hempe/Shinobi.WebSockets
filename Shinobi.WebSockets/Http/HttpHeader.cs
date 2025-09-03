@@ -135,12 +135,6 @@ namespace Shinobi.WebSockets.Http
                             return new ArraySegment<byte>(resultBytes);
                         }
                     }
-                    catch (OperationCanceledException) when (timeoutSource?.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
-                    {
-                        // First byte timeout occurred - rethrow to indicate idle connection
-                        timeoutSource?.Dispose();
-                        throw;
-                    }
                     catch
                     {
                         timeoutSource?.Dispose();
