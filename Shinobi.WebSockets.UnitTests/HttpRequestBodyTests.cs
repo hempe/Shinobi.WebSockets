@@ -21,7 +21,7 @@ namespace Shinobi.WebSockets.UnitTests
             var requestData = "POST /api/data HTTP/1.1\r\n" +
                             "Host: example.com\r\n" +
                             "Content-Type: application/json\r\n" +
-                            "Content-Length: 26\r\n" +
+                            "Content-Length: 24\r\n" +
                             "\r\n" +
                             "{\"name\":\"test\",\"id\":123}";
 
@@ -35,7 +35,7 @@ namespace Shinobi.WebSockets.UnitTests
             Assert.Equal("POST", request.Method);
             Assert.Equal("/api/data", request.Path);
             Assert.Equal("application/json", request.GetHeaderValue("Content-Type"));
-            Assert.Equal("26", request.GetHeaderValue("Content-Length"));
+            Assert.Equal("24", request.GetHeaderValue("Content-Length"));
             
             Assert.NotNull(request.Body);
             using var bodyReader = new StreamReader(request.Body);
@@ -104,7 +104,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task ReadAsync_RequestWithPartialBody_ShouldReadAvailableDataAsync()
+        public async Task ReadAsync_RequestWithPartialBody_ShouldThrowAsync()
         {
             // Arrange - Content-Length says 50 but we only provide 20 characters
             var requestData = "POST /api/data HTTP/1.1\r\n" +
@@ -115,16 +115,8 @@ namespace Shinobi.WebSockets.UnitTests
 
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(requestData));
 
-            // Act
-            var request = await HttpRequest.ReadAsync(stream, CancellationToken.None);
-
-            // Assert
-            Assert.NotNull(request);
-            Assert.NotNull(request.Body);
-            
-            using var bodyReader = new StreamReader(request.Body);
-            var bodyContent = await bodyReader.ReadToEndAsync();
-            Assert.Equal("partial body content", bodyContent); // Should only get what was available
+            // Act & Assert - Should throw EndOfStreamException
+            await Assert.ThrowsAsync<EndOfStreamException>(() => HttpRequest.ReadAsync(stream, CancellationToken.None).AsTask());
         }
 
         #endregion

@@ -38,19 +38,6 @@ namespace Shinobi.WebSockets
         Binary = 1,
     }
 
-    internal class KeepAliveConnection
-    {
-        public Guid Id { get; }
-        public DateTime LastActivity { get; set; }
-        public CancellationTokenSource CancellationTokenSource { get; }
-
-        public KeepAliveConnection(Guid id, CancellationTokenSource cancellationTokenSource)
-        {
-            this.Id = id;
-            this.LastActivity = DateTime.UtcNow;
-            this.CancellationTokenSource = cancellationTokenSource;
-        }
-    }
 
     /// <summary>
     /// A high-level WebSocket server that accepts incoming connections and manages WebSocket communication.
@@ -76,7 +63,7 @@ namespace Shinobi.WebSockets
         private readonly WebSocketErrorHandler OnErrorAsync;
         private readonly WebSocketMessageHandler OnMessageAsync;
         private readonly ConcurrentDictionary<Guid, ShinobiWebSocket> clients = new();
-        private readonly ConcurrentDictionary<Guid, KeepAliveConnection> keepAliveConnections = new();
+        private readonly ConcurrentQueue<(Guid id, CancellationTokenSource cancellationSource)> keepAliveConnections = new();
 
         public IEnumerable<ShinobiWebSocket> Clients => this.clients.Values;
 
@@ -108,15 +95,8 @@ namespace Shinobi.WebSockets
             this.runToken?.Cancel();
             await this.DrainConnectionAsync().ConfigureAwait(false);
 
-            try
-            {
-                this.listener?.Server?.Close();
-                this.listener?.Stop();
-            }
-            catch
-            {
-                // No op
-            }
+            this.Caught(() => this.listener?.Server?.Close(0), "Close server");
+            this.Caught(() => this.listener?.Stop(), "Stop listener");
 
             await task;
             this.clients.Clear();
@@ -281,7 +261,7 @@ namespace Shinobi.WebSockets
             {
                 using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(source.Token);
                 timeoutSource.CancelAfter(this.options.KeepAliveTimeout);
-                
+
                 try
                 {
                     return await HttpRequest.ReadAsync(stream, timeoutSource.Token).ConfigureAwait(false);
@@ -302,17 +282,16 @@ namespace Shinobi.WebSockets
 
         private void EvictOldestKeepAliveConnection()
         {
-            if (this.keepAliveConnections.IsEmpty)
-                return;
-
-            var oldest = this.keepAliveConnections.Values
-                .OrderBy(c => c.LastActivity)
-                .FirstOrDefault();
-
-            if (oldest != null && this.keepAliveConnections.TryRemove(oldest.Id, out _))
+            while (this.keepAliveConnections.TryDequeue(out var oldest))
             {
-                oldest.CancellationTokenSource.Cancel();
-                this.logger?.LogDebug($"Evicted oldest keep-alive connection {oldest.Id}");
+                if (!oldest.cancellationSource.Token.IsCancellationRequested)
+                {
+                    // Found an active connection to evict
+                    oldest.cancellationSource.Cancel();
+                    this.logger?.LogDebug($"Evicted oldest keep-alive connection {oldest.id}");
+                    return;
+                }
+                // Connection was already canceled, continue to next one
             }
         }
 
@@ -327,21 +306,20 @@ namespace Shinobi.WebSockets
                 this.EvictOldestKeepAliveConnection();
             }
 
-            var connection = new KeepAliveConnection(connectionId, source);
-            return this.keepAliveConnections.TryAdd(connectionId, connection);
+            this.keepAliveConnections.Enqueue((connectionId, source));
+            return true;
         }
 
         private void UpdateKeepAliveActivity(Guid connectionId)
         {
-            if (this.keepAliveConnections.TryGetValue(connectionId, out var connection))
-            {
-                connection.LastActivity = DateTime.UtcNow;
-            }
+            // With FIFO queue approach, we don't need to update activity timestamps
+            // The connection order in the queue determines eviction order
         }
 
         private void UnregisterKeepAliveConnection(Guid connectionId)
         {
-            this.keepAliveConnections.TryRemove(connectionId, out _);
+            // With queue-based approach, connections are naturally cleaned up when canceled
+            // No explicit removal needed - eviction will skip already-canceled connections
         }
 
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)
@@ -349,7 +327,7 @@ namespace Shinobi.WebSockets
             var keepAlive = true;
             var connectionId = Guid.NewGuid();
             var isKeepAliveRegistered = false;
-            
+
             using (tcpClient)
             using (var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
@@ -362,18 +340,13 @@ namespace Shinobi.WebSockets
                     while (keepAlive)
                     {
                         this.ThrowIfDisposed();
-                        
+
                         var httpRequest = await this.ReadHttpRequestWithTimeoutAsync(stream, isKeepAliveRegistered, source).ConfigureAwait(false);
                         if (httpRequest is null)
-                        {
-                            var response = HttpResponse.Create(400).AddHeader("Content-Type", "text/plain");
-                            await response.WriteToStreamAsync(stream, source.Token).ConfigureAwait(false);
-                            stream.Close();
                             return;
-                        }
 
                         keepAlive = httpRequest.GetHeaderValue("Connection") == "keep-alive";
-                        
+
                         // Register as keep-alive connection if needed
                         if (keepAlive && !isKeepAliveRegistered)
                         {
@@ -389,7 +362,7 @@ namespace Shinobi.WebSockets
                         this.logger?.AcceptWebSocketStarted(guid);
                         context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid, this.loggerFactory);
                         var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
-                        
+
                         if (handshakeResponse.StatusCode == 101)
                         {
                             // WebSocket upgrade - no longer a keep-alive HTTP connection
@@ -399,7 +372,7 @@ namespace Shinobi.WebSockets
                                 this.UnregisterKeepAliveConnection(connectionId);
                                 isKeepAliveRegistered = false;
                             }
-                            
+
                             ShinobiWebSocket? webSocket = null;
                             try
                             {
@@ -463,6 +436,14 @@ namespace Shinobi.WebSockets
                             {
                                 handshakeResponse = handshakeResponse.AddHeaderIf(!handshakeResponse.HasHeader("Connection"), "Connection", keepAlive ? "keep-alive" : "close");
                                 keepAlive = handshakeResponse.GetHeaderValue("Connection") == "keep-alive";
+
+                                // Add Keep-Alive header with timeout when keep-alive is enabled
+                                if (keepAlive && this.options.KeepAliveTimeout > TimeSpan.Zero)
+                                {
+                                    var timeoutSeconds = (int)this.options.KeepAliveTimeout.TotalSeconds;
+                                    handshakeResponse = handshakeResponse.AddHeaderIf(!handshakeResponse.HasHeader("Keep-Alive"), "Keep-Alive", $"timeout={timeoutSeconds}");
+                                }
+
                                 await handshakeResponse.WriteToStreamAsync(context.Stream, source.Token).ConfigureAwait(false);
                             }
                             else

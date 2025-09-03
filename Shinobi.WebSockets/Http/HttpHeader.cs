@@ -76,117 +76,53 @@ namespace Shinobi.WebSockets.Http
         /// <param name="stream">The stream to read UTF8 text from</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Raw header bytes as ArraySegment</returns>
-        internal static async ValueTask<ArraySegment<byte>> ReadHttpHeaderDataAsync(Stream stream, CancellationToken cancellationToken)
+        internal static async Task<ArraySegment<byte>> ReadHttpHeaderDataAsync(Stream stream, CancellationToken cancellationToken)
         {
             const int MaxHeaderSize = 16 * 1024;
-            const int InitialChunkSize = 1024;
 
             var headerBytes = Shared.Rent(MaxHeaderSize);
-            var buffer = Shared.Rent(InitialChunkSize);
+            var singleByteBuffer = new byte[1];
 
             int totalHeaderBytes = 0;
             int sequenceIndex = 0;
 
             try
             {
-#if NET8_0_OR_GREATER
-                var headerMemory = headerBytes.AsMemory(0, MaxHeaderSize);
-                var bufferMemory = buffer.AsMemory(0, InitialChunkSize);
-#endif
-
-                // Phase 1: Chunked reads (until close to limit)
-                while (MaxHeaderSize - totalHeaderBytes >= InitialChunkSize)
+                // Read byte-by-byte to avoid over-reading into body
+                while (totalHeaderBytes < MaxHeaderSize)
                 {
 #if NET8_0_OR_GREATER
-                    int bytesRead = await stream.ReadAsync(bufferMemory.Slice(0, Math.Min(InitialChunkSize, MaxHeaderSize - totalHeaderBytes)), cancellationToken).ConfigureAwait(false);
+                    int bytesRead = await stream.ReadAsync(singleByteBuffer.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
 #else
-                    int bytesRead = await stream.ReadAsync(buffer, 0, Math.Min(InitialChunkSize, MaxHeaderSize - totalHeaderBytes), cancellationToken).ConfigureAwait(false);
+                    int bytesRead = await stream.ReadAsync(singleByteBuffer, 0, 1, cancellationToken).ConfigureAwait(false);
 #endif
                     if (bytesRead == 0)
                         return new ArraySegment<byte>();
 
-                    // Check for end sequence more efficiently
-                    for (int i = 0; i < bytesRead; i++)
+                    byte currentByte = singleByteBuffer[0];
+                    headerBytes[totalHeaderBytes++] = currentByte;
+
+                    sequenceIndex = currentByte switch
                     {
-                        byte currentByte = buffer[i];
-                        headerBytes[totalHeaderBytes++] = currentByte;
+                        (byte)'\r' when sequenceIndex == 0 || sequenceIndex == 2 => sequenceIndex + 1,
+                        (byte)'\r' => 1,
+                        (byte)'\n' when sequenceIndex == 1 => 2,
+                        (byte)'\n' when sequenceIndex == 3 => 4,
+                        _ => 0
+                    };
 
-                        // State machine for \r\n\r\n detection
-                        sequenceIndex = currentByte switch
-                        {
-                            (byte)'\r' when sequenceIndex == 0 || sequenceIndex == 2 => sequenceIndex + 1,
-                            (byte)'\r' => 1,
-                            (byte)'\n' when sequenceIndex == 1 => 2,
-                            (byte)'\n' when sequenceIndex == 3 => 4, // Found complete sequence
-                            _ => 0
-                        };
-
-                        if (sequenceIndex == 4)
-                        {
-#if NET8_0_OR_GREATER
-                            // For .NET 9+, we'll return the bytes and let the caller handle the span
-                            var resultBytes = new byte[totalHeaderBytes];
-                            Array.Copy(headerBytes, resultBytes, totalHeaderBytes);
-                            return new ArraySegment<byte>(resultBytes);
-#else
-                            return new ArraySegment<byte>(headerBytes, 0, totalHeaderBytes);
-#endif
-                        }
+                    if (sequenceIndex == 4)
+                    {
+                        var resultBytes = new byte[totalHeaderBytes];
+                        Array.Copy(headerBytes, resultBytes, totalHeaderBytes);
+                        return new ArraySegment<byte>(resultBytes);
                     }
                 }
 
-                // Phase 2: 1-byte reads (avoids overread near 16KB limit)
-                var singleByteBuffer = Shared.Rent(1);
-                try
-                {
-                    while (totalHeaderBytes < MaxHeaderSize)
-                    {
-#if NET8_0_OR_GREATER
-                        int bytesRead = await stream.ReadAsync(singleByteBuffer.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
-#else
-                        int bytesRead = await stream.ReadAsync(singleByteBuffer, 0, 1, cancellationToken).ConfigureAwait(false);
-#endif
-                        if (bytesRead == 0)
-                            return new ArraySegment<byte>();
-
-                        byte currentByte = singleByteBuffer[0];
-                        headerBytes[totalHeaderBytes++] = currentByte;
-
-                        sequenceIndex = currentByte switch
-                        {
-                            (byte)'\r' when sequenceIndex == 0 || sequenceIndex == 2 => sequenceIndex + 1,
-                            (byte)'\r' => 1,
-                            (byte)'\n' when sequenceIndex == 1 => 2,
-                            (byte)'\n' when sequenceIndex == 3 => 4,
-                            _ => 0
-                        };
-
-                        if (sequenceIndex == 4)
-                        {
-#if NET8_0_OR_GREATER
-                            var resultBytes = new byte[totalHeaderBytes];
-                            Array.Copy(headerBytes, resultBytes, totalHeaderBytes);
-                            return new ArraySegment<byte>(resultBytes);
-#else
-                            return new ArraySegment<byte>(headerBytes, 0, totalHeaderBytes);
-#endif
-                        }
-                    }
-
-                    throw new HttpHeaderTooLargeException(totalHeaderBytes, MaxHeaderSize);
-                }
-                finally
-                {
-                    Shared.Return(singleByteBuffer);
-                }
+                throw new HttpHeaderTooLargeException(totalHeaderBytes, MaxHeaderSize);
             }
             finally
             {
-                Shared.Return(buffer);
-#if !NET8_0_OR_GREATER
-                // Only return the rented array for pre-.NET 9, since we're copying for .NET 9+
-                if (totalHeaderBytes == 0) // Only return if we didn't use it in the result
-#endif
                 Shared.Return(headerBytes);
             }
         }

@@ -209,7 +209,7 @@ Shinobi.WebSockets supports HTTP keep-alive connections for better performance w
 
 ```csharp
 var server = WebSocketServerBuilder.Create()
-    .UseKeepAliveTimeout(TimeSpan.FromSeconds(30))  // Close idle connections after 30s
+    .UseKeepAliveTimeout(TimeSpan.FromSeconds(5))   // Close idle connections after 5s
     .UseMaxKeepAliveConnections(100)                // Limit to 100 concurrent keep-alive connections
     .OnHandshake(async (context, next, cancellationToken) =>
     {
@@ -228,7 +228,7 @@ var server = WebSocketServerBuilder.Create()
 
 ### Configuration Options
 
-- `KeepAliveTimeout` (default: 30 seconds) - Time before idle connections are closed
+- `KeepAliveTimeout` (default: 5 seconds) - Time before idle connections are closed
 - `MaxKeepAliveConnections` (default: 1000) - Maximum concurrent keep-alive connections
 - Set `KeepAliveTimeout` to `TimeSpan.Zero` to disable timeout
 - Set `MaxKeepAliveConnections` to `0` for unlimited connections
