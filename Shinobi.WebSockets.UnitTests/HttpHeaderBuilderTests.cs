@@ -20,13 +20,19 @@ namespace Shinobi.WebSockets.UnitTests
                 .Build();
 
             // Assert
-            var expected = "HTTP/1.1 200 OK\r\n" +
-                          "Content-Type: application/json\r\n" +
-                          "Cache-Control: no-cache\r\n" +
-                          "Server: TestServer/1.0\r\n" +
-                          "\r\n";
-
-            Assert.Equal(expected, response);
+            var lines = response.Split(new[] { "\r\n" }, StringSplitOptions.None);
+            Assert.Equal("HTTP/1.1 200 OK", lines[0]);
+            
+            // Check that Date header is present (could be in any position)
+            Assert.Contains(lines, line => line.StartsWith("Date:"));
+            
+            // Check all expected headers are present
+            Assert.Contains("Content-Type: application/json", lines);
+            Assert.Contains("Cache-Control: no-cache", lines);
+            Assert.Contains("Server: TestServer/1.0", lines);
+            
+            // Last line should be empty (end of headers)
+            Assert.Equal("", lines[lines.Length - 1]);
         }
 
         [Fact]
@@ -104,16 +110,22 @@ namespace Shinobi.WebSockets.UnitTests
                 .Build();
 
             // Assert
-            var expected = "HTTP/1.1 101 Switching Protocols\r\n" +
-                          "Upgrade: websocket\r\n" +
-                          "Connection: Upgrade\r\n" +
-                          "Sec-WebSocket-Accept: HSmrc0sMlYUkAGmm5OPpG2HaGWk=\r\n" +
-                          "Sec-WebSocket-Protocol: chat\r\n" +
-                          "Sec-WebSocket-Extensions: permessage-deflate; server_max_window_bits=10\r\n" +
-                          "Server: TestServer/1.0\r\n" +
-                          "\r\n";
-
-            Assert.Equal(expected, response);
+            var lines = response.Split(new[] { "\r\n" }, StringSplitOptions.None);
+            Assert.Equal("HTTP/1.1 101 Switching Protocols", lines[0]);
+            
+            // Check that Date header is present (could be in any position)
+            Assert.Contains(lines, line => line.StartsWith("Date:"));
+            
+            // Check all expected headers are present
+            Assert.Contains("Upgrade: websocket", lines);
+            Assert.Contains("Connection: Upgrade", lines);
+            Assert.Contains("Sec-WebSocket-Accept: HSmrc0sMlYUkAGmm5OPpG2HaGWk=", lines);
+            Assert.Contains("Sec-WebSocket-Protocol: chat", lines);
+            Assert.Contains("Sec-WebSocket-Extensions: permessage-deflate; server_max_window_bits=10", lines);
+            Assert.Contains("Server: TestServer/1.0", lines);
+            
+            // Last line should be empty (end of headers)
+            Assert.Equal("", lines[lines.Length - 1]);
         }
 
         [Fact]

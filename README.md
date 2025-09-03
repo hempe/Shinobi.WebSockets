@@ -28,6 +28,7 @@ Shinobi.WebSockets lets you build WebSocket servers with a fluent builder API, o
 - SSL/TLS support (including ASP.NET Core dev certs)
 - CORS support
 - Authentication hooks
+- HTTP keep-alive support with timeout and connection limits
 - Connection, message, and error event interceptors
 - Built-in logging integration with `Microsoft.Extensions.Logging`
 - `CancellationToken` and `ValueTask` support
@@ -96,6 +97,141 @@ You can also add it directly to your project file:
 ```
 
 Note: Replace "1.0.0" with the latest version number available on NuGet.
+
+---
+
+## Authentication
+
+Shinobi.WebSockets supports two authentication approaches to work with both C# and JavaScript clients:
+
+### Authorization Headers (C# Clients)
+
+C# clients can use standard HTTP Authorization headers:
+
+```csharp
+var client = WebSocketClientBuilder.Create()
+    .AddHeader("Authorization", "Bearer your-token-here")
+    .Build();
+```
+
+### Authorization Subprotocols (JavaScript Clients)
+
+JavaScript clients cannot set custom headers, so use the `Authorization:[Token]` subprotocol pattern:
+
+```javascript
+// JavaScript WebSocket with auth subprotocol
+const ws = new WebSocket('wss://localhost:8080', ['Authorization:your-jwt-token-here']);
+```
+
+### Server-Side Authentication
+
+Configure the server to validate tokens from both headers and subprotocols:
+
+```csharp
+var server = WebSocketServerBuilder.Create()
+    .OnHandshake(async (context, next, cancellationToken) =>
+    {
+        var isAuthenticated = false;
+        string? selectedProtocol = null;
+        
+        // Check Authorization header (C# clients)
+        var authHeader = context.HttpRequest?.GetHeaderValue("Authorization");
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+        {
+            var token = authHeader.Substring("Bearer ".Length);
+            if (await ValidateTokenAsync(token))
+            {
+                isAuthenticated = true;
+            }
+        }
+        
+        // Check Authorization:[Token] subprotocol (JS clients)
+        if (!isAuthenticated)
+        {
+            foreach (var protocol in context.WebSocketRequestedProtocols)
+            {
+                if (protocol.StartsWith("Authorization:"))
+                {
+                    var token = protocol.Substring("Authorization:".Length);
+                    if (await ValidateTokenAsync(token))
+                    {
+                        selectedProtocol = protocol;
+                        isAuthenticated = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!isAuthenticated)
+        {
+            return HttpResponse.Create(401)
+                .AddHeader("Connection", "close")
+                .WithBody("Authentication required");
+        }
+        
+        var response = await next(context, cancellationToken);
+        
+        // Echo back the selected Authorization subprotocol
+        if (!string.IsNullOrEmpty(selectedProtocol))
+        {
+            response = response.AddHeader("Sec-WebSocket-Protocol", selectedProtocol);
+        }
+        
+        return response;
+    })
+    .Build();
+
+// Example token validation
+private static async Task<bool> ValidateTokenAsync(string token)
+{
+    // Validate JWT, check database, verify claims, etc.
+    // For demo: accept hardcoded token or JWT format
+    if (token == "demo-token-12345") return true;
+    
+    // Example JWT validation
+    var parts = token.Split('.');
+    if (parts.Length == 3)
+    {
+        // Could decode and validate JWT claims, expiration, signature
+        return true; // Simplified for demo
+    }
+    
+    return false;
+}
+```
+
+---
+
+## HTTP Keep-Alive Configuration
+
+Shinobi.WebSockets supports HTTP keep-alive connections for better performance when clients make multiple HTTP requests before upgrading to WebSocket. You can configure timeout and connection limits to prevent resource exhaustion:
+
+```csharp
+var server = WebSocketServerBuilder.Create()
+    .UseKeepAliveTimeout(TimeSpan.FromSeconds(30))  // Close idle connections after 30s
+    .UseMaxKeepAliveConnections(100)                // Limit to 100 concurrent keep-alive connections
+    .OnHandshake(async (context, next, cancellationToken) =>
+    {
+        // Your handshake logic
+        return await next(context, cancellationToken);
+    })
+    .Build();
+```
+
+### Keep-Alive Security Features
+
+- **Timeout Protection**: Idle keep-alive connections are automatically closed after the configured timeout
+- **Connection Limits**: When the limit is reached, the oldest idle connection is evicted (LRU)
+- **WebSocket Transition**: Once a connection upgrades to WebSocket, it's no longer counted as keep-alive
+- **Resource Management**: Proper cleanup ensures connection counters remain accurate
+
+### Configuration Options
+
+- `KeepAliveTimeout` (default: 30 seconds) - Time before idle connections are closed
+- `MaxKeepAliveConnections` (default: 1000) - Maximum concurrent keep-alive connections
+- Set `KeepAliveTimeout` to `TimeSpan.Zero` to disable timeout
+- Set `MaxKeepAliveConnections` to `0` for unlimited connections
 
 ---
 

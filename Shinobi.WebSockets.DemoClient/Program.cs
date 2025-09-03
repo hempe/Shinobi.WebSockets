@@ -228,11 +228,13 @@ namespace Shinobi.WebSockets.DemoClient
                     .SetMinimumLevel(LogLevel.Information)
                     .AddConsole());
 
+                const string DEMO_TOKEN = "demo-token-12345";
                 WriteInfo($"Connecting to {url}...");
 
                 client = WebSocketClientBuilder.Create()
                     .UseLogging(loggerFactory)
                     .UseReliableConnection()
+                    .AddHeader("Authorization", $"Bearer {DEMO_TOKEN}")  // Add auth header
                     .OnConnect(async (ws, next, ct) =>
                     {
                         WriteSuccess("✓ Connected to server!");
@@ -499,11 +501,13 @@ namespace Shinobi.WebSockets.DemoClient
                     .SetMinimumLevel(LogLevel.Debug)
                     .AddConsole());
 
+                const string DEMO_TOKEN = "demo-token-12345";
                 WriteInfo("Creating client with auto-reconnect enabled...");
 
                 client = WebSocketClientBuilder.Create()
                     .UseLogging(loggerFactory)
                     .UseReliableConnection() // This enables auto-reconnect
+                    .AddHeader("Authorization", $"Bearer {DEMO_TOKEN}")  // Add auth header
                     .OnConnect(async (ws, next, ct) =>
                     {
                         WriteSuccess("✓ Connected with auto-reconnect!");
