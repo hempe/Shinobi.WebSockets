@@ -38,11 +38,12 @@ namespace Shinobi.WebSockets.Http
         /// </summary>
         /// <param name="stream">The stream to read UTF8 text from</param>
         /// <param name="cancellationToken">Cancellation token</param>
+        /// <param name="firstByteTimeout">Optional timeout for detecting idle connections (applies only to first byte)</param>
         /// <returns>The HTTP request with body stream if present</returns>
-        public static async ValueTask<HttpRequest?> ReadAsync(Stream stream, CancellationToken cancellationToken)
+        public static async ValueTask<HttpRequest?> ReadAsync(Stream stream, CancellationToken cancellationToken, TimeSpan? firstByteTimeout = null)
         {
             // Read headers without over-reading into the body
-            var headerData = await ReadHttpHeaderDataAsync(stream, cancellationToken).ConfigureAwait(false);
+            var headerData = await ReadHttpHeaderDataAsync(stream, cancellationToken, firstByteTimeout).ConfigureAwait(false);
 
             if (headerData.Count == 0)
                 return null;

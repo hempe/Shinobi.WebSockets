@@ -76,7 +76,7 @@ namespace Shinobi.WebSockets.Http
         /// <param name="stream">The stream to read UTF8 text from</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Raw header bytes as ArraySegment</returns>
-        internal static async Task<ArraySegment<byte>> ReadHttpHeaderDataAsync(Stream stream, CancellationToken cancellationToken)
+        internal static async Task<ArraySegment<byte>> ReadHttpHeaderDataAsync(Stream stream, CancellationToken cancellationToken, TimeSpan? firstByteTimeout = null)
         {
             const int MaxHeaderSize = 16 * 1024;
 
@@ -85,37 +85,66 @@ namespace Shinobi.WebSockets.Http
 
             int totalHeaderBytes = 0;
             int sequenceIndex = 0;
+            bool isFirstByte = true;
 
             try
             {
                 // Read byte-by-byte to avoid over-reading into body
                 while (totalHeaderBytes < MaxHeaderSize)
                 {
+                    CancellationToken tokenToUse = cancellationToken;
+                    CancellationTokenSource? timeoutSource = null;
+
+                    // Apply timeout only to first byte read (idle connection detection)
+                    if (isFirstByte && firstByteTimeout.HasValue && firstByteTimeout.Value > TimeSpan.Zero)
+                    {
+                        timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        timeoutSource.CancelAfter(firstByteTimeout.Value);
+                        tokenToUse = timeoutSource.Token;
+                    }
+
+                    try
+                    {
 #if NET8_0_OR_GREATER
-                    int bytesRead = await stream.ReadAsync(singleByteBuffer.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
+                        int bytesRead = await stream.ReadAsync(singleByteBuffer.AsMemory(0, 1), tokenToUse).ConfigureAwait(false);
 #else
-                    int bytesRead = await stream.ReadAsync(singleByteBuffer, 0, 1, cancellationToken).ConfigureAwait(false);
+                        int bytesRead = await stream.ReadAsync(singleByteBuffer, 0, 1, tokenToUse).ConfigureAwait(false);
 #endif
-                    if (bytesRead == 0)
-                        return new ArraySegment<byte>();
+                        timeoutSource?.Dispose(); // Clean up timeout source after successful read
+                        isFirstByte = false; // After first byte, no more timeout
 
-                    byte currentByte = singleByteBuffer[0];
-                    headerBytes[totalHeaderBytes++] = currentByte;
+                        if (bytesRead == 0)
+                            return new ArraySegment<byte>();
 
-                    sequenceIndex = currentByte switch
+                        byte currentByte = singleByteBuffer[0];
+                        headerBytes[totalHeaderBytes++] = currentByte;
+
+                        sequenceIndex = currentByte switch
+                        {
+                            (byte)'\r' when sequenceIndex == 0 || sequenceIndex == 2 => sequenceIndex + 1,
+                            (byte)'\r' => 1,
+                            (byte)'\n' when sequenceIndex == 1 => 2,
+                            (byte)'\n' when sequenceIndex == 3 => 4,
+                            _ => 0
+                        };
+
+                        if (sequenceIndex == 4)
+                        {
+                            var resultBytes = new byte[totalHeaderBytes];
+                            Array.Copy(headerBytes, resultBytes, totalHeaderBytes);
+                            return new ArraySegment<byte>(resultBytes);
+                        }
+                    }
+                    catch (OperationCanceledException) when (timeoutSource?.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
                     {
-                        (byte)'\r' when sequenceIndex == 0 || sequenceIndex == 2 => sequenceIndex + 1,
-                        (byte)'\r' => 1,
-                        (byte)'\n' when sequenceIndex == 1 => 2,
-                        (byte)'\n' when sequenceIndex == 3 => 4,
-                        _ => 0
-                    };
-
-                    if (sequenceIndex == 4)
+                        // First byte timeout occurred - rethrow to indicate idle connection
+                        timeoutSource?.Dispose();
+                        throw;
+                    }
+                    catch
                     {
-                        var resultBytes = new byte[totalHeaderBytes];
-                        Array.Copy(headerBytes, resultBytes, totalHeaderBytes);
-                        return new ArraySegment<byte>(resultBytes);
+                        timeoutSource?.Dispose();
+                        throw;
                     }
                 }
 

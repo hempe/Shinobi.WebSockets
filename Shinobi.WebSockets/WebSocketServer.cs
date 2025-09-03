@@ -257,69 +257,48 @@ namespace Shinobi.WebSockets
 
         private async Task<HttpRequest?> ReadHttpRequestWithTimeoutAsync(Stream stream, bool isKeepAliveConnection, CancellationTokenSource source)
         {
-            if (isKeepAliveConnection && this.options.KeepAliveTimeout > TimeSpan.Zero)
-            {
-                using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(source.Token);
-                timeoutSource.CancelAfter(this.options.KeepAliveTimeout);
+            var timeout = isKeepAliveConnection && this.options.KeepAliveTimeout > TimeSpan.Zero
+                ? this.options.KeepAliveTimeout
+                : (TimeSpan?)null;
 
-                try
-                {
-                    return await HttpRequest.ReadAsync(stream, timeoutSource.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (timeoutSource.Token.IsCancellationRequested && !source.Token.IsCancellationRequested)
-                {
-                    // Timeout occurred - close the connection
-                    this.logger?.LogDebug("Keep-alive connection timed out");
-                    stream.Close();
-                    return null;
-                }
-            }
-            else
+            try
             {
-                return await HttpRequest.ReadAsync(stream, source.Token).ConfigureAwait(false);
+                return await HttpRequest.ReadAsync(stream, source.Token, timeout).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (timeout.HasValue && !source.Token.IsCancellationRequested)
+            {
+                // First byte timeout occurred (idle connection) - close the connection
+                this.logger?.KeepAliveConnectionTimedOut();
+                stream.Close();
+                return null;
             }
         }
 
-        private void EvictOldestKeepAliveConnection()
-        {
-            while (this.keepAliveConnections.TryDequeue(out var oldest))
-            {
-                if (!oldest.cancellationSource.Token.IsCancellationRequested)
-                {
-                    // Found an active connection to evict
-                    oldest.cancellationSource.Cancel();
-                    this.logger?.LogDebug($"Evicted oldest keep-alive connection {oldest.id}");
-                    return;
-                }
-                // Connection was already canceled, continue to next one
-            }
-        }
 
-        private bool TryRegisterKeepAliveConnection(Guid connectionId, CancellationTokenSource source)
+        private void ManageKeepAliveConnectionLimit(Guid connectionId, CancellationTokenSource source)
         {
             if (this.options.MaxKeepAliveConnections <= 0)
-                return true;
+                return;
 
-            // If we're at the limit, evict the oldest connection
-            while (this.keepAliveConnections.Count >= this.options.MaxKeepAliveConnections)
+            while (this.keepAliveConnections.Count >= this.options.MaxKeepAliveConnections
+                && this.keepAliveConnections.TryDequeue(out var oldest))
             {
-                this.EvictOldestKeepAliveConnection();
+                if (!oldest.cancellationSource.IsCancellationRequested)
+                {
+                    try
+                    {
+                        // Found an active connection to evict
+                        oldest.cancellationSource.Cancel();
+                        this.logger?.EvictedOldestKeepAliveConnection(oldest.id);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // CancellationTokenSource was already disposed, skip it
+                    }
+                }
             }
 
             this.keepAliveConnections.Enqueue((connectionId, source));
-            return true;
-        }
-
-        private void UpdateKeepAliveActivity(Guid connectionId)
-        {
-            // With FIFO queue approach, we don't need to update activity timestamps
-            // The connection order in the queue determines eviction order
-        }
-
-        private void UnregisterKeepAliveConnection(Guid connectionId)
-        {
-            // With queue-based approach, connections are naturally cleaned up when canceled
-            // No explicit removal needed - eviction will skip already-canceled connections
         }
 
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken cancellationToken)
@@ -350,12 +329,8 @@ namespace Shinobi.WebSockets
                         // Register as keep-alive connection if needed
                         if (keepAlive && !isKeepAliveRegistered)
                         {
-                            this.TryRegisterKeepAliveConnection(connectionId, source);
+                            this.ManageKeepAliveConnectionLimit(connectionId, source);
                             isKeepAliveRegistered = true;
-                        }
-                        else if (isKeepAliveRegistered)
-                        {
-                            this.UpdateKeepAliveActivity(connectionId);
                         }
 
                         var guid = Guid.NewGuid();
@@ -367,12 +342,6 @@ namespace Shinobi.WebSockets
                         {
                             // WebSocket upgrade - no longer a keep-alive HTTP connection
                             keepAlive = false;
-                            if (isKeepAliveRegistered)
-                            {
-                                this.UnregisterKeepAliveConnection(connectionId);
-                                isKeepAliveRegistered = false;
-                            }
-
                             ShinobiWebSocket? webSocket = null;
                             try
                             {
@@ -482,9 +451,6 @@ namespace Shinobi.WebSockets
 
                     if (context is not null)
                         this.clients.TryRemove(context.Guid, out _);
-
-                    if (isKeepAliveRegistered)
-                        this.UnregisterKeepAliveConnection(connectionId);
 
                     if (!source.IsCancellationRequested)
                         source.Cancel();
