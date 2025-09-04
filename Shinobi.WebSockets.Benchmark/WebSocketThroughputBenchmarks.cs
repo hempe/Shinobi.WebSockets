@@ -90,7 +90,7 @@ public class WebSocketThroughputBenchmarks
                         var stream = tcpClient.GetStream();
                         using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-                        var httpRequest = await HttpRequest.ReadAsync(stream, connectCts.Token);
+                        using var httpRequest = await HttpRequest.ReadAsync(stream, connectCts.Token);
                         if (httpRequest == null)
                             continue;
                         var context = new WebSocketHttpContext(tcpClient, httpRequest, stream, Guid.NewGuid());

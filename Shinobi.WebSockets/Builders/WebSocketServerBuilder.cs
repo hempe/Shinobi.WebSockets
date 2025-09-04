@@ -15,16 +15,16 @@ namespace Shinobi.WebSockets.Builders
 
     public class WebSocketServerBuilder
     {
-        private readonly List<AcceptStreamInterceptor> onAcceptStream = new List<AcceptStreamInterceptor>();
-        private readonly List<CertificateSelectionInterceptor> onSelectionCertificate = new List<CertificateSelectionInterceptor>();
-        private readonly List<HandshakeInterceptor> onHandshake = new List<HandshakeInterceptor>();
-        private readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();
-        private readonly List<WebSocketConnectInterceptor> onConnected = new List<WebSocketConnectInterceptor>();
-        private readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
-        private readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
-        private readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
+        private readonly List<AcceptStreamInterceptor> onAcceptStream = new();
+        private readonly List<CertificateSelectionInterceptor> onSelectionCertificate = new();
+        private readonly List<HandshakeInterceptor> onHandshake = new();
+        private readonly List<WebSocketConnectInterceptor> onConnect = new();
+        private readonly List<WebSocketConnectInterceptor> onConnected = new();
+        private readonly List<WebSocketCloseInterceptor> onClose = new();
+        private readonly List<WebSocketErrorInterceptor> onError = new();
+        private readonly List<WebSocketMessageInterceptor> onMessage = new();
         private ILoggerFactory? loggerFactory;
-        private WebSocketServerOptions configuration = new WebSocketServerOptions();
+        private WebSocketServerOptions configuration = new();
 
         /// <summary>
         /// Sets the port for the WebSocket server
@@ -79,9 +79,9 @@ namespace Shinobi.WebSockets.Builders
         }
 
         /// <summary>
-        /// Sets the timeout for HTTP keep-alive connections
+        /// Sets the timeout for detecting idle HTTP keep-alive connections (first-byte timeout only)
         /// </summary>
-        /// <param name="timeout">Keep-alive timeout (TimeSpan.Zero to disable)</param>
+        /// <param name="timeout">Keep-alive idle detection timeout (TimeSpan.Zero to disable)</param>
         public WebSocketServerBuilder UseKeepAliveTimeout(TimeSpan timeout)
         {
             this.configuration.KeepAliveTimeout = timeout;

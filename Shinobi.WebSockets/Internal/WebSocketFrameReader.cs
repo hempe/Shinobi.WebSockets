@@ -49,7 +49,7 @@ namespace Shinobi.WebSockets.Internal
         private const byte PayloadLenFlag = 0x7F;
         private const uint MaxLen = 2147483648; // 2GB
 
-        private static readonly HashSet<int> ValidCloseStatusCodes = new HashSet<int>(
+        private static readonly HashSet<int> ValidCloseStatusCodes = new(
             Enum.GetValues(typeof(WebSocketCloseStatus))
                 .Cast<WebSocketCloseStatus>()
                 .Select(v => (int)v)

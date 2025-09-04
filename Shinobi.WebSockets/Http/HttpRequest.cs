@@ -5,48 +5,80 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-#if NET8_0_OR_GREATER
-#else 
+using Shinobi.WebSockets.Exceptions;
 using Shinobi.WebSockets.Extensions;
-#endif
+
+using Shinobi.WebSockets.Internal;
 
 namespace Shinobi.WebSockets.Http
 {
     /// <summary>
     /// Represents an HTTP request with method and path
     /// </summary>
-    public sealed class HttpRequest : HttpHeader
+    public sealed class HttpRequest : HttpHeader, IDisposable
     {
         public readonly string Method;
         public readonly string Path;
 
-        public HttpRequest(string method, string path, IDictionary<string, HashSet<string>> headers)
+        /// <summary>
+        /// The request body stream if present, null otherwise
+        /// </summary>
+        public Stream? Body { get; internal set; }
+
+        public HttpRequest(string method, string path, IDictionary<string, HashSet<string>> headers, Stream? body = null)
             : base(headers)
         {
             this.Method = method;
             this.Path = path;
+            this.Body = body;
         }
 
-
-
         /// <summary>
-        /// Reads an HTTP response from stream
+        /// Reads an HTTP request from stream, including body if Content-Length is specified
         /// </summary>
         /// <param name="stream">The stream to read UTF8 text from</param>
         /// <param name="cancellationToken">Cancellation token</param>
-        /// <returns>The HTTP response</returns>
-        public static async ValueTask<HttpRequest?> ReadAsync(Stream stream, CancellationToken cancellationToken)
+        /// <param name="firstByteTimeout">Optional timeout for detecting idle connections (applies only to first byte)</param>
+        /// <returns>The HTTP request with body stream if present</returns>
+        public static async ValueTask<HttpRequest?> ReadAsync(Stream stream, CancellationToken cancellationToken, TimeSpan? firstByteTimeout = null)
         {
-            var headerData = await ReadHttpHeaderDataAsync(stream, cancellationToken).ConfigureAwait(false);
+            // Read headers without over-reading into the body
+            var headerData = await ReadHttpHeaderDataAsync(stream, cancellationToken, firstByteTimeout).ConfigureAwait(false);
 
             if (headerData.Count == 0)
                 return null;
 
+            // Parse the headers first
 #if NET8_0_OR_GREATER
-            return Parse(headerData);
+            var request = Parse(headerData);
 #else
-            return Parse(Encoding.UTF8.GetString(headerData.Array!, headerData.Offset, headerData.Count));
+            var request = Parse(Encoding.UTF8.GetString(headerData.Array!, headerData.Offset, headerData.Count));
 #endif
+
+            if (request == null)
+                return null;
+
+            // Check for request body based on Content-Length header
+            var contentLengthHeader = request.GetHeaderValue("Content-Length");
+            if (contentLengthHeader != null &&
+                int.TryParse(contentLengthHeader, out var contentLength) &&
+                contentLength > 0)
+            {
+                // Allocate the pooled stream with the expected length
+                var bodyStream = new ArrayPoolStream(contentLength);
+
+                // Read exactly contentLength bytes into bodyStream
+                await stream.ReadAsync(bodyStream, contentLength, cancellationToken).ConfigureAwait(false);
+
+                // Reset position so consumers can read from the beginning
+                bodyStream.Position = 0;
+
+                // Attach to the request; it will be disposed with the request
+                request.Body = bodyStream;
+            }
+
+
+            return request;
         }
 
 
@@ -178,6 +210,20 @@ namespace Shinobi.WebSockets.Http
             }
 
             builder.Append("\r\n");
+
+            // Add body if present
+            if (this.Body != null)
+            {
+                if (this.Body.CanSeek)
+                    this.Body.Position = 0;
+
+                using var reader = new StreamReader(this.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+                builder.Append(reader.ReadToEnd());
+
+                if (this.Body.CanSeek)
+                    this.Body.Position = 0; // Reset position for potential future use
+            }
+
             return builder.ToString();
 #else
             var builder = new StringBuilder();
@@ -195,6 +241,20 @@ namespace Shinobi.WebSockets.Http
             }
 
             builder.Append("\r\n");
+            
+            // Add body if present
+            if (this.Body != null)
+            {
+                if (this.Body.CanSeek)
+                    this.Body.Position = 0;
+                    
+                using var reader = new StreamReader(this.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+                builder.Append(reader.ReadToEnd());
+                
+                if (this.Body.CanSeek)
+                    this.Body.Position = 0; // Reset position for potential future use
+            }
+            
             return builder.ToString();
 #endif
         }
@@ -203,7 +263,14 @@ namespace Shinobi.WebSockets.Http
         /// Create a new HttpRequest builder
         /// </summary>
         public static HttpRequest Create(string method, string path)
-            => new HttpRequest(method, path, new Dictionary<string, HashSet<string>>());
+            => new(method, path, new Dictionary<string, HashSet<string>>());
 
+        /// <summary>
+        /// Disposes the request and its body stream if present
+        /// </summary>
+        public void Dispose()
+        {
+            this.Body?.Dispose();
+        }
     }
 }

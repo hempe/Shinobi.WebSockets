@@ -98,31 +98,32 @@ namespace Shinobi.WebSockets
         /// <summary>
         /// The port number for the WebSocket server (default: 8080)
         /// </summary>
-        public ushort Port { get; set; }
+        public ushort Port { get; set; } = 8080;
 
         // WebSocket Options
         /// <summary>
         /// How often to send ping requests to the Client
-        /// The default is 60 seconds
+        /// The default is 30 seconds
         /// This is done to prevent proxy servers from closing your connection
         /// A timespan of zero will disable the automatic ping pong mechanism
         /// You can manually control ping pong messages using the PingPongManager class.
         /// </summary>
-        public TimeSpan KeepAliveInterval { get; set; }
+        public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
         /// Include the full exception (with stack trace) in the close response 
         /// when an exception is encountered and the WebSocket connection is closed
         /// The default is false
         /// </summary>
-        public bool IncludeExceptionInCloseResponse { get; set; }
+        public bool IncludeExceptionInCloseResponse { get; set; } = false;
 
         /// <summary>
-        /// Timeout for keep-alive HTTP connections. If a client doesn't send a request
-        /// within this timespan, the connection will be closed.
-        /// The default is 30 seconds. Set to TimeSpan.Zero to disable timeout.
+        /// Timeout for detecting idle keep-alive HTTP connections. If a client doesn't start
+        /// sending data (first byte) within this timespan, the connection will be closed.
+        /// Once data starts flowing, the timeout no longer applies to the full request.
+        /// The default is 5 seconds. Set to TimeSpan.Zero to disable timeout.
         /// </summary>
-        public TimeSpan KeepAliveTimeout { get; set; } = TimeSpan.FromSeconds(30);
+        public TimeSpan KeepAliveTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
         /// <summary>
         /// Maximum number of concurrent HTTP keep-alive connections allowed.
@@ -195,12 +196,10 @@ namespace Shinobi.WebSockets
         /// </summary>
         public WebSocketServerOptions()
         {
-            this.Port = 8080;
-            this.KeepAliveInterval = TimeSpan.FromSeconds(30);
-            this.IncludeExceptionInCloseResponse = false;
-            this.KeepAliveTimeout = TimeSpan.FromSeconds(30);
-            this.MaxKeepAliveConnections = 1000;
             this.SupportedSubProtocols = null;
+#if NET8_0_OR_GREATER
+            this.PerMessageDeflate = new PerMessageDeflateOptions();
+#endif
         }
     }
 }

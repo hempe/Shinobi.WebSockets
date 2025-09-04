@@ -176,6 +176,20 @@ namespace Shinobi.WebSockets.Internal
         public static partial void KeepAliveIntervalExpired(
             this ILogger logger, Guid guid, int seconds);
 
+        [LoggerMessage(
+            EventId = 1305,
+            Level = LogLevel.Debug,
+            Message = "Keep-alive connection timed out waiting for data")]
+        public static partial void KeepAliveConnectionTimedOut(
+            this ILogger logger);
+
+        [LoggerMessage(
+            EventId = 1306,
+            Level = LogLevel.Debug,
+            Message = "Evicted oldest keep-alive connection {ConnectionId}")]
+        public static partial void EvictedOldestKeepAliveConnection(
+            this ILogger logger, Guid connectionId);
+
         #endregion
 
         #region Frame Events (2000-2999)

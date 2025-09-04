@@ -14,7 +14,7 @@ namespace WebSockets.DemoServer
     internal static class Program
     {
         private const string DEMO_TOKEN = "demo-token-12345";
-        
+
         private static async Task Main(string[] args)
         {
             var loggerFactory = LoggerFactory.Create(builder => builder
@@ -33,7 +33,7 @@ namespace WebSockets.DemoServer
             try
             {
                 var assembly = Assembly.GetExecutingAssembly();
-                
+
                 // Create the WebSocket server with multiple features
                 var server = WebSocketServerBuilder.Create()
 #if NET8_0_OR_GREATER
@@ -50,10 +50,10 @@ namespace WebSockets.DemoServer
                     .OnConnect(async (webSocket, next, cancellationToken) =>
                     {
                         // Authentication is now handled in OnHandshake - this only runs for authenticated connections
-                        var authMethod = !string.IsNullOrEmpty(webSocket.SubProtocol) && webSocket.SubProtocol.StartsWith("Authorization:") 
-                            ? "Authorization subprotocol" 
+                        var authMethod = !string.IsNullOrEmpty(webSocket.SubProtocol) && webSocket.SubProtocol!.StartsWith("Authorization:")
+                            ? "Authorization subprotocol"
                             : "Authorization header";
-                            
+
                         logger.LogInformation("New client connected: {ConnectionId} (auth: {AuthMethod})", webSocket.Context.Guid, authMethod);
                         await webSocket.SendTextAsync("Welcome to the WebSocket Demo Server!", cancellationToken);
                         await webSocket.SendTextAsync("Available commands:", cancellationToken);
@@ -107,10 +107,10 @@ namespace WebSockets.DemoServer
                         // Handle authentication during handshake
                         var isAuthenticated = false;
                         string? selectedProtocol = null;
-                        
+
                         // Check Authorization header (C# clients)
                         var authHeader = context.HttpRequest?.GetHeaderValue("Authorization");
-                        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                        if (!string.IsNullOrEmpty(authHeader) && authHeader!.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                         {
                             var token = authHeader.Substring("Bearer ".Length);
                             if (ValidateToken(token))
@@ -119,7 +119,7 @@ namespace WebSockets.DemoServer
                                 logger.LogInformation("Valid Authorization header provided: {ConnectionId}", context.Guid);
                             }
                         }
-                        
+
                         // Check Authorization:[Token] subprotocol (JS clients)
                         if (!isAuthenticated)
                         {
@@ -139,7 +139,7 @@ namespace WebSockets.DemoServer
                                 }
                             }
                         }
-                        
+
                         if (!isAuthenticated)
                         {
                             logger.LogWarning("Unauthorized handshake attempt: {ConnectionId}", context.Guid);
@@ -151,13 +151,13 @@ namespace WebSockets.DemoServer
 
                         logger.LogInformation("Path: {Path}", context.Path);
                         var response = await next(context, cancellationToken);
-                        
+
                         // Add the selected Authorization protocol to response
                         if (!string.IsNullOrEmpty(selectedProtocol))
                         {
-                            response = response.AddHeader("Sec-WebSocket-Protocol", selectedProtocol);
+                            response = response.AddHeader("Sec-WebSocket-Protocol", selectedProtocol!);
                         }
-                        
+
                         return response;
                     })
                     .Build();

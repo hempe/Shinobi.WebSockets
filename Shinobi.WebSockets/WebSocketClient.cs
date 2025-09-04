@@ -38,7 +38,7 @@ namespace Shinobi.WebSockets
 
         // Connection state management
         private WebSocketConnectionState connectionState = WebSocketConnectionState.Disconnected;
-        private readonly object stateLock = new object();
+        private readonly object stateLock = new();
 
         /// <summary>
         /// Occurs when the WebSocket connection state changes (e.g., Connected, Disconnected, Reconnecting).

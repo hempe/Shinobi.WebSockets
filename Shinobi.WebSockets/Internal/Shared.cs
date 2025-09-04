@@ -20,7 +20,7 @@ namespace Shinobi.WebSockets.Internal
         }
 
         public static byte[] Rent(int size) => Pool.Rent(size);
-        public static ArraySegment<byte> RentArraySegment(int size) => new ArraySegment<byte>(Pool.Rent(size), 0, size);
+        public static ArraySegment<byte> RentArraySegment(int size) => new(Pool.Rent(size), 0, size);
 
         private static Random Random => rand ??= new Random((int)DateTime.Now.Ticks);
 
@@ -56,7 +56,7 @@ namespace Shinobi.WebSockets.Internal
         }
 
         public static ArraySegment<byte> NextRandomArraySegment(int size)
-            => new ArraySegment<byte>(NextRandomBytes(size), 0, size);
+            => new(NextRandomBytes(size), 0, size);
 
         public static string SecWebSocketKey()
         {

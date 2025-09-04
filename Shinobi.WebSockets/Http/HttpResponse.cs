@@ -320,7 +320,7 @@ namespace Shinobi.WebSockets.Http
         /// Create a new HttpResponse builder
         /// </summary>
         public static HttpResponse Create(int statusCode)
-            => new HttpResponse(statusCode, new Dictionary<string, HashSet<string>>());
+            => new(statusCode, new Dictionary<string, HashSet<string>>());
 
         /// <summary>
         /// Validate WebSocket handshake response

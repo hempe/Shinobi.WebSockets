@@ -23,7 +23,6 @@
 
 
 using System;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Shinobi.WebSockets.Internal
@@ -33,7 +32,7 @@ namespace Shinobi.WebSockets.Internal
         public const int MaskKeyLength = 4;
 
         public static ArraySegment<byte> AsMaskKey(this byte[] bytes)
-            => new ArraySegment<byte>(bytes, 0, MaskKeyLength);
+            => new(bytes, 0, MaskKeyLength);
 
         public static void ToggleMask(this ArraySegment<byte> maskKey, byte[] payloadArray, int payloadOffset, int payloadCount)
         {

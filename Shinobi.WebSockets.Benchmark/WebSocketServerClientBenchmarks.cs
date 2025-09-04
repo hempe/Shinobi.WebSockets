@@ -217,7 +217,7 @@ public class WebSocketServerClientBenchmarks
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            var httpRequest = await HttpRequest.ReadAsync(stream, cancellationToken);
+            using var httpRequest = await HttpRequest.ReadAsync(stream, cancellationToken);
             if (httpRequest == null)
                 return;
             var context = new WebSocketHttpContext(tcpClient, httpRequest, stream, Guid.NewGuid());

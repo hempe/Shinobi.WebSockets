@@ -60,6 +60,19 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
+        public void DefaultConfiguration_ShouldHaveCorrectDefaults()
+        {
+            // Arrange & Act
+            var options = new WebSocketServerOptions();
+
+            // Assert - Verify default values match documentation
+            Assert.Equal(TimeSpan.FromSeconds(5), options.KeepAliveTimeout);
+            Assert.Equal(TimeSpan.FromSeconds(30), options.KeepAliveInterval);
+            Assert.Equal(1000, options.MaxKeepAliveConnections);
+            Assert.False(options.IncludeExceptionInCloseResponse);
+        }
+
+        [Fact]
         public void IncludeExceptionInCloseResponse_ShouldSetConfigurationFlag()
         {
             // Arrange

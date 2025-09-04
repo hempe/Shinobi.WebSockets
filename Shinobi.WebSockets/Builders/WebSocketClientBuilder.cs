@@ -15,11 +15,11 @@ namespace Shinobi.WebSockets.Builders
     /// </summary>
     public class WebSocketClientBuilder
     {
-        internal readonly List<WebSocketConnectInterceptor> onConnect = new List<WebSocketConnectInterceptor>();
-        internal readonly List<WebSocketCloseInterceptor> onClose = new List<WebSocketCloseInterceptor>();
-        internal readonly List<WebSocketErrorInterceptor> onError = new List<WebSocketErrorInterceptor>();
-        internal readonly List<WebSocketMessageInterceptor> onMessage = new List<WebSocketMessageInterceptor>();
-        internal WebSocketClientOptions configuration = new WebSocketClientOptions();
+        internal readonly List<WebSocketConnectInterceptor> onConnect = new();
+        internal readonly List<WebSocketCloseInterceptor> onClose = new();
+        internal readonly List<WebSocketErrorInterceptor> onError = new();
+        internal readonly List<WebSocketMessageInterceptor> onMessage = new();
+        internal WebSocketClientOptions configuration = new();
         internal ILoggerFactory? loggerFactory;
 
         /// <summary>

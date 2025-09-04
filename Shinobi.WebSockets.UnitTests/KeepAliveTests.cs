@@ -89,6 +89,9 @@ namespace Shinobi.WebSockets.UnitTests
                         Assert.Contains("keep-alive", response);
                         Assert.Contains("Date:", response);
                         
+                        // Verify Keep-Alive header with timeout is present
+                        Assert.Contains("Keep-Alive: timeout=30", response);
+                        
                         // Reduced delay for large tests
                         if (messagesPerClient <= 100)
                             await Task.Delay(10);
