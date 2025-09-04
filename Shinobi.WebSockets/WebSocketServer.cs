@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -194,7 +193,6 @@ namespace Shinobi.WebSockets
 
                     while (!cancellationToken.IsCancellationRequested)
                     {
-                        var w = Stopwatch.StartNew();
                         var tcpClient = await this.listener.AcceptTcpClientAsync();
                         _ = Task.Run(() => this.ProcessTcpClientAsync(tcpClient, cancellationToken.Token));
                     }
