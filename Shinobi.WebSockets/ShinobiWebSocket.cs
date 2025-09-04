@@ -49,7 +49,7 @@ namespace Shinobi.WebSockets
     {
         private const int MAX_PING_PONG_PAYLOAD_LEN = 125;
         private static readonly byte[] EMPTY = new byte[0];
-        private readonly SemaphoreSlim semaphore = new SemaphoreSlim(1);
+        private readonly SemaphoreSlim semaphore = new(1);
         private readonly Stopwatch stopwatch;
         private readonly bool includeExceptionInCloseResponse;
         private readonly bool isClient;

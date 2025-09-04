@@ -9,7 +9,7 @@ namespace Shinobi.WebSockets.Internal
     /// </summary>
     public sealed class WebSocketDeflater : IDisposable
     {
-        private readonly ArrayPoolStream compressBuffer = new ArrayPoolStream();
+        private readonly ArrayPoolStream compressBuffer = new();
         private DeflateStream decompressor;
         private readonly bool noContextTakeover;
         private readonly CompressionLevel compressionLevel;

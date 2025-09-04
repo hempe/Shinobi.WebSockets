@@ -10,8 +10,8 @@ namespace Shinobi.WebSockets.Builders
     public static class WebSocketServerBuilderExtensions
     {
         // Cache for certificates to avoid repeated store access
-        private static readonly ConcurrentDictionary<string, CachedCertificate> certificateCache = new ConcurrentDictionary<string, CachedCertificate>();
-        private static readonly ConcurrentDictionary<string, SemaphoreSlim> loadingSemaphores = new ConcurrentDictionary<string, SemaphoreSlim>();
+        private static readonly ConcurrentDictionary<string, CachedCertificate> certificateCache = new();
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> loadingSemaphores = new();
         private static readonly TimeSpan DefaultCacheExpiration = TimeSpan.FromMinutes(5);
 
         private class CachedCertificate

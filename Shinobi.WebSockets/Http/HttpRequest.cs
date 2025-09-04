@@ -263,7 +263,7 @@ namespace Shinobi.WebSockets.Http
         /// Create a new HttpRequest builder
         /// </summary>
         public static HttpRequest Create(string method, string path)
-            => new HttpRequest(method, path, new Dictionary<string, HashSet<string>>());
+            => new(method, path, new Dictionary<string, HashSet<string>>());
 
         /// <summary>
         /// Disposes the request and its body stream if present
