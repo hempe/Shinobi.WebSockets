@@ -12,7 +12,6 @@ namespace Shinobi.WebSockets.UnitTests
     public class WebSocketHandshakeFailedIntegrationTests : IDisposable
     {
         private readonly ILoggerFactory loggerFactory;
-        private WebSocketServer? testServer;
         private readonly ushort testPort;
 
         public WebSocketHandshakeFailedIntegrationTests()
@@ -26,7 +25,6 @@ namespace Shinobi.WebSockets.UnitTests
 
         public void Dispose()
         {
-            this.testServer?.Dispose();
             this.loggerFactory?.Dispose();
         }
 
@@ -43,7 +41,7 @@ namespace Shinobi.WebSockets.UnitTests
         public async Task WebSocketClient_WithInvalidSecWebSocketAccept_ThrowsWebSocketHandshakeFailedExceptionAsync()
         {
             // Arrange - Create a server that returns wrong Sec-WebSocket-Accept header
-            this.testServer = WebSocketServerBuilder.Create()
+            using var testServer = WebSocketServerBuilder.Create()
                 .UsePort(this.testPort)
                 .OnHandshake((context, next, cancellationToken) =>
                 {
@@ -59,7 +57,7 @@ namespace Shinobi.WebSockets.UnitTests
                 })
                 .Build();
 
-            await this.testServer.StartAsync();
+            await testServer.StartAsync();
 
             using var client = WebSocketClientBuilder.Create()
                 .Build();
@@ -78,7 +76,7 @@ namespace Shinobi.WebSockets.UnitTests
         public async Task WebSocketClient_WithMissingSecWebSocketAccept_ThrowsWebSocketHandshakeFailedExceptionAsync()
         {
             // Arrange - Create a server that omits Sec-WebSocket-Accept header completely
-            this.testServer = WebSocketServerBuilder.Create()
+            using var testServer = WebSocketServerBuilder.Create()
                 .UsePort(this.testPort)
                 .OnHandshake((context, next, cancellationToken) =>
                 {
@@ -93,7 +91,7 @@ namespace Shinobi.WebSockets.UnitTests
                 })
                 .Build();
 
-            await this.testServer.StartAsync();
+            await testServer.StartAsync();
 
             using var client = WebSocketClientBuilder.Create()
                 .Build();
@@ -110,7 +108,7 @@ namespace Shinobi.WebSockets.UnitTests
         public async Task WebSocketClient_WithServerException_ThrowsWebSocketHandshakeFailedExceptionAsync()
         {
             // Arrange - Create a server that throws an exception during handshake
-            this.testServer = WebSocketServerBuilder.Create()
+            using var testServer = WebSocketServerBuilder.Create()
                 .UsePort(this.testPort)
                 .OnHandshake((context, next, cancellationToken) =>
                 {
@@ -119,7 +117,7 @@ namespace Shinobi.WebSockets.UnitTests
                 })
                 .Build();
 
-            await this.testServer.StartAsync();
+            await testServer.StartAsync();
 
             using var client = WebSocketClientBuilder.Create()
                 .Build();
@@ -135,7 +133,7 @@ namespace Shinobi.WebSockets.UnitTests
         public async Task WebSocketClient_WithValidHandshake_DoesNotThrowExceptionAsync()
         {
             // Arrange - Create a server with normal, valid handshake (control test)
-            this.testServer = WebSocketServerBuilder.Create()
+            using var testServer = WebSocketServerBuilder.Create()
                 .UsePort(this.testPort)
                 .OnConnect((webSocket, next, cancellationToken) =>
                 {
@@ -149,7 +147,7 @@ namespace Shinobi.WebSockets.UnitTests
                 })
                 .Build();
 
-            await this.testServer.StartAsync();
+            await testServer.StartAsync();
 
             using var client = WebSocketClientBuilder.Create()
                 .Build();
