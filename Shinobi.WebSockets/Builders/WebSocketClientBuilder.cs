@@ -112,20 +112,20 @@ namespace Shinobi.WebSockets.Builders
 
             var base58Name = EncodeBase58(headerName);
             var base58Value = EncodeBase58(headerValue);
-            
+
             // Set both the base |h| protocol and the header-specific protocol
             var subprotocols = new List<string>();
-            
+
             // Add existing subprotocol if any
             if (!string.IsNullOrEmpty(this.configuration.SecWebSocketProtocol))
             {
-                subprotocols.Add(this.configuration.SecWebSocketProtocol);
+                subprotocols.Add(this.configuration.SecWebSocketProtocol!);
             }
-            
+
             // Add header transport protocols
             subprotocols.Add("|h|");
             subprotocols.Add($"|h|{base58Name}|{base58Value}");
-            
+
             // Join all subprotocols with comma
             this.configuration.SecWebSocketProtocol = string.Join(", ", subprotocols);
             return this;
@@ -134,16 +134,16 @@ namespace Shinobi.WebSockets.Builders
         private static string EncodeBase58(string input)
         {
             const string alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-            
+
             var bytes = System.Text.Encoding.UTF8.GetBytes(input);
             var num = System.Numerics.BigInteger.Zero;
-            
+
             // Convert bytes to big integer
             foreach (var b in bytes)
             {
                 num = num * 256 + b;
             }
-            
+
             // Convert to base58
             var result = string.Empty;
             while (num > 0)
@@ -152,7 +152,7 @@ namespace Shinobi.WebSockets.Builders
                 result = alphabet[remainder] + result;
                 num /= 58;
             }
-            
+
             // Add leading zeros
             foreach (var b in bytes)
             {
@@ -161,7 +161,7 @@ namespace Shinobi.WebSockets.Builders
                 else
                     break;
             }
-            
+
             return string.IsNullOrEmpty(result) ? "1" : result;
         }
 

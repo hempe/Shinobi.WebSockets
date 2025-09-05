@@ -100,6 +100,12 @@ namespace Shinobi.WebSockets.Http
             return @this;
         }
 
+        public static HttpResponse RemoveHeader(this HttpResponse @this, string name)
+        {
+            @this.headers.Remove(name);
+            return @this;
+        }
+
         /// <summary>
         /// Add headers from dictionary
         /// </summary>

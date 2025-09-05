@@ -21,15 +21,6 @@ namespace Shinobi.WebSockets.Exceptions
         /// </summary>
         public int? MaxSize { get; }
 
-        public HttpHeaderTooLargeException()
-        {
-        }
-
-        public HttpHeaderTooLargeException(string message)
-        : base(message)
-        {
-        }
-
         public HttpHeaderTooLargeException(int actualSize, int maxSize)
         : base($"HTTP header size {actualSize} exceeds maximum allowed size {maxSize}")
         {
@@ -37,8 +28,15 @@ namespace Shinobi.WebSockets.Exceptions
             this.MaxSize = maxSize;
         }
 
-        public HttpHeaderTooLargeException(string message, Exception inner)
-        : base(message, inner)
+        public HttpHeaderTooLargeException()
+        {
+        }
+
+        public HttpHeaderTooLargeException(string message) : base(message)
+        {
+        }
+
+        public HttpHeaderTooLargeException(string message, Exception innerException) : base(message, innerException)
         {
         }
     }

@@ -10,17 +10,16 @@ namespace Shinobi.WebSockets.Exceptions
     [Serializable]
     public class WebSocketVersionNotSupportedException : Exception
     {
-        public WebSocketVersionNotSupportedException()
-        {
-        }
-
         public WebSocketVersionNotSupportedException(string message)
         : base(message)
         {
         }
 
-        public WebSocketVersionNotSupportedException(string message, Exception inner)
-        : base(message, inner)
+        public WebSocketVersionNotSupportedException()
+        {
+        }
+
+        public WebSocketVersionNotSupportedException(string message, Exception innerException) : base(message, innerException)
         {
         }
     }

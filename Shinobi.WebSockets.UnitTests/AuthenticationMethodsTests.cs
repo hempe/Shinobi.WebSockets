@@ -26,9 +26,9 @@ namespace Shinobi.WebSockets.UnitTests
             // Create test server with all authentication methods enabled
             this.testServer = WebSocketServerBuilder.Create()
                 .UsePort(TestPort)
-                .UseLogging(loggerFactory)
+                .UseLogging(this.loggerFactory)
                 .AllowSubprotocolHeaders("Authorization", "X-API-Key")
-                .AllowQueryParamHeaders("Authorization", "X-API-Key") 
+                .AllowQueryParamHeaders("Authorization", "X-API-Key")
                 .UseSupportedSubProtocols("|h|", "chat", "v1")
                 .OnHandshake(async (context, next, cancellationToken) =>
                 {
@@ -60,7 +60,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task Method1_HttpHeaders_ShouldAuthenticateSuccessfully()
+        public async Task Method1_HttpHeaders_ShouldAuthenticateSuccessfullyAsync()
         {
             // Arrange
             await this.testServer.StartAsync();
@@ -76,20 +76,20 @@ namespace Shinobi.WebSockets.UnitTests
                 .Build();
 
             await client.StartAsync(new Uri($"ws://localhost:{TestPort}"));
-            
+
             // Test message exchange
             await client.SendTextAsync("test-message", CancellationToken.None);
-            
+
             // Give time for message processing
             await Task.Delay(100);
-            
+
             Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
-            
+
             await client.StopAsync();
         }
 
-        [Fact] 
-        public async Task Method2_SubprotocolHeaders_ShouldAuthenticateSuccessfully()
+        [Fact]
+        public async Task Method2_SubprotocolHeaders_ShouldAuthenticateSuccessfullyAsync()
         {
             // Arrange
             await this.testServer.StartAsync();
@@ -98,24 +98,25 @@ namespace Shinobi.WebSockets.UnitTests
             // Use the convenient UseSubprotocolHeader method
             using var client = WebSocketClientBuilder.Create()
                 .UseSubprotocolHeader("Authorization", $"Bearer {TestToken}")
-                .OnTextMessage(async (ws, message, ct) =>
+                .OnTextMessage((ws, message, ct) =>
                 {
                     Assert.Equal("ECHO: subprotocol-test", message);
+                    return default;
                 })
                 .Build();
 
             await client.StartAsync(new Uri($"ws://localhost:{TestPort}"));
-            
+
             // Send message using SendTextAsync
             await client.SendTextAsync("subprotocol-test", CancellationToken.None);
             await Task.Delay(500);
-            
+
             Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
             await client.StopAsync();
         }
 
         [Fact]
-        public async Task Method3_QueryParameterHeaders_ShouldAuthenticateSuccessfully()
+        public async Task Method3_QueryParameterHeaders_ShouldAuthenticateSuccessfullyAsync()
         {
             // Arrange  
             await this.testServer.StartAsync();
@@ -123,7 +124,7 @@ namespace Shinobi.WebSockets.UnitTests
             // Act & Assert - Test with query parameters (Method 3 - Lowest Priority)
             var authToken = Uri.EscapeDataString($"Bearer {TestToken}");
             var uri = new Uri($"ws://localhost:{TestPort}?Authorization={authToken}");
-            
+
             using var client = WebSocketClientBuilder.Create()
                 .OnTextMessage((ws, message, ct) =>
                 {
@@ -135,21 +136,21 @@ namespace Shinobi.WebSockets.UnitTests
             await client.StartAsync(uri);
             await client.SendTextAsync("query-test", CancellationToken.None);
             await Task.Delay(100);
-            
+
             Assert.Equal(WebSocketConnectionState.Connected, client.ConnectionState);
             await client.StopAsync();
         }
 
         [Fact]
-        public async Task AuthenticationPriority_HeadersTakePrecedenceOverQueryParams()
+        public async Task AuthenticationPriority_HeadersTakePrecedenceOverQueryParamsAsync()
         {
             // Arrange
             await this.testServer.StartAsync();
-            
+
             // Act & Assert - Headers should take precedence over query parameters
             var wrongToken = Uri.EscapeDataString("Bearer wrong-token");
             var uri = new Uri($"ws://localhost:{TestPort}?Authorization={wrongToken}");
-            
+
             using var client = WebSocketClientBuilder.Create()
                 .AddHeader("Authorization", $"Bearer {TestToken}") // Correct token in header
                 .Build();
@@ -161,7 +162,7 @@ namespace Shinobi.WebSockets.UnitTests
         }
 
         [Fact]
-        public async Task InvalidAuthentication_ShouldRejectConnection()
+        public async Task InvalidAuthentication_ShouldRejectConnectionAsync()
         {
             // Arrange
             await this.testServer.StartAsync();
@@ -171,14 +172,14 @@ namespace Shinobi.WebSockets.UnitTests
                 .AddHeader("Authorization", "Bearer invalid-token")
                 .Build();
 
-            var exception = await Assert.ThrowsAsync<InvalidHttpResponseCodeException>(() => 
+            var exception = await Assert.ThrowsAsync<InvalidHttpResponseCodeException>(() =>
                 client.StartAsync(new Uri($"ws://localhost:{TestPort}")));
-            
+
             Assert.Contains("401", exception.Message);
         }
 
         [Fact]
-        public async Task NoAuthentication_ShouldRejectConnection()
+        public async Task NoAuthentication_ShouldRejectConnectionAsync()
         {
             // Arrange
             await this.testServer.StartAsync();
@@ -186,25 +187,25 @@ namespace Shinobi.WebSockets.UnitTests
             // Act & Assert
             using var client = WebSocketClientBuilder.Create().Build();
 
-            var exception = await Assert.ThrowsAsync<InvalidHttpResponseCodeException>(() => 
+            var exception = await Assert.ThrowsAsync<InvalidHttpResponseCodeException>(() =>
                 client.StartAsync(new Uri($"ws://localhost:{TestPort}")));
-            
+
             Assert.Contains("401", exception.Message);
         }
 
         private static string EncodeBase58(string input)
         {
             const string alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-            
+
             var bytes = System.Text.Encoding.UTF8.GetBytes(input);
             var num = System.Numerics.BigInteger.Zero;
-            
+
             // Convert bytes to big integer
             foreach (var b in bytes)
             {
                 num = num * 256 + b;
             }
-            
+
             // Convert to base58
             var result = string.Empty;
             while (num > 0)
@@ -213,7 +214,7 @@ namespace Shinobi.WebSockets.UnitTests
                 result = alphabet[remainder] + result;
                 num /= 58;
             }
-            
+
             // Add leading zeros
             foreach (var b in bytes)
             {
@@ -222,7 +223,7 @@ namespace Shinobi.WebSockets.UnitTests
                 else
                     break;
             }
-            
+
             return string.IsNullOrEmpty(result) ? "1" : result;
         }
 

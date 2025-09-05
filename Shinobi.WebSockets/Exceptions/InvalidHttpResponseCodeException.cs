@@ -14,23 +14,21 @@ namespace Shinobi.WebSockets.Exceptions
         /// </summary>
         public int? ResponseCode { get; }
 
-        public InvalidHttpResponseCodeException()
-        {
-        }
-
-        public InvalidHttpResponseCodeException(string message)
-        : base(message)
-        {
-        }
-
         public InvalidHttpResponseCodeException(int? responseCode)
         : base($"Invalid status code: {responseCode}")
         {
             this.ResponseCode = responseCode;
         }
 
-        public InvalidHttpResponseCodeException(string message, Exception inner)
-        : base(message, inner)
+        public InvalidHttpResponseCodeException()
+        {
+        }
+
+        public InvalidHttpResponseCodeException(string message) : base(message)
+        {
+        }
+
+        public InvalidHttpResponseCodeException(string message, Exception innerException) : base(message, innerException)
         {
         }
     }

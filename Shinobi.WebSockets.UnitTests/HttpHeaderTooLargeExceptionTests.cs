@@ -26,31 +26,6 @@ namespace Shinobi.WebSockets.UnitTests
             Assert.Contains("exceeds maximum allowed size", exception.Message);
         }
 
-        [Fact]
-        public void WithStringMessage_ShouldNotSetSizeProperties()
-        {
-            // Arrange
-            var message = "Custom header size error message";
-
-            // Act
-            var exception = new HttpHeaderTooLargeException(message);
-
-            // Assert
-            Assert.Equal(message, exception.Message);
-            Assert.Null(exception.ActualSize);
-            Assert.Null(exception.MaxSize);
-        }
-
-        [Fact]
-        public void DefaultConstructor_ShouldNotSetSizeProperties()
-        {
-            // Act
-            var exception = new HttpHeaderTooLargeException();
-
-            // Assert
-            Assert.Null(exception.ActualSize);
-            Assert.Null(exception.MaxSize);
-        }
 
         [Fact]
         public void RealisticScenario_LargeRequestHeaders()

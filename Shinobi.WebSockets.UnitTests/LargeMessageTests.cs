@@ -29,7 +29,7 @@ namespace Shinobi.WebSockets.UnitTests
         Shinobi
     }
 
-    public sealed class LargeMessageTests
+    public sealed class LargeMessageTests : IDisposable
     {
         private ILogger<WebSocketClientTests> logger;
         private readonly ILoggerFactory loggerFactory;
