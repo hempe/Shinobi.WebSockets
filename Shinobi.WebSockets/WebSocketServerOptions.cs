@@ -139,6 +139,22 @@ namespace Shinobi.WebSockets
         /// Can be null or empty if no sub protocols are supported.
         /// </summary>
         public HashSet<string>? SupportedSubProtocols { get; set; }
+
+        /// <summary>
+        /// Specifies which HTTP headers can be passed through WebSocket subprotocols using |h|base58_name|base58_value syntax.
+        /// These subprotocols will be automatically converted to HTTP headers and stripped from the subprotocol list.
+        /// Example: Client sends '|h|' + Base58.encode('Authorization') + '|' + Base58.encode('Bearer token123') -> Server gets 'Authorization: Bearer token123' header.
+        /// Can be null or empty to disable subprotocol header conversion.
+        /// </summary>
+        public HashSet<string>? AllowedSubprotocolHeaders { get; set; }
+
+        /// <summary>
+        /// Specifies which HTTP headers can be passed through URL query parameters.
+        /// These query parameters will be automatically converted to HTTP headers.
+        /// Example: Client connects to 'wss://localhost:8080?Authorization=Bearer%20token123' -> Server gets 'Authorization: Bearer token123' header.
+        /// Can be null or empty to disable query parameter header conversion.
+        /// </summary>
+        public HashSet<string>? AllowedQueryParamHeaders { get; set; }
 #if NET8_0_OR_GREATER
         /// <summary>
         /// Gets or sets the per-message deflate compression configuration.

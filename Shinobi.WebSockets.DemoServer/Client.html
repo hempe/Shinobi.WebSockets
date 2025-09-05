@@ -37,11 +37,11 @@
             text-align: center;
         }
 
-            .header h1 {
-                margin: 0;
-                font-size: 2rem;
-                font-weight: 600;
-            }
+        .header h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
+        }
 
         .connection-panel {
             padding: 1.5rem;
@@ -72,18 +72,22 @@
             animation: pulse 2s infinite;
         }
 
-            .status-dot.connected {
-                background: #10b981;
-            }
+        .status-dot.connected {
+            background: #10b981;
+        }
 
-            .status-dot.connecting {
-                background: #f59e0b;
-            }
+        .status-dot.connecting {
+            background: #f59e0b;
+        }
 
-            .status-dot.disconnected {
-                background: #ef4444;
-                animation: none;
-            }
+        .status-dot.reconnecting {
+            background: #8b5cf6;
+        }
+
+        .status-dot.disconnected {
+            background: #ef4444;
+            animation: none;
+        }
 
         @keyframes pulse {
             0% {
@@ -114,10 +118,10 @@
             transition: border-color 0.2s;
         }
 
-            .url-input:focus {
-                outline: none;
-                border-color: #4f46e5;
-            }
+        .url-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
 
         .btn {
             padding: 0.5rem 1.5rem;
@@ -129,37 +133,37 @@
             font-size: 0.9rem;
         }
 
-            .btn:disabled {
-                opacity: 0.6;
-                cursor: not-allowed;
-            }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
 
         .btn-connect {
             background: #10b981;
             color: white;
         }
 
-            .btn-connect:hover:not(:disabled) {
-                background: #059669;
-            }
+        .btn-connect:hover:not(:disabled) {
+            background: #059669;
+        }
 
         .btn-disconnect {
             background: #ef4444;
             color: white;
         }
 
-            .btn-disconnect:hover:not(:disabled) {
-                background: #dc2626;
-            }
+        .btn-disconnect:hover:not(:disabled) {
+            background: #dc2626;
+        }
 
         .btn-send {
             background: #4f46e5;
             color: white;
         }
 
-            .btn-send:hover:not(:disabled) {
-                background: #4338ca;
-            }
+        .btn-send:hover:not(:disabled) {
+            background: #4338ca;
+        }
 
         .chat-panel {
             padding: 1.5rem;
@@ -183,27 +187,27 @@
             line-height: 1.4;
         }
 
-            .log-entry:last-child {
-                border-bottom: none;
-            }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
 
-            .log-entry.sent {
-                color: #4f46e5;
-            }
+        .log-entry.sent {
+            color: #4f46e5;
+        }
 
-            .log-entry.received {
-                color: #059669;
-            }
+        .log-entry.received {
+            color: #059669;
+        }
 
-            .log-entry.system {
-                color: #64748b;
-                font-style: italic;
-            }
+        .log-entry.system {
+            color: #64748b;
+            font-style: italic;
+        }
 
-            .log-entry.error {
-                color: #ef4444;
-                font-weight: 500;
-            }
+        .log-entry.error {
+            color: #ef4444;
+            font-weight: 500;
+        }
 
         .timestamp {
             color: #94a3b8;
@@ -226,15 +230,15 @@
             transition: border-color 0.2s;
         }
 
-            .message-input:focus {
-                outline: none;
-                border-color: #4f46e5;
-            }
+        .message-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
 
-            .message-input:disabled {
-                background: #f1f5f9;
-                color: #94a3b8;
-            }
+        .message-input:disabled {
+            background: #f1f5f9;
+            color: #94a3b8;
+        }
 
         .quick-commands {
             display: flex;
@@ -253,27 +257,27 @@
             transition: all 0.2s;
         }
 
-            .quick-cmd:hover:not(:disabled) {
-                background: #e2e8f0;
-            }
+        .quick-cmd:hover:not(:disabled) {
+            background: #e2e8f0;
+        }
 
-            .quick-cmd.stress-test {
-                background: #fbbf24;
-                border-color: #f59e0b;
-                color: #92400e;
-                font-weight: 600;
-            }
+        .quick-cmd.stress-test {
+            background: #fbbf24;
+            border-color: #f59e0b;
+            color: #92400e;
+            font-weight: 600;
+        }
 
-                .quick-cmd.stress-test:hover:not(:disabled) {
-                    background: #f59e0b;
-                    color: white;
-                }
+        .quick-cmd.stress-test:hover:not(:disabled) {
+            background: #f59e0b;
+            color: white;
+        }
 
-                .quick-cmd.stress-test.running {
-                    background: #ef4444;
-                    color: white;
-                    animation: pulse 1s infinite;
-                }
+        .quick-cmd.stress-test.running {
+            background: #ef4444;
+            color: white;
+            animation: pulse 1s infinite;
+        }
 
         /* Modal styles */
         .modal {
@@ -287,11 +291,11 @@
             z-index: 1000;
         }
 
-            .modal.show {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
         .modal-content {
             background: white;
@@ -386,16 +390,16 @@
             position: relative;
         }
 
-            .progress-fill::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                bottom: 0;
-                right: 0;
-                background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-                animation: shimmer 2s infinite;
-            }
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
 
         @keyframes shimmer {
             0% {
@@ -516,6 +520,9 @@
         </div>
     </div>
 
+    <!-- Load ShinobiWebSocket client -->
+    <script src="/ShinobiWebSocket.js"></script>
+
     <script>
         class WebSocketClient {
             constructor() {
@@ -612,12 +619,51 @@
                 }
 
                 this.updateStatus('connecting', 'Connecting...');
+                this.updateControls('connecting'); // Enable disconnect during connecting
                 this.addLog(`Connecting to ${url} with authentication...`, 'system');
 
                 try {
-                    // Use Authorization:[Token] subprotocol for authentication (works with JS)
-                    const authSubprotocol = 'Authorization:demo-token-12345';
-                    this.ws = new WebSocket(url, [authSubprotocol]);
+                    // Option 1: Use native WebSocket with |h|name|value subprotocol  
+                    // const authSubprotocol = '|h|' + Base58.encode('Authorization') + '|' + Base58.encode('Bearer demo-token-12345');
+                    // this.ws = new WebSocket(url, [authSubprotocol]);
+
+                    // Option 2: Use ShinobiWebSocket constructor
+                    // this.ws = new ShinobiWebSocket(url, {
+                    //     headers: { 'Authorization': 'Bearer demo-token-12345' },
+                    //     autoReconnect: true
+                    // });
+
+                    // Advanced Example: High availability with fallback URLs (matches C# API)
+                    // this.ws = ShinobiWebSocket.create(url)
+                    //     .addHeader('Authorization', 'Bearer demo-token-12345')
+                    //     .useReliableConnection()
+                    //     .useFallbackUrls('wss://backup1.example.com:8080', 'wss://backup2.example.com:8080')
+                    //     .useExponentialBackoff(1000, 30000, 2.0, 0.1)
+                    //     .build();
+
+                    // Option 3: Use ShinobiWebSocket.create() builder (matches C# WebSocketClientBuilder API)
+                    this.ws = ShinobiWebSocket.create(url)
+                        .addHeader('Authorization', 'Bearer demo-token-12345')
+                        .useReliableConnection() // Equivalent to C#'s UseReliableConnection()
+                        .onOpen(() => {
+                            this.addLog('√ Connected to server', 'system');
+                        })
+                        .onClose((event) => {
+                            this.addLog(`X Connection closed (Code: ${event.code})`, 'system');
+                        })
+                        .onError((error) => {
+                            this.addLog('X WebSocket error occurred', 'error');
+                        })
+                        .onReconnecting((info) => {
+                            this.addLog(`↻ Reconnecting... (attempt ${info.attempt}/${info.maxAttempts})`, 'system');
+                            this.updateStatus('reconnecting', `Reconnecting (${info.attempt}/${info.maxAttempts})`);
+                            this.updateControls('reconnecting');
+                        })
+                        .onReconnected(() => {
+                            this.addLog('↻ Reconnected successfully!', 'system');
+                        })
+                        .build();
+
                     this.setupWebSocketHandlers();
                 } catch (error) {
                     this.addLog(`Failed to create WebSocket: ${error.message}`, 'error');
@@ -631,8 +677,9 @@
                     this.updateStatus('connected', 'Connected');
                     this.addLog('√ Connected to server', 'system');
                     this.startConnectionTimer();
-                    this.updateControls(true);
+                    this.updateControls('connected');
                 };
+
 
                 this.ws.onmessage = (event) => {
                     this.messagesReceived++;
@@ -691,22 +738,47 @@
 
                 this.ws.onclose = (event) => {
                     this.stopConnectionTimer();
-                    this.updateStatus('disconnected', 'Disconnected');
-                    this.updateControls(false);
 
-                    let closeReason = this.getCloseReason(event.code);
-                    let logMessage = `X Connection closed (Code: ${event.code})`;
+                    // Check if this is a reconnecting ShinobiWebSocket
+                    const isReconnecting = this.ws.autoReconnect && !this._isCleanClose(event.code);
 
-                    if (event.reason) {
-                        logMessage += ` - ${event.reason}`;
-                        closeReason += `\n\nServer message: "${event.reason}"`;
+                    if (isReconnecting) {
+                        this.updateStatus('reconnecting', 'Reconnecting...');
+                        this.updateControls('reconnecting');
+                        this.addLog(`X Connection lost, will reconnect... (Code: ${event.code})`, 'system');
+                    } else {
+                        this.updateStatus('disconnected', 'Disconnected');
+                        this.updateControls('disconnected');
+
+                        let closeReason = this.getCloseReason(event.code);
+                        let logMessage = `X Connection closed (Code: ${event.code})`;
+
+                        if (event.reason) {
+                            logMessage += ` - ${event.reason}`;
+                            closeReason += `\n\nServer message: "${event.reason}"`;
+                        }
+
+                        this.addLog(logMessage, 'system');
+
+                        // Show modal with close details only for final disconnections
+                        this.showCloseModal(event.code, event.reason, closeReason);
                     }
-
-                    this.addLog(logMessage, 'system');
-
-                    // Show modal with close details
-                    this.showCloseModal(event.code, event.reason, closeReason);
                 };
+
+                // Add ShinobiWebSocket-specific event handlers
+                if (this.ws.onreconnecting) {
+                    this.ws.onreconnecting = (info) => {
+                        this.updateStatus('reconnecting', `Reconnecting (${info.attempt}/${info.maxAttempts})`);
+                        this.updateControls('reconnecting');
+                        this.addLog(`↻ Reconnecting... (attempt ${info.attempt}/${info.maxAttempts})`, 'system');
+                    };
+                }
+
+                if (this.ws.onreconnected) {
+                    this.ws.onreconnected = () => {
+                        this.addLog('↻ Reconnected successfully!', 'system');
+                    };
+                }
 
                 this.ws.onerror = (error) => {
                     this.addLog('X WebSocket error occurred', 'error');
@@ -715,9 +787,13 @@
             }
 
             disconnect() {
-                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                if (this.ws) {
                     this.addLog('Disconnecting...', 'system');
+                    // ShinobiWebSocket.close() will disable auto-reconnect and close the connection
                     this.ws.close(1000, 'User requested disconnect');
+                    // Immediately update UI state
+                    this.updateStatus('disconnected', 'Disconnected');
+                    this.updateControls('disconnected');
                 } else {
                     this.addLog('Not connected', 'system');
                 }
@@ -778,19 +854,25 @@
                 this.elements.statusText.textContent = text;
             }
 
-            updateControls(connected) {
-                this.elements.connectBtn.disabled = connected;
-                this.elements.disconnectBtn.disabled = !connected;
-                this.elements.messageInput.disabled = !connected;
-                this.elements.sendBtn.disabled = !connected;
-                this.elements.timeCmd.disabled = !connected;
-                this.elements.helpCmd.disabled = !connected;
-                this.elements.pingCmd.disabled = !connected;
-                this.elements.stressTestBtn.disabled = !connected;
-                this.elements.urlInput.disabled = connected;
+            updateControls(state) {
+                // State can be: 'disconnected', 'connecting', 'connected', 'reconnecting'
+                const isConnected = state === 'connected';
+                const isDisconnected = state === 'disconnected';
+                const canConnect = isDisconnected;
+                const canDisconnect = !isDisconnected; // Can disconnect during connecting/connected/reconnecting
 
-                // Stop stress test if disconnected
-                if (!connected) {
+                this.elements.connectBtn.disabled = !canConnect;
+                this.elements.disconnectBtn.disabled = !canDisconnect;
+                this.elements.messageInput.disabled = !isConnected;
+                this.elements.sendBtn.disabled = !isConnected;
+                this.elements.timeCmd.disabled = !isConnected;
+                this.elements.helpCmd.disabled = !isConnected;
+                this.elements.pingCmd.disabled = !isConnected;
+                this.elements.stressTestBtn.disabled = !isConnected;
+                this.elements.urlInput.disabled = !isDisconnected;
+
+                // Stop stress test if not connected
+                if (!isConnected) {
                     this.stopStressTest();
                 }
             }
@@ -1000,6 +1082,11 @@
 
                 // Reset progress bar
                 this.elements.progressFill.style.width = '0%';
+            }
+
+            _isCleanClose(code) {
+                // 1000 = Normal Closure, 1001 = Going Away (user navigated away)
+                return code === 1000 || code === 1001;
             }
         }
 

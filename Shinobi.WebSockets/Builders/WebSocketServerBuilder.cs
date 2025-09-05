@@ -125,6 +125,39 @@ namespace Shinobi.WebSockets.Builders
         }
 
         /// <summary>
+        /// Configures which HTTP headers can be passed through WebSocket subprotocols using |h|base58_name|base58_value syntax
+        /// </summary>
+        /// <param name="headerNames">HTTP header names that can be sent via subprotocols (e.g., "Authorization", "X-API-Key")</param>
+        public WebSocketServerBuilder AllowSubprotocolHeaders(params string[] headerNames)
+        {
+            if (headerNames == null || headerNames.Length == 0)
+            {
+                this.configuration.AllowedSubprotocolHeaders = null;
+                return this;
+            }
+
+            this.configuration.AllowedSubprotocolHeaders = new HashSet<string>(headerNames, StringComparer.OrdinalIgnoreCase);
+            return this;
+        }
+
+        /// <summary>
+        /// Configures which HTTP headers can be passed through URL query parameters
+        /// </summary>
+        /// <param name="headerNames">HTTP header names that can be sent via query parameters (e.g., "Authorization", "X-API-Key")</param>
+        public WebSocketServerBuilder AllowQueryParamHeaders(params string[] headerNames)
+        {
+            if (headerNames == null || headerNames.Length == 0)
+            {
+                this.configuration.AllowedQueryParamHeaders = null;
+                return this;
+            }
+
+            this.configuration.AllowedQueryParamHeaders = new HashSet<string>(headerNames, StringComparer.OrdinalIgnoreCase);
+            return this;
+        }
+
+
+        /// <summary>
         /// Adds a single supported sub protocol
         /// </summary>
         /// <param name="subProtocol">Sub protocol to add</param>

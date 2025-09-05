@@ -333,7 +333,7 @@ namespace Shinobi.WebSockets
 
                         var guid = Guid.NewGuid();
                         this.logger?.AcceptWebSocketStarted(guid);
-                        context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid, this.loggerFactory);
+                        context = new WebSocketHttpContext(tcpClient, httpRequest, stream, guid, this.loggerFactory, this.options.AllowedSubprotocolHeaders, this.options.AllowedQueryParamHeaders);
                         var handshakeResponse = await this.OnHandshakeAsync(context, source.Token);
 
                         if (handshakeResponse.StatusCode == 101)

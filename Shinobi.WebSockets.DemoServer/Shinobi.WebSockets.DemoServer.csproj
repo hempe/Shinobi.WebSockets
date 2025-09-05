@@ -28,5 +28,7 @@
     <EmbeddedResource Include="Client.html" />
 	<Remove Include="favicon.ico" />
 	<EmbeddedResource Include="favicon.ico" />
+	<Remove Include="ShinobiWebSocket.js" />
+	<EmbeddedResource Include="ShinobiWebSocket.js" />
   </ItemGroup>
 </Project>

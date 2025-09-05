@@ -97,31 +97,181 @@ namespace Shinobi.WebSockets.Http
             return string.Equals(httpHeader.GetHeaderValue("Upgrade"), "websocket", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static IList<string> ProcessSubprotocolHeaders(IList<string> requestedProtocols, HttpRequest httpRequest, HashSet<string> allowedSubprotocolHeaders)
+        {
+            var filteredProtocols = new List<string>();
+            
+            foreach (var protocol in requestedProtocols)
+            {
+                // Check if this is the base header transport protocol
+                if (protocol == "|h|")
+                {
+                    filteredProtocols.Add(protocol);
+                    continue;
+                }
+                
+                // Check if this is a subprotocol header using |h|base58_name|base58_value syntax
+                if (protocol.StartsWith("|h|") && protocol.Length > 3)
+                {
+                    var parts = protocol.Split('|');
+                    if (parts.Length == 4 && parts[0] == "" && parts[1] == "h") // Must have |h|name|value format
+                    {
+                        var encodedHeaderName = parts[2];
+                        var encodedHeaderValue = parts[3];
+                        
+                        string headerName;
+                        string headerValue;
+                        
+                        // Try to base58 decode both name and value
+                        try
+                        {
+                            headerName = Base58Decode(encodedHeaderName);
+                            headerValue = Base58Decode(encodedHeaderValue);
+                        }
+                        catch
+                        {
+                            // If base58 decode fails, skip this subprotocol header and don't add to filtered protocols
+                            continue;
+                        }
+                        
+                        // Check if this header is allowed
+                        if (allowedSubprotocolHeaders.Contains(headerName))
+                        {
+                            // Add as HTTP header to the request
+                            httpRequest.AddHeader(headerName, headerValue);
+                            // Don't add this specific |h|name|value to filtered protocols - it's been processed
+                            // The base |h| protocol (if sent) will handle the response
+                            continue;
+                        }
+                        else
+                        {
+                            // Don't add unauthorized header subprotocols to filtered list
+                            continue;
+                        }
+                    }
+                }
+                
+                // Keep regular subprotocols
+                filteredProtocols.Add(protocol);
+            }
+            
+            return filteredProtocols;
+        }
+
+        private static string Base58Decode(string encoded)
+        {
+            const string alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+            
+            if (string.IsNullOrEmpty(encoded))
+                return string.Empty;
+                
+            var num = System.Numerics.BigInteger.Zero;
+            
+            // Convert from base58
+            foreach (char c in encoded)
+            {
+                int charIndex = alphabet.IndexOf(c);
+                if (charIndex == -1)
+                    throw new ArgumentException($"Invalid base58 character: {c}");
+                    
+                num = num * 58 + charIndex;
+            }
+            
+            // Convert to bytes
+            var bytes = new List<byte>();
+            while (num > 0)
+            {
+                bytes.Insert(0, (byte)(num % 256));
+                num /= 256;
+            }
+            
+            // Add leading zeros
+            foreach (char c in encoded)
+            {
+                if (c == '1')
+                    bytes.Insert(0, 0);
+                else
+                    break;
+            }
+            
+            return System.Text.Encoding.UTF8.GetString(bytes.ToArray());
+        }
+
+        private static void ProcessQueryParamHeaders(System.Collections.Specialized.NameValueCollection query, HttpRequest httpRequest, HashSet<string> allowedQueryParamHeaders)
+        {
+            foreach (string? paramName in query.AllKeys)
+            {
+                if (paramName != null && allowedQueryParamHeaders.Contains(paramName))
+                {
+                    var paramValue = query[paramName];
+                    if (!string.IsNullOrEmpty(paramValue))
+                    {
+                        // Add as HTTP header to the request
+                        httpRequest.AddHeader(paramName, paramValue);
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Initialises a new instance of the WebSocketHttpContext class
         /// </summary>
         /// <param name="httpHeader">The raw http request extracted from the stream</param>
         /// <param name="stream">The stream AFTER the header has already been read</param>
         /// <param name="guid">Connection identifier</param>
-        public WebSocketHttpContext(TcpClient? tcpClient, HttpHeader httpHeader, Stream stream, Guid guid, ILoggerFactory? loggerFactory = null)
+        public WebSocketHttpContext(TcpClient? tcpClient, HttpHeader httpHeader, Stream stream, Guid guid, ILoggerFactory? loggerFactory = null, HashSet<string>? allowedSubprotocolHeaders = null, HashSet<string>? allowedQueryParamHeaders = null)
         {
             this.LoggerFactory = loggerFactory;
             this.TcpClient = tcpClient;
             this.Guid = guid;
             this.IsWebSocketRequest = IsValidWebSocketRequest(httpHeader);
-            this.WebSocketRequestedProtocols = httpHeader.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
+            
+            var requestedProtocols = httpHeader.GetHeaderValue("Sec-WebSocket-Protocol").ParseCommaSeparated();
+            
+            // Process subprotocol headers if enabled
+            if (allowedSubprotocolHeaders != null && httpHeader is HttpRequest httpRequest)
+            {
+                this.WebSocketRequestedProtocols = ProcessSubprotocolHeaders(requestedProtocols, httpRequest, allowedSubprotocolHeaders);
+            }
+            else
+            {
+                this.WebSocketRequestedProtocols = requestedProtocols;
+            }
+            
             this.WebSocketExtensions = httpHeader.GetHeaderValues("Sec-WebSocket-Extensions").ToList();
             this.Stream = stream;
         }
 
-        public WebSocketHttpContext(TcpClient? tcpClient, HttpRequest httpRequest, Stream stream, Guid guid, ILoggerFactory? loggerFactory = null)
-            : this(tcpClient, (HttpHeader)httpRequest, stream, guid, loggerFactory)
+        public WebSocketHttpContext(TcpClient? tcpClient, HttpRequest httpRequest, Stream stream, Guid guid, ILoggerFactory? loggerFactory = null, HashSet<string>? allowedSubprotocolHeaders = null, HashSet<string>? allowedQueryParamHeaders = null)
+            : this(tcpClient, (HttpHeader)httpRequest, stream, guid, loggerFactory, allowedSubprotocolHeaders, allowedQueryParamHeaders)
         {
 
             this.Path = httpRequest.Path;
             if (!string.IsNullOrWhiteSpace(this.Path) && this.Path.Contains('?'))
             {
-                this.Query = HttpUtility.ParseQueryString(this.Path.Substring(this.Path.IndexOf('?')));
+                var queryStartIndex = this.Path.IndexOf('?');
+                var queryString = this.Path.Substring(queryStartIndex);
+                this.Query = HttpUtility.ParseQueryString(queryString);
+                
+                // Process query parameter headers if enabled and strip processed headers from query
+                if (allowedQueryParamHeaders != null && this.Query != null)
+                {
+                    ProcessQueryParamHeaders(this.Query, httpRequest, allowedQueryParamHeaders);
+                    
+                    // Remove processed headers from query string and update path
+                    foreach (string headerName in allowedQueryParamHeaders)
+                    {
+                        this.Query.Remove(headerName);
+                    }
+                }
+                
+                // Strip query parameters from path (like we do for subprotocols)
+                this.Path = this.Path.Substring(0, queryStartIndex);
+                if (this.Query?.Count > 0)
+                {
+                    // Re-add remaining query parameters
+                    this.Path += "?" + this.Query.ToString();
+                }
             }
 
             this.HttpRequest = httpRequest;

@@ -102,91 +102,129 @@ Note: Replace "1.0.0" with the latest version number available on NuGet.
 
 ## Authentication
 
-Shinobi.WebSockets supports two authentication approaches to work with both C# and JavaScript clients:
+Shinobi.WebSockets supports three authentication approaches with clear priorities:
 
-### Authorization Headers (C# Clients)
+### 1. HTTP Headers (Recommended - C# Clients)
 
-C# clients can use standard HTTP Authorization headers:
+**Priority: Highest** - Use for C# clients and any environment that supports custom headers:
 
 ```csharp
 var client = WebSocketClientBuilder.Create()
     .AddHeader("Authorization", "Bearer your-token-here")
+    .AddHeader("X-API-Key", "your-api-key")
+    .Build();
+
+// Alternative with subprotocol headers (for testing compatibility with JS clients)
+var client = WebSocketClientBuilder.Create()
+    .UseSubprotocolHeader("Authorization", "Bearer your-token-here")
     .Build();
 ```
 
-### Authorization Subprotocols (JavaScript Clients)
+### 2. Subprotocol Headers (JavaScript/Browser Clients)
 
-JavaScript clients cannot set custom headers, so use the `Authorization:[Token]` subprotocol pattern:
+**Priority: Medium** - Use when both client and server support ShinobiWebSocket:
 
 ```javascript
-// JavaScript WebSocket with auth subprotocol
-const ws = new WebSocket('wss://localhost:8080', ['Authorization:your-jwt-token-here']);
+// ShinobiWebSocket with headers (automatically converts to subprotocol)
+const ws = ShinobiWebSocket.create('wss://localhost:8080')
+    .addHeader('Authorization', 'Bearer your-token-here')
+    .addHeader('X-API-Key', 'your-api-key')
+    .build();
+
+// Or native WebSocket with manual subprotocol (sends |h| + header protocols)
+const ws = new WebSocket('wss://localhost:8080', [
+    '|h|',  // Base header transport protocol
+    '|h|' + Base58.encode('Authorization') + '|' + Base58.encode('Bearer token123'),
+    '|h|' + Base58.encode('X-API-Key') + '|' + Base58.encode('api-key-456'),
+    'chat'  // Regular subprotocol
+]);
+```
+
+### 3. Query Parameter Headers (Fallback)
+
+**Priority: Lowest** - Use when headers and subprotocols aren't available:
+
+```javascript
+// Simple fallback for limited environments
+const ws = new WebSocket('wss://localhost:8080?Authorization=Bearer%20token123&X-API-Key=api-key-456');
+```
+
+```csharp
+// C# client using query parameters
+var uri = new Uri("wss://localhost:8080?Authorization=Bearer%20token123");
+var client = WebSocketClientBuilder.Create().Build();
+await client.StartAsync(uri);
 ```
 
 ### Server-Side Authentication
 
-Configure the server to validate tokens from both headers and subprotocols:
+Configure the server to enable all authentication methods:
 
 ```csharp
 var server = WebSocketServerBuilder.Create()
+    .AllowSubprotocolHeaders("Authorization", "X-API-Key")    // Enable |h|name|value subprotocol conversion
+    .AllowQueryParamHeaders("Authorization", "X-API-Key")     // Enable query parameter conversion  
+    .UseSupportedSubProtocols("|h|", "chat", "v1")          // Accept |h| transport protocol
     .OnHandshake(async (context, next, cancellationToken) =>
     {
-        var isAuthenticated = false;
-        string? selectedProtocol = null;
-        
-        // Check Authorization header (C# clients)
+        // Authentication works transparently for all methods:
+        // 1. C# clients: direct headers
+        // 2. JS clients: |h| subprotocol headers  
+        // 3. Fallback: query parameter headers
         var authHeader = context.HttpRequest?.GetHeaderValue("Authorization");
-        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
-        {
-            var token = authHeader.Substring("Bearer ".Length);
-            if (await ValidateTokenAsync(token))
-            {
-                isAuthenticated = true;
-            }
-        }
-        
-        // Check Authorization:[Token] subprotocol (JS clients)
-        if (!isAuthenticated)
-        {
-            foreach (var protocol in context.WebSocketRequestedProtocols)
-            {
-                if (protocol.StartsWith("Authorization:"))
-                {
-                    var token = protocol.Substring("Authorization:".Length);
-                    if (await ValidateTokenAsync(token))
-                    {
-                        selectedProtocol = protocol;
-                        isAuthenticated = true;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if (!isAuthenticated)
+        if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
         {
             return HttpResponse.Create(401)
                 .AddHeader("Connection", "close")
                 .WithBody("Authentication required");
         }
         
-        var response = await next(context, cancellationToken);
-        
-        // Echo back the selected Authorization subprotocol
-        if (!string.IsNullOrEmpty(selectedProtocol))
+        var token = authHeader.Substring("Bearer ".Length);
+        if (!await ValidateTokenAsync(token))
         {
-            response = response.AddHeader("Sec-WebSocket-Protocol", selectedProtocol);
+            return HttpResponse.Create(401)
+                .AddHeader("Connection", "close")
+                .WithBody("Invalid authentication token");
         }
         
-        return response;
+        return await next(context, cancellationToken);
     })
     .Build();
+```
 
-// Example token validation
+#### How Each Method Works
+
+**Method 1: HTTP Headers (C# clients)**
+- Direct approach: `Authorization: Bearer token123` 
+- Server receives header normally
+
+**Method 2: Subprotocol Headers (JavaScript clients)**  
+1. **Client sends**: `["|h|", "|h|base58(Authorization)|base58(Bearer token123)", "chat"]`
+2. **Server processes**: 
+   - Converts `|h|base58(name)|base58(value)` to HTTP headers
+   - Returns `|h|` subprotocol to satisfy browser requirement
+   - User code sees regular headers and remaining subprotocols
+3. **Base58 encoding** avoids WebSocket subprotocol character restrictions
+
+**Method 3: Query Parameter Headers (fallback)**
+1. **Client connects**: `wss://example.com?Authorization=Bearer%20token123`  
+2. **Server processes**: Converts allowed query params to HTTP headers
+3. **Query params stripped**: Final path becomes `wss://example.com`
+
+**Security**: Only headers listed in `AllowSubprotocolHeaders()` and `AllowQueryParamHeaders()` are processed. Unknown formats are ignored.
+
+#### Priority and Usage Guidelines
+
+1. **Use HTTP headers** for C# clients and server-to-server communication
+2. **Use subprotocol headers** when both client and server support ShinobiWebSocket  
+3. **Use query parameters** only as a fallback for limited environments
+
+#### Example Token Validation
+
+```csharp
 private static async Task<bool> ValidateTokenAsync(string token)
 {
     // Validate JWT, check database, verify claims, etc.
-    // For demo: accept hardcoded token or JWT format
     if (token == "demo-token-12345") return true;
     
     // Example JWT validation
@@ -499,12 +537,15 @@ A full server example is included in the Shinobi.WebSockets.DemoServer project:
 - Logs connections and disconnections
 - Supports SSL/TLS with dev certificate
 - Demonstrates per-message deflate compression
+- Serves embedded HTML/JS files for testing
 
 Run it with:
 
 ```bash
 dotnet run --project Shinobi.WebSockets.DemoServer
 ```
+
+> **⚠️ Security Warning**: The demo server includes basic file serving functionality for embedded resources (HTML, JS, favicon). This is designed for **testing and development only**. The file serving implementation is **not hardened for production use** and should not be exposed to untrusted networks. For production scenarios, use a proper web server (nginx, IIS, Apache) to serve static files and only use Shinobi.WebSockets for WebSocket connections.
 
 ### Demo Client
 

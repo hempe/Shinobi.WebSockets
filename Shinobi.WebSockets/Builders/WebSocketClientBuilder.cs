@@ -98,6 +98,74 @@ namespace Shinobi.WebSockets.Builders
         }
 
         /// <summary>
+        /// Enables subprotocol-based header transport for JavaScript client compatibility.
+        /// Converts HTTP headers to |h|base58_name|base58_value subprotocol format.
+        /// </summary>
+        /// <param name="headerName">HTTP header name (e.g., "Authorization")</param>
+        /// <param name="headerValue">HTTP header value (e.g., "Bearer token123")</param>
+        public WebSocketClientBuilder UseSubprotocolHeader(string headerName, string headerValue)
+        {
+            if (string.IsNullOrWhiteSpace(headerName))
+                throw new ArgumentException("Header name cannot be null or whitespace", nameof(headerName));
+            if (string.IsNullOrWhiteSpace(headerValue))
+                throw new ArgumentException("Header value cannot be null or whitespace", nameof(headerValue));
+
+            var base58Name = EncodeBase58(headerName);
+            var base58Value = EncodeBase58(headerValue);
+            
+            // Set both the base |h| protocol and the header-specific protocol
+            var subprotocols = new List<string>();
+            
+            // Add existing subprotocol if any
+            if (!string.IsNullOrEmpty(this.configuration.SecWebSocketProtocol))
+            {
+                subprotocols.Add(this.configuration.SecWebSocketProtocol);
+            }
+            
+            // Add header transport protocols
+            subprotocols.Add("|h|");
+            subprotocols.Add($"|h|{base58Name}|{base58Value}");
+            
+            // Join all subprotocols with comma
+            this.configuration.SecWebSocketProtocol = string.Join(", ", subprotocols);
+            return this;
+        }
+
+        private static string EncodeBase58(string input)
+        {
+            const string alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+            
+            var bytes = System.Text.Encoding.UTF8.GetBytes(input);
+            var num = System.Numerics.BigInteger.Zero;
+            
+            // Convert bytes to big integer
+            foreach (var b in bytes)
+            {
+                num = num * 256 + b;
+            }
+            
+            // Convert to base58
+            var result = string.Empty;
+            while (num > 0)
+            {
+                var remainder = (int)(num % 58);
+                result = alphabet[remainder] + result;
+                num /= 58;
+            }
+            
+            // Add leading zeros
+            foreach (var b in bytes)
+            {
+                if (b == 0)
+                    result = '1' + result;
+                else
+                    break;
+            }
+            
+            return string.IsNullOrEmpty(result) ? "1" : result;
+        }
+
+        /// <summary>
         /// Sets the WebSocket extensions to request during handshake
         /// </summary>
         /// <param name="extensions">The extensions string (e.g., "permessage-deflate")</param>
