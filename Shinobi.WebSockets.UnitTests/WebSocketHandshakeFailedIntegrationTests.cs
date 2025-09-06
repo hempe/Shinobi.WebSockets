@@ -87,7 +87,7 @@ namespace Shinobi.WebSockets.UnitTests
                     var responseWithoutAccept = response.Result
                         .RemoveHeader("Sec-WebSocket-Accept");
 
-                    return ValueTask.FromResult(responseWithoutAccept);
+                    return new ValueTask<HttpResponse>(responseWithoutAccept);
                 })
                 .Build();
 

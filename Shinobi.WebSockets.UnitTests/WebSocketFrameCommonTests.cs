@@ -296,5 +296,140 @@ namespace Shinobi.WebSockets.UnitTests
             Array.Copy(largerArray, 3, unalignedResult, 0, testData.Length);
             Assert.Equal(alignedPayload, unalignedResult);
         }
+
+        [Fact]
+        public void AsMaskKey_WithArrayLargerThan4Bytes_ShouldOnlyReturn4ByteSegment()
+        {
+            // Arrange
+            var largeArray = new byte[] { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99 };
+
+            // Act
+            var maskKey = largeArray.AsMaskKey();
+
+            // Assert
+            Assert.Equal(4, maskKey.Count);
+            Assert.Equal(0, maskKey.Offset);
+            Assert.Same(largeArray, maskKey.Array);
+            
+            // Verify only first 4 bytes are accessible via the segment
+            var accessibleBytes = new byte[maskKey.Count];
+            for (int i = 0; i < maskKey.Count; i++)
+            {
+                accessibleBytes[i] = maskKey.Array![maskKey.Offset + i];
+            }
+            Assert.Equal(new byte[] { 0x11, 0x22, 0x33, 0x44 }, accessibleBytes);
+        }
+
+        [Fact]
+        public void ToggleMask_WithNullPayloadArray_ShouldThrowException()
+        {
+            // Arrange
+            var maskKey = new byte[] { 0x12, 0x34, 0x56, 0x78 }.AsMaskKey();
+
+            // Act & Assert - Should handle null payload array gracefully
+            Assert.Throws<NullReferenceException>(() => 
+                maskKey.ToggleMask(null!, 0, 4));
+        }
+
+        [Theory]
+        [InlineData(0)] // Empty mask
+        [InlineData(1)] // Too short
+        [InlineData(2)] // Too short  
+        [InlineData(3)] // Too short
+        [InlineData(5)] // Too long
+        [InlineData(8)] // Too long
+        public void ToggleMask_WithVariousInvalidMaskKeyLengths_ShouldThrowException(int maskLength)
+        {
+            // Arrange
+            var invalidMaskKey = new ArraySegment<byte>(new byte[maskLength], 0, maskLength);
+            var payload = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+
+            if (maskLength == 4) return; // Skip valid length
+
+            // Act & Assert
+            var exception = Assert.Throws<Exception>(() => 
+                invalidMaskKey.ToggleMask(payload, 0, payload.Length));
+            
+            Assert.Contains("MaskKey key must be 4 bytes", exception.Message);
+        }
+
+        [Fact]
+        public void ToggleMask_WithMaskKeyFromOffset_ShouldUseMaskCorrectly()
+        {
+            // Arrange - Create mask key from middle of array
+            var largeArray = new byte[] { 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x00, 0x00 };
+            var maskKey = new ArraySegment<byte>(largeArray, 2, 4); // Mask starts at offset 2
+            var payload = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD };
+            var expected = new byte[] 
+            { 
+                (byte)(0xAA ^ 0x12), 
+                (byte)(0xBB ^ 0x34), 
+                (byte)(0xCC ^ 0x56), 
+                (byte)(0xDD ^ 0x78) 
+            };
+
+            // Act
+            maskKey.ToggleMask(payload, 0, 4);
+
+            // Assert
+            Assert.Equal(expected, payload);
+        }
+
+        [Fact]
+        public void ToggleMask_WithExtremelyLargePayload_ShouldHandleCorrectly()
+        {
+            // Arrange - Test performance and correctness with very large payload
+            var maskKey = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }.AsMaskKey();
+            var payloadSize = 10 * 1024 * 1024; // 10MB
+            var payload = new byte[payloadSize];
+            
+            // Fill with pattern that will help detect errors
+            for (int i = 0; i < payloadSize; i++)
+            {
+                payload[i] = (byte)(i & 0xFF);
+            }
+            
+            var originalPayload = payload.ToArray();
+
+            // Act
+            maskKey.ToggleMask(payload, 0, payloadSize);
+
+            // Assert - Verify masking is correct at various positions
+            var testPositions = new[] { 0, 1, 2, 3, 4, 7, 8, 15, 16, 63, 64, 255, 256, 1023, 1024, 
+                                       4095, 4096, payloadSize - 4, payloadSize - 3, payloadSize - 2, payloadSize - 1 };
+            
+            foreach (var pos in testPositions)
+            {
+                if (pos < payloadSize)
+                {
+                    var expectedMaskedByte = (byte)(originalPayload[pos] ^ maskKey.Array![pos % 4]);
+                    Assert.Equal(expectedMaskedByte, payload[pos]);
+                }
+            }
+        }
+
+        [Fact]
+        public void ToggleMask_BoundaryConditions_ShouldHandleCorrectly()
+        {
+            // Test various boundary conditions that could trigger different code paths
+            var maskKey = new byte[] { 0x11, 0x22, 0x33, 0x44 }.AsMaskKey();
+            
+            // Test empty payload (already tested but ensuring it works in boundary context)
+            var emptyPayload = new byte[0];
+            maskKey.ToggleMask(emptyPayload, 0, 0); // Should not crash
+            
+            // Test single byte at different positions within 4-byte alignment
+            for (int i = 0; i < 4; i++)
+            {
+                var singleBytePayload = new byte[8];
+                singleBytePayload[i + 2] = 0xFF;
+                var originalValue = singleBytePayload[i + 2];
+                
+                maskKey.ToggleMask(singleBytePayload, i + 2, 1);
+                
+                var expectedMasked = (byte)(originalValue ^ maskKey.Array![0]); // First mask byte
+                Assert.Equal(expectedMasked, singleBytePayload[i + 2]);
+            }
+        }
     }
 }

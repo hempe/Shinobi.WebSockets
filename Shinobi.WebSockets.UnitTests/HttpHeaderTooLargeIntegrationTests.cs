@@ -136,5 +136,91 @@ namespace Shinobi.WebSockets.UnitTests
             Assert.True(exception.ActualSize >= maxHeaderSize);
             Assert.Equal(maxHeaderSize, exception.MaxSize);
         }
+
+        [Fact]
+        public async Task HttpRequest_ReadAsync_WithOversizedHeaders_ThrowsHttpHeaderTooLargeExceptionAsync()
+        {
+            // Arrange - Create a stream with more than 16KB of data (16384 + 1)
+            const int maxHeaderSize = 16 * 1024; // 16KB
+            var oversizedData = new string('A', maxHeaderSize + 1);
+            var dataBytes = Encoding.UTF8.GetBytes(oversizedData);
+            
+            using var stream = new MemoryStream(dataBytes);
+            
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<HttpHeaderTooLargeException>(
+                async () => await HttpRequest.ReadAsync(stream, CancellationToken.None));
+            
+            Assert.True(exception.ActualSize >= maxHeaderSize);
+            Assert.Equal(maxHeaderSize, exception.MaxSize);
+            Assert.Contains("exceeds maximum allowed size", exception.Message);
+        }
+
+        [Fact]
+        public async Task HttpResponse_ReadAsync_WithOversizedHeaders_ThrowsHttpHeaderTooLargeExceptionAsync()
+        {
+            // Arrange - Create a stream with more than 16KB of data (16384 + 1)
+            const int maxHeaderSize = 16 * 1024; // 16KB
+            var oversizedData = new string('B', maxHeaderSize + 1);
+            var dataBytes = Encoding.UTF8.GetBytes(oversizedData);
+            
+            using var stream = new MemoryStream(dataBytes);
+            
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<HttpHeaderTooLargeException>(
+                async () => await HttpResponse.ReadAsync(stream, CancellationToken.None));
+            
+            Assert.True(exception.ActualSize >= maxHeaderSize);
+            Assert.Equal(maxHeaderSize, exception.MaxSize);
+            Assert.Contains("exceeds maximum allowed size", exception.Message);
+        }
+
+        [Fact]
+        public async Task HttpRequest_ReadAsync_WithExactly16KB_DoesNotThrowAsync()
+        {
+            // Arrange - Create valid HTTP request data that's just under the limit
+            const int maxHeaderSize = 16 * 1024; // 16KB
+            const int safeSize = maxHeaderSize - 100; // Leave room for HTTP structure
+            
+            var validHttpRequest = "GET / HTTP/1.1\r\n" +
+                                  "Host: example.com\r\n" +
+                                  $"X-Large-Header: {new string('C', safeSize - 50)}\r\n" +
+                                  "\r\n";
+            
+            var requestBytes = Encoding.UTF8.GetBytes(validHttpRequest);
+            Assert.True(requestBytes.Length < maxHeaderSize); // Verify test setup
+            
+            using var stream = new MemoryStream(requestBytes);
+            
+            // Act - Should not throw
+            var result = await HttpRequest.ReadAsync(stream, CancellationToken.None);
+            
+            // Assert
+            Assert.NotNull(result);
+        }
+
+        [Fact]
+        public async Task HttpResponse_ReadAsync_WithExactly16KB_DoesNotThrowAsync()
+        {
+            // Arrange - Create valid HTTP response data that's just under the limit
+            const int maxHeaderSize = 16 * 1024; // 16KB
+            const int safeSize = maxHeaderSize - 100; // Leave room for HTTP structure
+            
+            var validHttpResponse = "HTTP/1.1 200 OK\r\n" +
+                                   "Content-Type: text/html\r\n" +
+                                   $"X-Large-Header: {new string('D', safeSize - 50)}\r\n" +
+                                   "\r\n";
+            
+            var responseBytes = Encoding.UTF8.GetBytes(validHttpResponse);
+            Assert.True(responseBytes.Length < maxHeaderSize); // Verify test setup
+            
+            using var stream = new MemoryStream(responseBytes);
+            
+            // Act - Should not throw
+            var result = await HttpResponse.ReadAsync(stream, CancellationToken.None);
+            
+            // Assert
+            Assert.NotNull(result);
+        }
     }
 }

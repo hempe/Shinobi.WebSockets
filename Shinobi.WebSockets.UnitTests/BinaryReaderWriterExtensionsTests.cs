@@ -323,6 +323,65 @@ namespace Shinobi.WebSockets.UnitTests
                 Assert.Equal(syncStream.ToArray(), asyncStream.ToArray());
             }
         }
+
+        [Fact]
+        public async Task ReadUShortAsync_WithInsufficientBuffer_ShouldThrowInternalBufferOverflowExceptionAsync()
+        {
+            // Arrange - Create a stream with ushort data but provide a buffer too small (1 byte instead of 2)
+            var stream = new MemoryStream(new byte[] { 0x12, 0x34 });
+            var tooSmallBuffer = new ArraySegment<byte>(new byte[1]); // Only 1 byte, but ushort needs 2
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<InternalBufferOverflowException>(
+                async () => await stream.ReadUShortAsync(tooSmallBuffer, true, CancellationToken.None));
+
+            Assert.Contains("Unable to read 2 bytes into buffer", exception.Message);
+            Assert.Contains("size: 1", exception.Message);
+        }
+
+        [Fact]
+        public async Task ReadULongAsync_WithInsufficientBuffer_ShouldThrowInternalBufferOverflowExceptionAsync()
+        {
+            // Arrange - Create a stream with ulong data but provide a buffer too small (1 byte instead of 8)
+            var stream = new MemoryStream(new byte[] { 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0 });
+            var tooSmallBuffer = new ArraySegment<byte>(new byte[1]); // Only 1 byte, but ulong needs 8
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<InternalBufferOverflowException>(
+                async () => await stream.ReadULongAsync(tooSmallBuffer, true, CancellationToken.None));
+
+            Assert.Contains("Unable to read 8 bytes into buffer", exception.Message);
+            Assert.Contains("size: 1", exception.Message);
+        }
+
+        [Theory]
+        [InlineData(8)] // 8-byte buffer trying to read 8 bytes (should work)
+        [InlineData(7)] // 7-byte buffer trying to read 8 bytes (should fail) 
+        [InlineData(4)] // 4-byte buffer trying to read 8 bytes (should fail)
+        public async Task ReadULongAsync_WithVariousBufferSizes_BehavesCorrectlyAsync(int bufferSize)
+        {
+            // Arrange
+            var stream = new MemoryStream(new byte[] { 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0 });
+            var buffer = new ArraySegment<byte>(new byte[bufferSize]);
+
+            if (bufferSize >= 8) // ULong always needs 8 bytes
+            {
+                // Act - Should succeed
+                var result = await stream.ReadULongAsync(buffer, true, CancellationToken.None);
+
+                // Assert
+                Assert.True(result > 0); // Just verify we got some value
+            }
+            else
+            {
+                // Act & Assert - Should fail with buffer overflow
+                var exception = await Assert.ThrowsAsync<InternalBufferOverflowException>(
+                    async () => await stream.ReadULongAsync(buffer, true, CancellationToken.None));
+
+                Assert.Contains("Unable to read 8 bytes into buffer", exception.Message);
+                Assert.Contains($"size: {bufferSize}", exception.Message);
+            }
+        }
     }
 
     /// <summary>
