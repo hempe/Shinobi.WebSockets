@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Shinobi.WebSockets.Exceptions
 {
@@ -7,6 +8,7 @@ namespace Shinobi.WebSockets.Exceptions
     /// This can occur if the server responds with a non-101 status code, indicating that the WebSocket upgrade request was not successful.
     /// </summary>
     [Serializable]
+    [ExcludeFromCodeCoverage]
     public class InvalidHttpResponseCodeException : Exception
     {
         /// <summary>

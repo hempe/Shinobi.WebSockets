@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 
@@ -117,6 +118,7 @@ namespace Shinobi.WebSockets.Http
         /// <summary>
         /// Gets the MIME type based on file extension
         /// </summary>
+        [ExcludeFromCodeCoverage]
         public static string GetContentType(string filePath)
         {
             var extension = Path.GetExtension(filePath).ToLowerInvariant();

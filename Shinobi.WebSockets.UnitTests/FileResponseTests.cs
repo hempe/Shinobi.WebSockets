@@ -419,6 +419,84 @@ namespace Shinobi.WebSockets.UnitTests
 
         #endregion
 
+        #region GetContentTypeFromResourceName Tests (via reflection)
+
+        [Theory]
+        [InlineData("MyApp.Resources.styles.css", "text/css")]
+        [InlineData("MyApp.Resources.script.js", "application/javascript")]
+        [InlineData("MyApp.Resources.data.json", "application/json")]
+        [InlineData("MyApp.Resources.image.png", "image/png")]
+        [InlineData("MyApp.Resources.document.pdf", "application/pdf")]
+        [InlineData("MyApp.Resources.page.html", "text/html")]
+        [InlineData("MyApp.Resources.readme.txt", "text/plain")]
+        [InlineData("MyApp.Resources.config.xml", "application/xml")]
+        [InlineData("MyApp.Resources.icon.svg", "image/svg+xml")]
+        [InlineData("MyApp.Resources.font.woff2", "font/woff2")]
+        [InlineData("MyApp.Resources.video.mp4", "video/mp4")]
+        public void GetContentTypeFromResourceName_WithVariousExtensions_ShouldReturnCorrectContentType(string resourceName, string expectedContentType)
+        {
+            // Arrange - Use reflection to access the private method
+            var method = typeof(FileResponse).GetMethod("GetContentTypeFromResourceName", 
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method);
+
+            // Act
+            var result = method.Invoke(null, new object[] { resourceName });
+
+            // Assert
+            Assert.Equal(expectedContentType, result);
+        }
+
+        [Fact]
+        public void GetContentTypeFromResourceName_WithoutExtension_ShouldReturnOctetStream()
+        {
+            // Arrange
+            var method = typeof(FileResponse).GetMethod("GetContentTypeFromResourceName", 
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method);
+            var resourceName = "MyApp.Resources.SomeResource"; // No extension
+
+            // Act
+            var result = method.Invoke(null, new object[] { resourceName });
+
+            // Assert
+            Assert.Equal("application/octet-stream", result);
+        }
+
+        [Fact]
+        public void GetContentTypeFromResourceName_WithUnknownExtension_ShouldReturnOctetStream()
+        {
+            // Arrange
+            var method = typeof(FileResponse).GetMethod("GetContentTypeFromResourceName", 
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method);
+            var resourceName = "MyApp.Resources.data.unknown"; // Unknown extension
+
+            // Act
+            var result = method.Invoke(null, new object[] { resourceName });
+
+            // Assert
+            Assert.Equal("application/octet-stream", result);
+        }
+
+        [Fact]
+        public void GetContentTypeFromResourceName_WithMultipleDots_ShouldUseLastExtension()
+        {
+            // Arrange
+            var method = typeof(FileResponse).GetMethod("GetContentTypeFromResourceName", 
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(method);
+            var resourceName = "MyApp.Resources.file.min.js"; // Should use .js extension
+
+            // Act
+            var result = method.Invoke(null, new object[] { resourceName });
+
+            // Assert
+            Assert.Equal("application/javascript", result);
+        }
+
+        #endregion
+
         #region Extension Method Tests
 
         [Fact]

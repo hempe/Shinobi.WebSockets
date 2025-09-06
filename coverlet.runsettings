@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+
+          <!-- Exclude entire test assemblies -->
+          <Exclude>
+            [*.UnitTests]*
+            [*Tests]*
+            [*Test]*
+            [Samurai.WebSockets.UnitTests]*
+            [Shinobi.WebSockets.UnitTests]*
+          </Exclude>
+
+          <!-- Exclude source files -->
+          <ExcludeByFile>**/bin/**,**/obj/**,**/*Tests.cs,**/*Test.cs</ExcludeByFile>
+
+          <!-- Exclude by attribute -->
+          <ExcludeByAttribute>
+            Obsolete
+            GeneratedCodeAttribute
+            CompilerGeneratedAttribute
+            ExcludeFromCodeCoverageAttribute
+          </ExcludeByAttribute>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

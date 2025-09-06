@@ -39,6 +39,22 @@ dotnet run --project Shinobi.WebSockets.UnitTests.RunnerLinux/Shinobi.WebSockets
 # Alternative: Use VS Code launch configuration "Launch Shinobi.WebSockets.UnitTests.RunnerLinux (.NET 4.7.2)"
 ```
 
+## Code Coverage
+
+```bash
+# Run tests with code coverage analysis
+dotnet test Shinobi.WebSockets.UnitTests/Shinobi.WebSockets.UnitTests.csproj --framework net9.0 --collect:"XPlat Code Coverage" --settings coverlet.runsettings
+
+# Generate HTML coverage report
+reportgenerator -reports:"Shinobi.WebSockets.UnitTests/TestResults/*/coverage.cobertura.xml" -targetdir:"TestResults/CoverageReport" -reporttypes:Html
+
+# Clean old coverage results
+rm -rf Shinobi.WebSockets.UnitTests/TestResults/ TestResults/
+
+# Open coverage report (replace with your preferred browser)
+xdg-open TestResults/CoverageReport/index.html
+```
+
 ## Benchmarking
 
 ```bash

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -20,6 +21,7 @@ namespace Shinobi.WebSockets.Http
     public sealed class HttpResponse : HttpHeader
     {
 
+        [ExcludeFromCodeCoverage]
 #if NET8_0_OR_GREATER
         private static ReadOnlySpan<char> GetReasonPhrase(int statusCode) => statusCode switch
 #else

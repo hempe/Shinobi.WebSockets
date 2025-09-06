@@ -40,10 +40,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Shinobi.WebSockets\Shinobi.WebSockets.csproj" />
   </ItemGroup>
-	
+
   <PropertyGroup>
-	<!-- Prevent SDK from running tfms in parallel -->
-	<RunTestsInParallel>false</RunTestsInParallel>
+    <!-- Prevent SDK from running tfms in parallel -->
+    <RunTestsInParallel>false</RunTestsInParallel>
   </PropertyGroup>
-	
+
 </Project>

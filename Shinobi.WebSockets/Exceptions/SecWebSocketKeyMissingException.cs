@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Shinobi.WebSockets.Exceptions
 {
@@ -8,6 +9,7 @@ namespace Shinobi.WebSockets.Exceptions
     /// a failure in the handshake process.
     /// </summary>
     [Serializable]
+    [ExcludeFromCodeCoverage]
     public class SecWebSocketKeyMissingException : Exception
     {
         public SecWebSocketKeyMissingException(string message)

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Shinobi.WebSockets.Exceptions
 {
@@ -9,6 +10,7 @@ namespace Shinobi.WebSockets.Exceptions
     /// The server may reject the request or throw this exception to indicate the problem.
     /// </summary>
     [Serializable]
+    [ExcludeFromCodeCoverage]
     public class HttpHeaderTooLargeException : Exception
     {
         /// <summary>

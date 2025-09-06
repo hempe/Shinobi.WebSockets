@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Shinobi.WebSockets.Exceptions
 {
@@ -8,6 +9,7 @@ namespace Shinobi.WebSockets.Exceptions
     /// does not recognize or support.
     /// </summary>
     [Serializable]
+    [ExcludeFromCodeCoverage]
     public class WebSocketVersionNotSupportedException : Exception
     {
         public WebSocketVersionNotSupportedException(string message)

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Shinobi.WebSockets.Exceptions
 {
@@ -8,6 +9,7 @@ namespace Shinobi.WebSockets.Exceptions
     /// or if the handshake response does not meet the expected criteria.
     /// </summary>
     [Serializable]
+    [ExcludeFromCodeCoverage]
     public class WebSocketHandshakeFailedException : Exception
     {
         public WebSocketHandshakeFailedException(string message)
