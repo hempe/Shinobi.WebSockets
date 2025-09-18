@@ -72,7 +72,7 @@ namespace Shinobi.WebSockets
         private WebSocketCloseStatus? closeStatus;
         private string? closeStatusDescription;
         private long pingSentTicks;
-
+        private bool isDisposed;
         public readonly WebSocketHttpContext Context;
 
         public readonly bool PermessageDeflate;
@@ -149,6 +149,7 @@ namespace Shinobi.WebSockets
         /// <returns>The web socket result details</returns>
         public async override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
+            this.ThrowIfDisposed();
             return await this.ReceiveCoreAsync(buffer, cancellationToken).ConfigureAwait(false);
         }
 
@@ -384,6 +385,8 @@ namespace Shinobi.WebSockets
         /// <param name="cancellationToken">the cancellation token</param>
         public async override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
         {
+            this.ThrowIfDisposed();
+
             try
             {
                 var opCode = this.GetOppCode(messageType);
@@ -422,7 +425,7 @@ namespace Shinobi.WebSockets
             }
             catch (Exception e)
             {
-                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Sending failed.", e);
+                await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, cancellationToken.IsCancellationRequested ? "Sending aborted" : "Sending failed", e);
                 throw;
             }
 
@@ -433,6 +436,9 @@ namespace Shinobi.WebSockets
         /// </summary>
         public override void Abort()
         {
+            if (this.isDisposed)
+                return;
+
             this.state = WebSocketState.Aborted;
             this.internalReadCts.Cancel();
         }
@@ -442,6 +448,8 @@ namespace Shinobi.WebSockets
         /// </summary>
         public async override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
         {
+            if (this.isDisposed)
+                return;
 
             if (this.state != WebSocketState.Open)
             {
@@ -501,6 +509,9 @@ namespace Shinobi.WebSockets
         /// </summary>
         public async override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
         {
+            if (this.isDisposed)
+                return;
+
             using (this)
             {
                 if (this.state == WebSocketState.Open)
@@ -525,7 +536,7 @@ namespace Shinobi.WebSockets
                 }
                 else
                 {
-                    this.logger?.InvalidStateBeforeCloseOutput(this.Context.Guid, this.state);
+                    this.logger?.InvalidStateBeforeCloseOutput(this.Context.Guid, this.state, statusDescription);
                 }
 
                 // cancel pending reads
@@ -538,6 +549,10 @@ namespace Shinobi.WebSockets
         /// </summary>
         public override void Dispose()
         {
+            if (this.isDisposed)
+                return;
+
+            this.isDisposed = true;
             this.logger?.WebSocketDispose(this.Context.Guid, this.state);
 
             try
@@ -760,6 +775,9 @@ namespace Shinobi.WebSockets
         /// <param name="ex">The exception (for logging)</param>
         private async ValueTask CloseOutputAutoTimeoutAsync(WebSocketCloseStatus closeStatus, string statusDescription, Exception ex)
         {
+            if (this.state == WebSocketState.Closed)
+                return;
+
             var timeSpan = TimeSpan.FromSeconds(5);
             this.logger?.CloseOutputAutoTimeout(this.Context.Guid, closeStatus, statusDescription, ex);
 
@@ -784,6 +802,12 @@ namespace Shinobi.WebSockets
                 // do not throw an exception because that will mask the original exception
                 this.logger?.CloseOutputAutoTimeoutError(this.Context.Guid, closeStatus, statusDescription, new AggregateException(closeException, ex));
             }
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (this.isDisposed)
+                throw new ObjectDisposedException(nameof(ShinobiWebSocket));
         }
     }
 }

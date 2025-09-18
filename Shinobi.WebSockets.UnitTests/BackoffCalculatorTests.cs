@@ -260,5 +260,60 @@ namespace Shinobi.WebSockets.UnitTests
                 Assert.InRange(delay, 80, 400); // Same range as failing test with tolerance
             }
         }
+
+        [Fact]
+        public void CalculateDelay_WithHighAttemptNumber_ShouldNotOverflow()
+        {
+            // Arrange - Test the exact scenario from production (attempt 42)
+            var calculator = new BackoffCalculator();
+            var initialDelay = TimeSpan.FromMilliseconds(1000);
+            var maxDelay = TimeSpan.FromMinutes(5);
+            var attemptNumber = 42; // This is where the overflow occurred in production
+
+            // Act & Assert - Should not throw OverflowException
+            var delay = calculator.CalculateDelay(attemptNumber, initialDelay, maxDelay);
+            
+            // Should return maxDelay since exponential backoff would be astronomical
+            Assert.True(delay <= maxDelay);
+            Assert.True(delay.TotalMilliseconds > 0);
+        }
+
+        [Fact]
+        public void CalculateDelayWithoutJitter_WithHighAttemptNumber_ShouldNotOverflow()
+        {
+            // Arrange - Test the exact scenario from production (attempt 42)
+            var calculator = new BackoffCalculator();
+            var initialDelay = TimeSpan.FromMilliseconds(1000);
+            var maxDelay = TimeSpan.FromMinutes(5);
+            var attemptNumber = 42; // This is where the overflow occurred in production
+
+            // Act & Assert - Should not throw OverflowException
+            var delay = calculator.CalculateDelayWithoutJitter(attemptNumber, initialDelay, maxDelay);
+            
+            // Should return maxDelay since exponential backoff would be astronomical
+            Assert.Equal(maxDelay, delay);
+        }
+
+        [Fact]
+        public void CalculateDelay_WithExtremelyHighAttemptNumber_ShouldNotOverflow()
+        {
+            // Arrange - Test even higher attempt numbers to ensure robustness
+            var calculator = new BackoffCalculator();
+            var initialDelay = TimeSpan.FromMilliseconds(100);
+            var maxDelay = TimeSpan.FromSeconds(30);
+            
+            // Act & Assert - Test various high attempt numbers
+            var testAttempts = new[] { 50, 100, 1000, int.MaxValue };
+            
+            foreach (var attemptNumber in testAttempts)
+            {
+                var delay = calculator.CalculateDelay(attemptNumber, initialDelay, maxDelay);
+                Assert.True(delay <= maxDelay, $"Delay should not exceed maxDelay for attempt {attemptNumber}");
+                Assert.True(delay.TotalMilliseconds >= 0, $"Delay should be non-negative for attempt {attemptNumber}");
+                
+                var delayWithoutJitter = calculator.CalculateDelayWithoutJitter(attemptNumber, initialDelay, maxDelay);
+                Assert.Equal(maxDelay, delayWithoutJitter);
+            }
+        }
     }
 }

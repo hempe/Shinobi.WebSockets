@@ -285,9 +285,9 @@ namespace Shinobi.WebSockets.Internal
         [LoggerMessage(
             EventId = 3011,
             Level = LogLevel.Warning,
-            Message = "Invalid state before close output for {Guid}. State: {State}")]
+            Message = "Invalid state before close output for {Guid}. State: {State}, Description: {StatusDescription}")]
         public static partial void InvalidStateBeforeCloseOutput(
-            this ILogger logger, Guid guid, WebSocketState state);
+            this ILogger logger, Guid guid, WebSocketState state, string? statusDescription);
 
         #endregion
 
