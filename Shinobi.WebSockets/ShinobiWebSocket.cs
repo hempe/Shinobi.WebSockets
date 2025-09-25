@@ -592,9 +592,9 @@ namespace Shinobi.WebSockets
                     if (this.pingSentTicks != 0)
                     {
                         this.logger?.KeepAliveIntervalExpired(this.Context.Guid, (int)this.KeepAliveInterval.TotalSeconds);
-                        await this.CloseAsync(
+                        await this.CloseOutputAsync(
                             WebSocketCloseStatus.NormalClosure,
-                            "No Pong message received in response to a Ping after KeepAliveInterval {this.KeepAliveInterval}",
+                            $"No Pong message received in response to a Ping after KeepAliveInterval {this.KeepAliveInterval}",
                             cancellationToken)
                         .ConfigureAwait(false);
                         return;
