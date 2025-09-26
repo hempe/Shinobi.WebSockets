@@ -120,7 +120,11 @@ namespace Shinobi.WebSockets
                 }
 
                 // Start message handling task
-                this.connectionTask = Task.Run(async () => await this.HandleMessagesAsync(this.connectionCancellationTokenSource.Token));
+                this.connectionTask = Task.Run(async () =>
+                {
+                    await this.HandleMessagesAsync(this.connectionCancellationTokenSource.Token);
+                    this.ChangeConnectionState(WebSocketConnectionState.Disconnected);
+                });
             }
         }
 
