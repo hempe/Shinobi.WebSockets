@@ -432,6 +432,17 @@ namespace Shinobi.WebSockets
             }
             catch (Exception ex)
             {
+                if (this.isDisposed)
+                    return;
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    if (this.OnCloseAsync != null)
+                        await this.OnCloseAsync(shinobiWebSocket, WebSocketCloseStatus.Empty, "WebSocket stopped", cancellationToken);
+
+                    return;
+                }
+
                 if (this.OnErrorAsync != null)
                     await this.OnErrorAsync(shinobiWebSocket, ex, cancellationToken);
                 throw; // Re-throw to trigger reconnect logic
